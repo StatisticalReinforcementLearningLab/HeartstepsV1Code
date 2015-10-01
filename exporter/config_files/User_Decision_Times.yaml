@@ -1,0 +1,51 @@
+python_preamble:
+- import: base64
+- import: re
+- import: google.appengine.ext.bulkload.transform
+- import: google.appengine.ext.bulkload.bulkloader_wizard
+- import: google.appengine.ext.db
+- import: google.appengine.api.datastore
+- import: google.appengine.api.users
+
+transformers:
+
+- kind: User_Decision_Times
+  connector: csv # TODO: Choose a connector here: csv, simplexml, etc...
+  connector_options:
+    encoding: utf-8
+    columns: from_header
+    # TODO: Add connector options here--these are specific to each connector.
+  property_map:
+    - property: __key__
+      external_name: key
+      export_transform: transform.key_id_or_name_as_string
+
+    - property: afternoon
+      external_name: afternoon
+
+    - property: dinner
+      external_name: dinner
+
+    - property: ema
+      external_name: ema
+
+    - property: evening
+      external_name: evening
+
+    - property: lunch
+      external_name: lunch
+
+    - property: morning
+      external_name: morning
+
+    - property: time_updated
+      external_name: time_updated
+
+    - property: userID
+      external_name: userID
+
+    - property: timezone
+      external_name: timezone
+
+    - property: utc_to_local_delta
+      external_name: utc_to_local_delta

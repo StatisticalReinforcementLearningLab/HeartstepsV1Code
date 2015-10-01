@@ -1,0 +1,36 @@
+python_preamble:
+- import: base64
+- import: re
+- import: google.appengine.ext.bulkload.transform
+- import: google.appengine.ext.bulkload.bulkloader_wizard
+- import: google.appengine.ext.db
+- import: google.appengine.api.datastore
+- import: google.appengine.api.users
+
+transformers:
+
+- kind: User_Data
+  connector: csv # TODO: Choose a connector here: csv, simplexml, etc...
+  connector_options:
+    encoding: utf-8
+    columns: from_header
+    # TODO: Add connector options here--these are specific to each connector.
+  property_map:
+    - property: __key__
+      external_name: key
+      export_transform: transform.key_id_or_name_as_string
+
+    - property: first_name
+      external_name: first_name
+
+    - property: last_name
+      external_name: last_name
+
+    - property: time_created
+      external_name: time_created
+
+    - property: time_updated
+      external_name: time_updated
+
+    - property: userID
+      external_name: userID

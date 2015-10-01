@@ -1,0 +1,105 @@
+python_preamble:
+- import: base64
+- import: re
+- import: google.appengine.ext.bulkload.transform
+- import: google.appengine.ext.bulkload.bulkloader_wizard
+- import: google.appengine.ext.db
+- import: google.appengine.api.datastore
+- import: google.appengine.api.users
+
+transformers:
+
+- kind: Momentary_Decision
+  connector: csv # TODO: Choose a connector here: csv, simplexml, etc...
+  connector_options:
+    encoding: utf-8
+    columns: from_header
+    # TODO: Add connector options here--these are specific to each connector.
+  property_map:
+    - property: __key__
+      external_name: key
+      export_transform: transform.key_id_or_name_as_string
+
+    - property: calendar
+      external_name: calendar
+
+    - property: city
+      external_name: city
+
+    - property: day_Of_Week
+      external_name: day_Of_Week
+
+    - property: decisionID
+      external_name: decisionID
+
+    - property: distance
+      external_name: distance
+
+    - property: front_end_application
+      external_name: front_end_application
+
+    - property: gps_coordinate
+      external_name: gps_coordinate
+
+    - property: home
+      external_name: home
+
+    - property: is_prefetch
+      external_name: is_prefetch
+
+    - property: is_randomized
+      external_name: is_randomized
+
+    - property: location_category
+      external_name: location_category
+
+    - property: location_exact
+      external_name: location_exact
+
+    - property: notify
+      external_name: notify
+
+    - property: precipitation_chance
+      external_name: precipitation_chance
+
+    - property: recognized_activity
+      external_name: recognized_activity
+
+    - property: returned_message
+      external_name: returned_message
+
+    - property: snooze_status
+      external_name: snooze_status
+
+    - property: snow
+      external_name: snow
+
+    - property: temperature
+      external_name: temperature
+
+    - property: time_slot
+      external_name: time_slot
+
+    - property: time_stamp
+      external_name: time_stamp
+
+    - property: userID
+      external_name: userID
+
+    - property: valid
+      external_name: valid
+
+    - property: weather_condition
+      external_name: weather_condition
+
+    - property: windspeed
+      external_name: windspeed
+
+    - property: work
+      external_name: work
+
+    - property: timezone
+      external_name: timezone
+
+    - property: utc_to_local_delta
+      external_name: utc_to_local_delta 
