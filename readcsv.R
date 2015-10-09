@@ -1,39 +1,59 @@
 wd <- getwd()
-setwd(mbox)
+setwd("~/mbox/HeartSteps/Tables")
 options(stringsAsFactors = FALSE)
 
+## todo
+# exporter make "utc to local" "local to utc"
+# here multiply by -1
+
+# check where timezone is missing, send list of users with this to Andy
+
 ## read exported files, omit testers
-complete <- subset(read.csv("EMA_Completed.csv", header = TRUE),
-                   grepl("heartsteps.test[0-9]+@", userID, perl = TRUE))
-complete <- complete[with(complete, order(contextID, time_stamp)), ]
+get.data <- function(file, id = contextID, time = time_stamp) {
+  d <- subset(read.csv(file, header = TRUE),
+              grepl("heartsteps.test[0-9]+@", userID, perl = TRUE))
+  id <- substitute(id)
+  id <- eval(id, d)
+  time <- substitute(time)
+  time <- eval(time, d)
+  d[order(id, time), ]
+}
 
-notify <- subset(read.csv("EMA_Context_Notified.csv", header = TRUE),
-                 grepl("heartsteps.test[0-9]+@", userID, perl = TRUE))
-notify <- notify[with(notify, order(contextID, notified_time)), ]
+complete <- get.data("EMA_Completed.csv")
+notify <- get.data("EMA_Context_Notified.csv", time = notified_time)
+engage <- get.data("EMA_Context_Engaged.csv", time = engaged_time)
+answer <- get.data("EMA_Response.csv")
+struc <- get.data("Structured_Planning_Response.csv", time = time_started)
+unstruc <- get.data("Unstructured_Planning_Response.csv", time = time_started)
+decision <- get.data("Momentary_Decision.csv", decisionID)
+response <- get.data("Response.csv", decisionID, responded_time)
 
-engage <- subset(read.csv("EMA_Context_Engaged.csv", header = TRUE),
-                 grepl("heartsteps.test[0-9]+@", userID, perl = TRUE))
-engage <- engage[with(engage, order(contextID, engaged_time)), ]
+table(complete$timezone, useNA = "ifany")
+table(notify$timezone, useNA = "ifany")
+table(engage$timezone, useNA = "ifany")
+table(answer$timezone, useNA = "ifany")
+table(struc$timezone, useNA = "ifany")
+table(unstruc$timezone, useNA = "ifany")
+table(decision$timezone, useNA = "ifany")
+table(response$timezone, useNA = "ifany")
 
-answer <- subset(read.csv("EMA_Response.csv", header = TRUE),
-                 grepl("heartsteps.test[0-9]+@", userID, perl = TRUE))
-answer <- answer[with(answer, order(contextID, time_stamp)), ]
+subset(complete, timezone %in% c(NA, "????????"))$gps
+subset(notify, timezone %in% c(NA, "????????"))$gps
+subset(engage, timezone %in% c(NA, "????????"))$gps
+subset(answer, timezone %in% c(NA, "????????"))$gps
+subset(struc, timezone %in% c(NA, "????????"))$gps
+subset(unstruc, timezone %in% c(NA, "????????"))$gps
+subset(decision, timezone %in% c(NA, "????????"))$gps
+subset(response, timezone %in% c(NA, "????????"))$gps
 
-struc <- subset(read.csv("Structured_Planning_Response.csv", header = TRUE),
-                grepl("heartsteps.test[0-9]+@", userID, perl = TRUE))
-struc <- struc[with(struc, order(contextID, time_started)), ]
-
-unstruc <- subset(read.csv("Unstructured_Planning_Response.csv", header = TRUE),
-                  grepl("heartsteps.test[0-9]+@", userID, perl = TRUE))
-unstruc <- unstruc[with(unstruc, order(contextID, time_started)), ]
-
-decision <- subset(read.csv("Momentary_Decision.csv", header = TRUE),
-                   grepl("heartsteps.test[0-9]+@", userID, perl = TRUE))
-decision <- decision[with(decision, order(decisionID, time_stamp)), ]
-
-response <- subset(read.csv("Response.csv", header = TRUE),
-                   grepl("heartsteps.test[0-9]+@", userID, perl = TRUE))
-response <- response[with(response, order(decisionID, responded_time)), ]
+with(subset(complete, timezone %in% c(NA, "????????")), table(userID))
+with(subset(notify, timezone %in% c(NA, "????????")), table(userID))
+with(subset(engage, timezone %in% c(NA, "????????")), table(userID))
+with(subset(answer, timezone %in% c(NA, "????????")), table(userID))
+with(subset(struc, timezone %in% c(NA, "????????")), table(userID))
+with(subset(unstruc, timezone %in% c(NA, "????????")), table(userID))
+with(subset(decision, timezone %in% c(NA, "????????")), table(userID))
+with(subset(response, timezone %in% c(NA, "????????")), table(userID))
 
 ## all unique identifier values
 get.ids <- function(idname, ...)
@@ -61,7 +81,7 @@ answer$message <- omit.space(answer$message)
 char2date <- function(x, format = "%Y-%m-%d")
   as.Date(paste(x), format = format)
 
-char2datetime <- function(x, format = "%Y-%m-%d %H:%M:%S", tz = "GMT")
+char2ltime <- function(x, format = "%Y-%m-%d %H:%M:%S", tz = "GMT")
   strptime(paste(x), format = format, tz = tz)
 
 timeofday <- function(x) {

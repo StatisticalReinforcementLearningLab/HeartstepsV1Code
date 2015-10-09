@@ -4,12 +4,7 @@
 export PATH=$PATH:/path/to/google_appengine/
 export GAE_SDK_ROOT=/Data/google_appengine
 
-# name of directory containing imported files
-dir=heartsteps_exported_csv_files
-
-# archive any existing files
-zip -r $dir$(date +"_%m-%d-%y").zip $dir
-rm $dir/*
+dir=~/mbox/HeartSteps/HeartStepsTables
 
 for table in EMA_Completed EMA_Context_Engaged EMA_Context_Notified EMA_Response Heartsteps_Usage_History Momentary_Decision Motivational_Message Response Snoozed_FromInApp Structured_Planning_Response Unstructured_Planning_Response User_Addresses User_Calendars User_Data User_Decision_Times User_Last_Updated Valid_Jawbone_Email_Addresses Valid_User_Email_Addresses Weather_History
 do

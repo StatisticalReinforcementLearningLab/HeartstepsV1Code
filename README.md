@@ -1,4 +1,4 @@
-# Heartsteps data exporter
+## Heartsteps data exporter
 
 ## Setting up
 
@@ -14,8 +14,8 @@ cd Python-2.7.5
 ./configure
 make
 sudo make install
-wget https://storage.googleapis.com/appengine-sdks/featured/google_appengine_1.9.26.zip
-unzip /Data/google_appengine_1.9.26.zip
+wget https://storage.googleapis.com/appengine-sdks/featured/google_appengine_1.9.27.zip
+unzip /Data/google_appengine_1.9.27.zip
 export PATH=$PATH:/Data/google_appengine/
 export GAE_SDK_ROOT=/Data/google_appengine
 /usr/bin/env python -V
@@ -25,7 +25,7 @@ export GAE_SDK_ROOT=/Data/google_appengine
 ## Exporting data
 
 ```shell
-cd Heartsteps_Data_Exporter
+cd exporter
 ./export.sh
 ```
 
