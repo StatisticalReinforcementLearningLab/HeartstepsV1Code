@@ -1,5 +1,5 @@
 wd <- getwd()
-setwd("~/mbox/HeartSteps/Tables")
+setwd(paste(mbox, "HeartSteps/Tables", sep = "/"))
 options(stringsAsFactors = FALSE)
 
 ## read and revise exported files
@@ -13,7 +13,7 @@ get.data <- function(file, id = contextID, time = time_stamp) {
     d$tz <- paste("Etc/GMT",
                   c("-", "+")[pmax(1, sign(d$utc_to_local_delta) + 1)],
                   formatC(abs(d$utc_to_local_delta) / 60), sep = "")
-    d$tz[is.na(utc_to_local_delta)] <- NA
+    d$tz[is.na(d$utc_to_local_delta)] <- NA
     d$tz_valid <- d$tz %in% OlsonNames()
     if (any(!d$tz_valid)) {
       print(table(d$tz[!d$tz_valid]))
@@ -27,14 +27,22 @@ get.data <- function(file, id = contextID, time = time_stamp) {
   d[order(id, time), ]
 }
 
+## EMAs
 complete <- get.data("EMA_Completed.csv")
 notify <- get.data("EMA_Context_Notified.csv", time = notified_time)
 engage <- get.data("EMA_Context_Engaged.csv", time = engaged_time)
 emaresponse <- get.data("EMA_Response.csv")
+
+## planning
 struc <- get.data("Structured_Planning_Response.csv", time = time_started)
 unstruc <- get.data("Unstructured_Planning_Response.csv", time = time_started)
+
+## suggestions
 decision <- get.data("Momentary_Decision.csv", decisionID)
 response <- get.data("Response.csv", decisionID, responded_time)
+
+## physical activity
+jawbone <- read.csv("jawbone_step_count_data.csv", header = TRUE)
 
 ## all unique identifier values
 get.ids <- function(idname, ...)
@@ -79,13 +87,21 @@ gps2timezone <- function(x) {
   l$timeZoneName
 }
 
+## convert character string to Date, assuming the given format
 char2date <- function(x, format = "%Y-%m-%d")
   as.Date(paste(x), format = format)
 
+## convert character string to POSIXlt, assuming the given format
 char2ltime <- function(x, tz = "GMT", format = "%Y-%m-%d %H:%M:%S")
   do.call("c", mapply(strptime, x = paste(x), format = format, tz = tz,
                       SIMPLIFY = FALSE))
 
+## convert POSIXlt to Unix time (seconds since 1970-01-01 00:00.00 UTC)
+## nb: this accounts for different time zones
+ltime2secs <- function(x)
+  unclass(as.POSIXct(x))
+
+## convert POSIX[cl]t to time of day
 timeofday <- function(x) {
   x <- as.numeric(format(x, "%H"))
   cut(x, c(min(x, na.rm = TRUE) - 1, 12, 17, max(x, na.rm = TRUE) + 1),

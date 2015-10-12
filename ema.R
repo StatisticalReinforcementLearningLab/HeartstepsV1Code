@@ -3,14 +3,14 @@ source("readcsv.R", echo = TRUE)
 ## keep last-submitted completion data
 subset(complete, contextID %in% contextID[duplicated(contextID)],
        select = c(contextID, time_stamp, completed))
-complete$submit_ltime <- char2ltime(complete$time_stamp)
-complete <-
-  complete[with(complete, order(contextID, -as.numeric(submit_ltime))), ]
+complete$submit_ltime <- char2ltime(complete$time_stamp, complete$tz)
+complete <- complete[with(complete,
+                          order(contextID, -as.numeric(submit_ltime))), ]
 complete <- complete[!duplicated(complete$contextID), ]
 
 subset(notify, contextID %in% contextID[duplicated(contextID)],
        select = c(contextID, notified_time))
-notify$notify_ltime <- char2ltime(notify$notified_time)
+notify$notify_ltime <- char2ltime(notify$notified_time, notify$tz)
 
 ## keep latest planning data
 intersect(struc$contextID, unstruc$contextID)
@@ -18,18 +18,17 @@ unstruc$list_of_options <- NA
 plan <- rbind(struc, unstruc[names(struc)])
 subset(plan, contextID %in% contextID[duplicated(contextID)],
        select = c(contextID, time_started, time_finished, response))
-plan$start_ltime <- char2ltime(plan$time_started)
-plan$finish_ltime <- char2ltime(plan$time_finished)
+plan$start_ltime <- char2ltime(plan$time_started, plan$tz)
+plan$finish_ltime <- char2ltime(plan$time_finished, plan$tz)
 plan <- plan[with(plan, order(contextID, -as.numeric(finish_ltime))), ]
 plan <- plan[!duplicated(plan$contextID), ]
 plan$structured <- !is.na(plan$list_of_options)
 summary(plan$duration / 60)
 
-engage$plan_time <- copy(engage, plan, "time_finished", "contextID")
-engage$plan_ltime <- char2ltime(engage$plan_time)
-engage$engage_ltime <- char2ltime(engage$engaged_time)
-engage$plan_prox <-
-  with(engage, as.numeric(difftime(plan_ltime, engage_ltime, units = "secs")))
+engage$plan_ltime <- copy(engage, plan, "finish_ltime", "contextID")
+engage$engage_ltime <- char2ltime(engage$engaged_time, engage$tz)
+engage$plan_prox <- with(engage, as.numeric(difftime(plan_ltime, engage_ltime,
+                                                     units = "secs")))
 subset(engage, contextID %in% contextID[duplicated(contextID)],
        select = c(contextID, engaged_time, valid, plan_prox))
 engage$valid <- engage$valid == "true"
@@ -38,7 +37,8 @@ engage <- engage[with(engage, order(contextID, -valid, abs(plan_prox))), ]
 ## drop redundant responses
 table(emaresponse$drop <- duplicated(subset(emaresponse,
                                             select = c(contextID, question))))
-table(duplicated(subset(emaresponse, select = c(contextID, question, response))))
+table(duplicated(subset(emaresponse,
+                        select = c(contextID, question, response))))
 emaresponse <- emaresponse[!emaresponse$drop, -ncol(emaresponse)]
 
 ## questions
