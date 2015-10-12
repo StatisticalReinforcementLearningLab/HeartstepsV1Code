@@ -1,0 +1,5 @@
+*.RData
+.fuse*
+*.pyc
+.Rhistory
+
