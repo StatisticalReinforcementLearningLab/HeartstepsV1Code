@@ -36,26 +36,27 @@ engage$valid <- engage$valid == "true"
 engage <- engage[with(engage, order(contextID, -valid, abs(plan_prox))), ]
 
 ## drop redundant responses
-table(answer$drop <- duplicated(subset(answer, select = c(contextID, question))))
-table(duplicated(subset(answer, select = c(contextID, question, response))))
-answer <- answer[!answer$drop, -ncol(answer)]
+table(emaresponse$drop <- duplicated(subset(emaresponse,
+                                            select = c(contextID, question))))
+table(duplicated(subset(emaresponse, select = c(contextID, question, response))))
+emaresponse <- emaresponse[!emaresponse$drop, -ncol(emaresponse)]
 
 ## questions
-q <- sort(unique(answer$question))
+q <- sort(unique(emaresponse$question))
 q
 
 ## questions with "select any" responses
 q.check <- q[sapply(q, function(x)
-  with(answer, any(grepl("@", unique(response[question == x])))))]
+  with(emaresponse, any(grepl("@", unique(response[question == x])))))]
 
 ## questions with the option to select "other"
-q.other <- with(answer, unique(question[other != ""]))
+q.other <- with(emaresponse, unique(question[other != ""]))
 
 ## questions referring to a previously-received activity suggestion
-q.msg <- with(answer, unique(question[message != "N/A"]))
+q.msg <- with(emaresponse, unique(question[message != "N/A"]))
 
 f <- function(x) {
-  s <- subset(answer, question == x, select = c(contextID, response))
+  s <- subset(emaresponse, question == x, select = c(contextID, response))
   ## FIXME: add variables more useful for analysis to s
   d <- data.frame(contextID = context.ids)
   d <- cbind(d, matrix(NA, ncol(s) - 1))
