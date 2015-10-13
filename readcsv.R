@@ -76,6 +76,7 @@ json2list <- function(x) {
   eval(parse(text = paste(c("list(", x, ")"), collapse = "")))
 }
 
+## 
 ## nb: rate and number of daily queries are limited
 ## https://developers.google.com/maps/documentation/timezone/usage-limits
 gps2timezone <- function(x) {
