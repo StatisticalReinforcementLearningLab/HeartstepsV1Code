@@ -11,13 +11,6 @@ read.data <- function(file, id = userid, time = utime_stamp) {
   names(d) <- tolower(names(d))
   ## make identifier variable names consistent
   names(d)[names(d) == "user"] <- "userid"
-  ## short identifiers for printing
-  if ("userid" %in% names(d))
-    d$user <- gsub("(heartsteps\\.test|@gmail.*$)", "", d$userid, perl = TRUE)
-  if ("contextid" %in% names(d))
-    d$context <- gsub("^.*_", "", d$contextid, perl = TRUE)
-  if ("decisionid" %in% names(d))
-    d$decision <- gsub("^.*_", "", d$decisionid, perl = TRUE)
   ## keep only pilot users
   if ("userid" %in% names(d))
     d <- subset(d, grepl("heartsteps.test[0-9]+@", userid, perl = TRUE))
@@ -63,20 +56,36 @@ read.data <- function(file, id = userid, time = utime_stamp) {
   d
 }
 
-## EMAs
+## EMA completion status
 complete <- read.data("EMA_Completed.csv", contextid)
-engage <- read.data("EMA_Context_Engaged.csv", contextid, engaged_utime)
+
+## context in which the EMA notification was sent
 notify <- read.data("EMA_Context_Notified.csv", contextid, notified_utime)
+
+## context in which the user engaged with the EMA
+engage <- read.data("EMA_Context_Engaged.csv", contextid, engaged_utime)
+engage$engageid <- with(engage, paste(contextid, engaged_utime, sep = "_"))
+
+## EMA responses
 ## FIXME: all timezone data are missing
 emaresponse <- read.data("EMA_Response.csv")
+emaresponse$message <- omit.space(emaresponse$message)
+emaresponse$questionid <-
+  with(emaresponse, paste(contextid, question, sep = "_"))
 
 ## planning
 struc <- read.data("Structured_Planning_Response.csv", contextid, utime_started)
 unstruc <- read.data("Unstructured_Planning_Response.csv", contextid,
                      utime_started)
+struc$response <- omit.space(struc$response)
+unstruc$response <- omit.space(unstruc$response)
 
 ## suggestions
+## FIXME: suggestion type (sedentary vs active)?
+## FIXME: ignore prefetch when... (another record with same id, slot, etc)?
+## FIXME: time of notification, had notify = true?
 decision <- read.data("Momentary_Decision.csv", decisionid)
+decision$suggestid <- with(decision, paste(decisionid, is_prefetch, sep = "_"))
 response <- read.data("Response.csv", decisionid, responded_utime)
 
 ## physical activity
@@ -115,6 +124,6 @@ length(context.ids <- get.ids("contextid", complete, notify, engage,
 
 length(decision.ids <- get.ids("decisionid", decision, response))
 
-emaresponse$message <- omit.space(emaresponse$message)
+save.image("heartsteps.RData")
 
 setwd(wd)

@@ -1,34 +1,20 @@
-source("readcsv.R", echo = TRUE)
+wd <- getwd()
+setwd(paste(mbox, "HeartSteps/Data", sep = "/"))
+
+load("heartsteps.RData")
 
 ## print any duplicates
-subset(complete, contextid %in% contextid[duplicated(contextid)],
-       select = c(user, context, ltime_stamp, completed))
-
-subset(notify, contextid %in% contextid[duplicated(contextid)],
-       select = c(user, context, notified_ltime))
-
+checkdup(complete, contextid, "checks/dup_ema_complete.csv")
+checkdup(notify, contextid, "checks/dup_ema_notified.csv")
+checkdup(engage, engageid, "checks/dup_ema_engaged.csv")
+checkdup(emaresponse, questionid, "checks/dup_ema_response.csv")
 intersect(struc$contextid, unstruc$contextid)
+checkdup(struc, contextid, "checks/dup_structured.csv")
+checkdup(unstruc, contextid, "checks/dup_unstructured.csv")
+
 unstruc$list_of_options <- NA
 plan <- rbind(struc, unstruc[names(struc)])
 plan <- plan[with(plan, order(userid, utime_finished)), ]
-subset(plan, contextid %in% contextid[duplicated(contextid)],
-       select = c(user, context, ltime_started, ltime_finished, response))
-
-engage$plan_ltime <- copy(engage, plan, "finish_ltime", "contextid")
-engage$engage_ltime <- char2ltime(engage$engaged_time, engage$tz)
-engage$plan_prox <- with(engage, as.numeric(difftime(plan_ltime, engage_ltime,
-                                                     units = "secs")))
-subset(engage, contextid %in% contextid[duplicated(contextid)],
-       select = c(contextid, engaged_time, valid, plan_prox))
-engage$valid <- engage$valid == "true"
-engage <- engage[with(engage, order(contextid, -valid, abs(plan_prox))), ]
-
-## drop redundant responses
-table(emaresponse$drop <- duplicated(subset(emaresponse,
-                                            select = c(contextid, question))))
-table(duplicated(subset(emaresponse,
-                        select = c(contextid, question, response))))
-emaresponse <- emaresponse[!emaresponse$drop, -ncol(emaresponse)]
 
 ## questions
 q <- sort(unique(emaresponse$question))
@@ -56,18 +42,3 @@ f <- function(x) {
 
 ema <- Reduce(function(...) merge(..., by = "contextid", all = TRUE),
               sapply(q, f, simplify = FALSE))
-
-ema$submit_ltime <- copy(ema, complete, "submit_ltime", "contextid")
-ema$notify_ltime <- copy(ema, notify, "notify_ltime", "contextid")
-ema$engage_ltime <- copy(ema, engage, "engage_ltime", "contextid")
-ema$plan_prox <- copy(ema, engage, "plan_prox", "contextid")
-ema$plan_structured <- copy(ema, plan, "structured", "contextid")
-
-subset(ema, is.na(notify_ltime) & is.na(engage_ltime) & !is.na(plan_structured))
-
-ema$userid <- unlist(lapply(strsplit(ema$contextid, "_"), function(x) x[1]))
-ema$date <- with(ema, as.Date(pmin(submit_ltime, notify_ltime, engage_ltime,
-                                   na.rm = TRUE)))
-
-sapply(unique(ema$userid),
-       function(x) with(subset(ema, userid == x), table(date)))
