@@ -15,7 +15,8 @@ read.data <- function(file, id = userid, time = utime_stamp) {
   if ("userid" %in% names(d))
     d <- subset(d, grepl("heartsteps.test[0-9]+@", userid, perl = TRUE))
   ## drop extraneous variables
-  d <- subset(d, select = -key)
+  if ("key" %in% names(d))
+    d <- subset(d, select = -key)
   iz <- names(d) == "timezone"
   if (!is.null(d$utc_to_local_delta)) {
     ## create timezone identifier that accounts for DST
@@ -58,7 +59,7 @@ read.data <- function(file, id = userid, time = utime_stamp) {
 ## EMAs
 complete <- read.data("EMA_Completed.csv", contextid)
 engage <- read.data("EMA_Context_Engaged.csv", contextid, engaged_utime)
-notify <- read.data("EMA_Context_Notified.csv", contexid, notified_utime)
+notify <- read.data("EMA_Context_Notified.csv", contextid, notified_utime)
 ## FIXME: all timezone data are missing
 emaresponse <- read.data("EMA_Response.csv")
 
