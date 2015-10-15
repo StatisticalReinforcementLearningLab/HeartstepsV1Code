@@ -34,7 +34,7 @@ read.data <- function(file, id = userid, time = utime_stamp) {
     iz <- names(d) == "tz"
   }
   it <- grepl("(^time_(fin|sta|up)|_(date|)time$)", names(d), perl = TRUE)
-  if (any(it)) {
+  if (any(it) & any(iz)) {
     ## POSIXlt times
     l <- do.call("data.frame", mapply(char2ltime, x = d[, it, drop = FALSE],
                                       tz = d[, iz, drop = FALSE]))
@@ -75,11 +75,21 @@ response <- read.data("Response.csv", decisionid, responded_utime)
 ## physical activity
 jawbone <- read.data("jawbone_step_count_data.csv", time = end_utime)
 
-## application data
+## application usage
 usage <- read.data("Heartsteps_Usage_History.csv", time = end_utime)
+
+## snooze enabled or disabled
 snooze <- read.data("Snoozed_FromInApp.csv")
-address <- read.data("User_Addresses.csv", time = utime_updated)
-calendar <- read.data("User_Calendars.csv", time = utime_updated)
+
+## home and work locations
+## FIXME: all timezone data are missing
+address <- read.data("User_Addresses.csv", time = time_updated)
+
+## calendars
+## FIXME: all timezone data are missing
+calendar <- read.data("User_Calendars.csv", time = time_updated)
+
+## suggestion and EMA timeslots
 timeslots <- read.data("User_Decision_Times.csv", time = utime_updated)
 
 ## daily weather by city
