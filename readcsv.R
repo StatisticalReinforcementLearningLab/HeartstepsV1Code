@@ -11,6 +11,13 @@ read.data <- function(file, id = userid, time = utime_stamp) {
   names(d) <- tolower(names(d))
   ## make identifier variable names consistent
   names(d)[names(d) == "user"] <- "userid"
+  ## short identifiers for printing
+  if ("userid" %in% names(d))
+    d$user <- gsub("(heartsteps\\.test|@gmail.*$)", "", d$userid, perl = TRUE)
+  if ("contextid" %in% names(d))
+    d$context <- gsub("^.*_", "", d$contextid, perl = TRUE)
+  if ("decisionid" %in% names(d))
+    d$decision <- gsub("^.*_", "", d$decisionid, perl = TRUE)
   ## keep only pilot users
   if ("userid" %in% names(d))
     d <- subset(d, grepl("heartsteps.test[0-9]+@", userid, perl = TRUE))
