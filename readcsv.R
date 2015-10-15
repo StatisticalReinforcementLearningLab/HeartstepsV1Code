@@ -1,71 +1,102 @@
 source("datafun.R")
 
 wd <- getwd()
-setwd(paste(mbox, "HeartSteps/Tables", sep = "/"))
+setwd(paste(mbox, "HeartSteps/Data", sep = "/"))
 options(stringsAsFactors = FALSE)
 
-## read and revise exported files
-get.data <- function(file, id = contextID, time = utime_stamp) {
-  d <- subset(read.csv(file, header = TRUE),
-              grepl("heartsteps.test[0-9]+@", userID, perl = TRUE))
-  ## timezone field gives the name, which is not an identifier
-  ## FIXME: verify that delta combines UTC offset and DST
-  ## FIXME: timezone identifiers are platform-dependent
+## read and revise data files
+read.data <- function(file, id = userid, time = utime_stamp) {
+  d <- read.csv(file, header = TRUE)
+  ## down-case all variable names
+  names(d) <- tolower(names(d))
+  ## make identifier variable names consistent
+  names(d)[names(d) == "user"] <- "userid"
+  ## keep only pilot users
+  if ("userid" %in% names(d))
+    d <- subset(d, grepl("heartsteps.test[0-9]+@", userid, perl = TRUE))
+  ## drop extraneous variables
+  d <- subset(d, select = -key)
+  iz <- names(d) == "timezone"
   if (!is.null(d$utc_to_local_delta)) {
+    ## create timezone identifier that accounts for DST
+    ## nb: timezone identifiers are platform-dependent
     d$tz <- paste("Etc/GMT",
                   c("-", "+")[pmax(1, sign(d$utc_to_local_delta) + 1)],
                   formatC(abs(d$utc_to_local_delta) / 60), sep = "")
     d$tz[is.na(d$utc_to_local_delta)] <- NA
     d$tz_valid <- d$tz %in% OlsonNames()
     if (any(!d$tz_valid)) {
-      print(table(d$tz[!d$tz_valid]))
-      print(sort(unique(d$userID[!d$tz_valid])))
+      with(d, print(table(timezone, tz, useNA = "ifany")))
+      cat("Users with invalid timezone data:\n")
+      with(d, print(sort(unique(userid[!tz_valid]))))
     }
-    i <- grepl("(^time_sta|_time$)", names(d), perl = TRUE)
+    iz <- names(d) == "tz"
+  }
+  it <- grepl("(^time_(fin|sta|up)|_(date|)time$)", names(d), perl = TRUE)
+  if (any(it)) {
     ## POSIXlt times
-    l <- do.call("data.frame", apply(d[, i, drop = FALSE], 2, char2ltime))
+    l <- do.call("data.frame", mapply(char2ltime, x = d[, it, drop = FALSE],
+                                      tz = d[, iz, drop = FALSE]))
     ## Unix times
     u <- data.frame(apply(l, 2, ltime2utime))
-    names(l) <- gsub("time", "ltime", names(l))
-    names(u) <- gsub("time", "utime", names(u))
+    names(l) <- gsub("(date|)time", "ltime", names(l), perl = TRUE)
+    names(u) <- gsub("(date|)time", "utime", names(u), perl = TRUE)
     d <- cbind(d, l, u)
   }
-  id <- substitute(id)
-  id <- eval(id, d)
-  time <- substitute(time)
-  time <- eval(time, d)
-  d[order(id, time), ]
+  ## sort by provided identifier and time variables
+  if (!is.null(time)) {
+    time <- substitute(time)
+    time <- eval(time, d)
+    d <- d[order(time), ]
+  }
+  if (!is.null(id)) {
+    id <- substitute(id)
+    id <- eval(id, d)
+    d <- d[order(id), ]
+  }
+  d
 }
 
 ## EMAs
-complete <- get.data("EMA_Completed.csv")
-notify <- get.data("EMA_Context_Notified.csv", time = notified_utime)
-engage <- get.data("EMA_Context_Engaged.csv", time = engaged_utime)
+complete <- read.data("EMA_Completed.csv", contextid)
+engage <- read.data("EMA_Context_Engaged.csv", contextid, engaged_utime)
+notify <- read.data("EMA_Context_Notified.csv", contexid, notified_utime)
 ## FIXME: all timezone data are missing
-emaresponse <- get.data("EMA_Response.csv")
+emaresponse <- read.data("EMA_Response.csv")
 
 ## planning
-struc <- get.data("Structured_Planning_Response.csv", time = utime_started)
-unstruc <- get.data("Unstructured_Planning_Response.csv", time = utime_started)
+struc <- read.data("Structured_Planning_Response.csv", contextid, utime_started)
+unstruc <- read.data("Unstructured_Planning_Response.csv", contextid,
+                     utime_started)
 
 ## suggestions
-decision <- get.data("Momentary_Decision.csv", decisionID)
-response <- get.data("Response.csv", decisionID, responded_utime)
+decision <- read.data("Momentary_Decision.csv", decisionid)
+response <- read.data("Response.csv", decisionid, responded_utime)
 
 ## physical activity
-jawbone <- read.csv("jawbone_step_count_data.csv", header = TRUE)
+jawbone <- read.data("jawbone_step_count_data.csv", time = end_utime)
+
+## application data
+usage <- read.data("Heartsteps_Usage_History.csv", time = end_utime)
+snooze <- read.data("Snoozed_FromInApp.csv")
+address <- read.data("User_Addresses.csv", time = utime_updated)
+calendar <- read.data("User_Calendars.csv", time = utime_updated)
+timeslots <- read.data("User_Decision_Times.csv", time = utime_updated)
+
+weather <- read.data("Weather_History.csv", id = NULL, time = date)
+weather$date <- char2date(weather$date, "%Y:%m:%d")
 
 ## all unique identifier values
 get.ids <- function(idname, ...)
   sort(unique(unlist(lapply(list(...), function(x) x[[idname]]))))
 
-length(user.ids <- get.ids("userID", complete, notify, engage, emaresponse,
+length(user.ids <- get.ids("userid", complete, notify, engage, emaresponse,
                            struc, unstruc, decision, response))
 
-length(context.ids <- get.ids("contextID", complete, notify, engage, emaresponse,
-                              struc, unstruc))
+length(context.ids <- get.ids("contextid", complete, notify, engage,
+                              emaresponse, struc, unstruc))
 
-length(decision.ids <- get.ids("decisionID", decision, response))
+length(decision.ids <- get.ids("decisionid", decision, response))
 
 emaresponse$message <- omit.space(emaresponse$message)
 
