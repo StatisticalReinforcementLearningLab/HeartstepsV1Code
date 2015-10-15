@@ -44,16 +44,14 @@ read.data <- function(file, id = userid, time = utime_stamp) {
     d <- cbind(d, l, u)
   }
   ## sort by provided identifier and time variables
-  if (!is.null(time)) {
-    time <- substitute(time)
-    time <- eval(time, d)
+  time <- substitute(time)
+  time <- eval(time, d)
+  if (!is.null(time))
     d <- d[order(time), ]
-  }
-  if (!is.null(id)) {
-    id <- substitute(id)
-    id <- eval(id, d)
+  id <- substitute(id)
+  id <- eval(id, d)
+  if (!is.null(id))
     d <- d[order(id), ]
-  }
   d
 }
 
@@ -83,6 +81,7 @@ address <- read.data("User_Addresses.csv", time = utime_updated)
 calendar <- read.data("User_Calendars.csv", time = utime_updated)
 timeslots <- read.data("User_Decision_Times.csv", time = utime_updated)
 
+## daily weather by city
 weather <- read.data("Weather_History.csv", id = NULL, time = date)
 weather$date <- char2date(weather$date, "%Y:%m:%d")
 
