@@ -68,6 +68,7 @@ engage$engageid <- with(engage, paste(contextid, engaged_utime, sep = "_"))
 
 ## EMA responses
 ## FIXME: all timezone data are missing
+## fiddle with this
 emaresponse <- read.data("EMA_Response.csv")
 emaresponse$message <- omit.space(emaresponse$message)
 emaresponse$questionid <-
@@ -81,14 +82,18 @@ struc$response <- omit.space(struc$response)
 unstruc$response <- omit.space(unstruc$response)
 
 ## suggestions
-## FIXME: suggestion type (sedentary vs active)?
+## FIXME: suggestion type (sedentary vs active)? see Excel files on box
 ## FIXME: ignore prefetch when... (another record with same id, slot, etc)?
 ## FIXME: time of notification, had notify = true?
+## time for treatment occasion is decision table time stamp
 decision <- read.data("Momentary_Decision.csv", decisionid)
 decision$suggestid <- with(decision, paste(decisionid, is_prefetch, sep = "_"))
+## context for suggestion? in decision table, if two take prefetch = false
+## if just one and is prefetch = true, context will be outdated (30 min)
 response <- read.data("Response.csv", decisionid, responded_utime)
 
 ## physical activity
+## one minute windows, but might be more granular depending on server load
 jawbone <- read.data("jawbone_step_count_data.csv", time = end_utime)
 
 ## application usage

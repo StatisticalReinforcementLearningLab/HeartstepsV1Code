@@ -4,6 +4,7 @@ setwd(paste(mbox, "HeartSteps/Data", sep = "/"))
 load("heartsteps.RData")
 
 ## check for duplicates
+## here this is a memory issue - old, suggestion data (if not sent 
 checkdup(decision, suggestid, "checks/dup_decision.csv")
 checkdup(response, decisionid, "checks/dup_response.csv")
 

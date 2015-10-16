@@ -6,9 +6,16 @@ load("heartsteps.RData")
 ## print any duplicates
 checkdup(complete, contextid, "checks/dup_ema_complete.csv")
 checkdup(notify, contextid, "checks/dup_ema_notified.csv")
+
+## take valid = true (prefer records with valid activity recognition)
 checkdup(engage, engageid, "checks/dup_ema_engaged.csv")
+
+## either the same responses - take the later stamp
+## exclude really late data
 checkdup(emaresponse, questionid, "checks/dup_ema_response.csv")
 intersect(struc$contextid, unstruc$contextid)
+
+## take most recent, unless really late
 checkdup(struc, contextid, "checks/dup_structured.csv")
 checkdup(unstruc, contextid, "checks/dup_unstructured.csv")
 
