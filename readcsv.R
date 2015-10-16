@@ -1,7 +1,7 @@
 source("datafun.R")
 
 wd <- getwd()
-setwd(paste(mbox, "HeartSteps/Tables", sep = "/"))
+setwd(paste(mbox, "HeartSteps/Data", sep = "/"))
 options(stringsAsFactors = FALSE)
 
 ## read and revise exported files
