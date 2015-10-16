@@ -1,0 +1,50 @@
+\documentclass{article}
+\title{HeartSteps Codebook}
+\usepackage{graphicx}
+
+\begin{document}
+\maketitle
+  
+  % To include and evaluate R code inside knitr, enclose the code block in a "chunk". Open the chunk with << >>=, enclosing chunk name and options inside the brackets (See http://yihui.name/knitr/options/#chunk_options for chunk options). There can't be any line breaks in << >> and options are separated by commas. Close the chunk with @. Objects created inside chunks are global.
+  
+  % Read in the data: must be done by knitr (for some reason it can't read the global environment unless it creates it?). Options: don't _include_ output in the final .tex file. It's possible to somehow cache chunks, but there seem to be some nuanced best practices that I haven't quite gotten a grip on yet. I'll update when I do.
+  
+<<read_data, echo = FALSE, include = FALSE>>=
+  library(xtable)
+  mbox = "Z:/"
+  source("readcsv.R")
+@
+  
+  \section{Suggestion Data}
+  % You can pass LaTeX figure options through chunk options (but names are different; usually fig.TKTK, see link above). Backslashes need to be escaped.
+  
+<<rnorm_hist, echo = FALSE, out.width = ".5\\textwidth", fig.align = "center">>=
+  x = rnorm(10)
+  hist(x)
+@
+
+<<decision_table, warning = FALSE>>=
+  summary(as.numeric(!is.na(decision$temperature)))
+  # Kable will print a nice table 
+  knitr::kable(head(decision[, c("userID", "notify", "time_slot", "temperature")]))
+@
+
+  
+% xtable will print \LaTeX code instead of the table itself. To avoid this, we set the result type to 'asis'. This will force knitr to view the output of this chunk as code, rather than usual R markup.
+
+<<decision_xtable, warning = FALSE, results = "asis">>=
+  xtable::xtable(head(decision[, c("userID", "notify", "time_slot", "temperature")]))
+@
+
+% R output can be included inline using \Sexpr{}. (the S seems to stand for Sweave)
+
+\begin{table}
+  \centering
+  \begin{tabular}{lr}
+    Variable & Mean \\ \hline
+    Temperature & \Sexpr{mean(as.numeric(!is.na(decision$temperature)))} \\
+    Windspeed & \Sexpr{mean(as.numeric(!is.na(decision$windspeed)))}
+  \end{tabular}
+\end{table}
+    
+\end{document}
