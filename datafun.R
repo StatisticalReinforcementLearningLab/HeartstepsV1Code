@@ -12,6 +12,19 @@ omit.space <- function(x) {
 copy <- function(x, y, varname, idname)
   y[match(x[[idname]], y[[idname]]), names(y) == varname]
 
+## --- checks
+
+checkdup <- function(x, id, file) {
+  id <- substitute(id)
+  id <- eval(id, x)
+  d <- x[id %in% id[duplicated(id)], ]
+  print(nrow(d))
+  if (nrow(d))
+    write.csv(d, row.names = FALSE, file = file)
+  else if (file.exists(file))
+    file.remove(file)
+}
+
 ## --- dates and times
 
 ## convert JSON-formatted character strings to a data frame
