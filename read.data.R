@@ -5,44 +5,41 @@ setwd(paste(mbox, "HeartSteps/Data", sep = "/"))
 
 options(stringsAsFactors = FALSE)
 Sys.setlocale("LC_TIME", "en_US.UTF-8")
-#Sys.setenv(TZ = "UTC")
 
 ## read and revise data files
-read.data <- function(file, id = userid, time = utime_stamp) {
+read.data <- function(file, id = userid, time = utime.stamp) {
   d <- read.csv(file, header = TRUE)
-  ## down-case all variable names
   names(d) <- tolower(names(d))
-  ## make identifier variable names consistent
+  names(d) <- gsub("_", ".", names(d))
   names(d)[names(d) == "user"] <- "userid"
   ## keep only pilot users
   if ("userid" %in% names(d))
-    d <- subset(d, grepl("heartsteps.test[0-9]+@", userid, perl = TRUE))
-  ## drop extraneous variables
-  if ("key" %in% names(d))
-    d <- subset(d, select = -key)
+    d <- subset(d, grepl("heartsteps.test[0-9]+@", userid, perl = TRUE),
+                select = -key)
   ## offset in seconds from GMT/UTC, time zone identifier
   if (!is.null(d$timezone)) {
     d$gmtoff <- NA
     d$tz <- d$timezone
     l <- d$timezone %in% c("GMT", "UTC")
     d$gmtoff[l] <- 0
-    if (!is.null(d$utc_to_local_delta) & !all(l)) {
+    if (!is.null(d$utc.to.local.delta) & !all(l)) {
       d$gmtoff[l] <- 0
-      d$gmtoff[!l] <- 60 * d$utc_to_local_delta
+      d$gmtoff[!l] <- 60 * d$utc.to.local.delta
       d$tz[!l] <- paste("Etc/GMT", c("-", "+")[pmax(1, sign(d$gmtoff) + 1)],
                         formatC(abs(d$gmtoff) / 60^2), sep = "")
       d$tz[is.na(d$gmtoff)] <- NA
     }
-  }
-  it <- grepl("(^time_(fin|sta|up)|_(date|)time$)", names(d), perl = TRUE)
-  iz <- names(d) == "tz"
-  io <- names(d) == "gmtoff"
-  ## Unix times
-  if (any(it) & any(iz)) {
-    u <- do.call("data.frame", mapply(char2utime, x = d[, i, drop = FALSE],
-                                      tz = d[, g, drop = FALSE]))
+    l <- grepl("(^time\\.(fin|sta|up)|\\.(date|)time$)", names(d), perl = TRUE)
+    ## all Unix times, POSIXlt elements
+    u <- do.call("data.frame",
+                 mapply(char2utime, x = d[, l, drop = FALSE],
+                        offset = d[, ncol(d) - 1, drop = FALSE],
+                        SIMPLIFY = FALSE))
     names(u) <- gsub("(date|)time", "utime", names(u), perl = TRUE)
-    d <- cbind(d, u)
+    p <- do.call("data.frame",
+                 mapply(char2calendar, x = d[, l, drop = FALSE],
+                        tz = d[, ncol(d), drop = FALSE], SIMPLIFY = FALSE))
+    d <- cbind(d, u, p)
   }
   ## sort by provided identifier and time variables
   time <- substitute(time)
@@ -53,6 +50,7 @@ read.data <- function(file, id = userid, time = utime_stamp) {
   id <- eval(id, d)
   if (!is.null(id))
     d <- d[order(id), ]
+  rownames(d) <- NULL
   d
 }
 
@@ -60,24 +58,21 @@ read.data <- function(file, id = userid, time = utime_stamp) {
 complete <- read.data("EMA_Completed.csv", contextid)
 
 ## context in which the EMA notification was sent
-notify <- read.data("EMA_Context_Notified.csv", contextid, notified_utime)
+notify <- read.data("EMA_Context_Notified.csv", contextid, notified.utime)
 
 ## context in which the user engaged with the EMA
-engage <- read.data("EMA_Context_Engaged.csv", contextid, engaged_utime)
-engage$engageid <- with(engage, paste(contextid, engaged_utime, sep = "_"))
+engage <- read.data("EMA_Context_Engaged.csv", contextid, engaged.utime)
 
 ## EMA responses
 ## FIXME: all timezone data are missing
 ## fiddle with this
 emaresponse <- read.data("EMA_Response.csv")
 emaresponse$message <- omit.space(emaresponse$message)
-emaresponse$questionid <-
-  with(emaresponse, paste(contextid, question, sep = "_"))
 
 ## planning
-struc <- read.data("Structured_Planning_Response.csv", contextid, utime_started)
+struc <- read.data("Structured_Planning_Response.csv", contextid, utime.started)
 unstruc <- read.data("Unstructured_Planning_Response.csv", contextid,
-                     utime_started)
+                     utime.started)
 struc$response <- omit.space(struc$response)
 unstruc$response <- omit.space(unstruc$response)
 
@@ -87,31 +82,31 @@ unstruc$response <- omit.space(unstruc$response)
 ## FIXME: time of notification, had notify = true?
 ## time for treatment occasion is decision table time stamp
 decision <- read.data("Momentary_Decision.csv", decisionid)
-decision$suggestid <- with(decision, paste(decisionid, is_prefetch, sep = "_"))
+decision$suggestid <- with(decision, paste(decisionid, is_prefetch, sep = "."))
 ## context for suggestion? in decision table, if two take prefetch = false
 ## if just one and is prefetch = true, context will be outdated (30 min)
-response <- read.data("Response.csv", decisionid, responded_utime)
+response <- read.data("Response.csv", decisionid, responded.utime)
 
 ## physical activity
 ## one minute windows, but might be more granular depending on server load
-jawbone <- read.data("jawbone_step_count_data.csv", time = end_utime)
+jawbone <- read.data("jawbone_step_count_data.csv", time = end.utime)
 
 ## application usage
-usage <- read.data("Heartsteps_Usage_History.csv", time = end_utime)
+usage <- read.data("Heartsteps_Usage_History.csv", time = end.utime)
 
 ## snooze enabled or disabled
 snooze <- read.data("Snoozed_FromInApp.csv")
 
 ## home and work locations
 ## FIXME: all timezone data are missing
-address <- read.data("User_Addresses.csv", time = time_updated)
+address <- read.data("User_Addresses.csv", time = time.updated)
 
 ## calendars
 ## FIXME: all timezone data are missing
-calendar <- read.data("User_Calendars.csv", time = time_updated)
+calendar <- read.data("User_Calendars.csv", time = time.updated)
 
 ## suggestion and EMA timeslots
-timeslots <- read.data("User_Decision_Times.csv", time = utime_updated)
+timeslots <- read.data("User_Decision_Times.csv", time = utime.updated)
 
 ## daily weather by city
 weather <- read.data("Weather_History.csv", id = NULL, time = date)

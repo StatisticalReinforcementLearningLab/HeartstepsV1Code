@@ -67,18 +67,20 @@ timeofday <- function(x) {
 
 ## --- checks
 
-checktz <- function(tz, id, file) {
-  d$tz_valid <- d$tz %in% OlsonNames()
-  if (any(!d$tz_valid)) {
-    with(d, print(table(timezone, tz, useNA = "ifany")))
-    cat("Users with invalid timezone data:\n")
-    with(d, print(sort(unique(userid[!tz_valid]))))
-  }
+checktz <- function(x, tz, file) {
+  tz <- substitute(tz)
+  tz <- eval(tz, x)
+  d <- d[!(tz %in% OlsonNames()), ]
+  print(nrow(d))
+  if (nrow(d))
+    write.csv(d, row.names = FALSE, file = file)
+  else if (file.exists(file))
+    file.remove(file)
 }
 
-checkdup <- function(x, id, file) {
-  id <- substitute(id)
-  id <- eval(id, x)
+checkdup <- function(x, file, ...) {
+  id <- substitute(list(...))
+  id <- do.call("paste", eval(id, x))
   d <- x[id %in% id[duplicated(id)], ]
   print(nrow(d))
   if (nrow(d))

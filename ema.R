@@ -4,20 +4,20 @@ setwd(paste(mbox, "HeartSteps/Data", sep = "/"))
 load("heartsteps.RData")
 
 ## print any duplicates
-checkdup(complete, contextid, "checks/dup_ema_complete.csv")
-checkdup(notify, contextid, "checks/dup_ema_notified.csv")
+checkdup(complete, "checks/dup_ema_complete.csv", contextid)
+checkdup(notify, "checks/dup_ema_notified.csv", contextid)
 
 ## take valid = true (prefer records with valid activity recognition)
-checkdup(engage, engageid, "checks/dup_ema_engaged.csv")
+checkdup(engage, "checks/dup_ema_engaged.csv", contextid, engaged.utime)
 
 ## either the same responses - take the later stamp
 ## exclude really late data
-checkdup(emaresponse, questionid, "checks/dup_ema_response.csv")
+checkdup(emaresponse, "checks/dup_ema_response.csv", contextid, question)
 intersect(struc$contextid, unstruc$contextid)
 
 ## take most recent, unless really late
-checkdup(struc, contextid, "checks/dup_structured.csv")
-checkdup(unstruc, contextid, "checks/dup_unstructured.csv")
+checkdup(struc, "checks/dup_structured.csv", contextid)
+checkdup(unstruc, "checks/dup_unstructured.csv", contextid)
 
 unstruc$list_of_options <- NA
 plan <- rbind(struc, unstruc[names(struc)])
