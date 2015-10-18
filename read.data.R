@@ -1,4 +1,4 @@
-source("datafun.R")
+source("functions.R")
 
 wd <- getwd()
 setwd(paste(mbox, "HeartSteps/Data", sep = "/"))
@@ -20,20 +20,27 @@ read.data <- function(file, id = userid, time = utime_stamp) {
   ## drop extraneous variables
   if ("key" %in% names(d))
     d <- subset(d, select = -key)
-  iz <- names(d) == "timezone"
-  if (!is.null(d$utc_to_local_delta)) {
-    ## create timezone identifier that accounts for DST
-    d$tz <- paste("Etc/GMT",
-                  c("+", "-")[pmax(1, sign(d$utc_to_local_delta) + 1)],
-                  formatC(abs(d$utc_to_local_delta) / 60), sep = "")
-    d$tz[is.na(d$utc_to_local_delta)] <- NA
-    iz <- names(d) == "tz"
+  ## offset in seconds from GMT/UTC, time zone identifier
+  if (!is.null(d$timezone)) {
+    d$gmtoff <- NA
+    d$tz <- d$timezone
+    l <- d$timezone %in% c("GMT", "UTC")
+    d$gmtoff[l] <- 0
+    if (!is.null(d$utc_to_local_delta) & !all(l)) {
+      d$gmtoff[l] <- 0
+      d$gmtoff[!l] <- 60 * d$utc_to_local_delta
+      d$tz[!l] <- paste("Etc/GMT", c("-", "+")[pmax(1, sign(d$gmtoff) + 1)],
+                        formatC(abs(d$gmtoff) / 60^2), sep = "")
+      d$tz[is.na(d$gmtoff)] <- NA
+    }
   }
   it <- grepl("(^time_(fin|sta|up)|_(date|)time$)", names(d), perl = TRUE)
+  iz <- names(d) == "tz"
+  io <- names(d) == "gmtoff"
+  ## Unix times
   if (any(it) & any(iz)) {
-    ## Unix times
-    u <- do.call("data.frame", mapply(char2utime, x = d[, it, drop = FALSE],
-                                      tz = d[, iz, drop = FALSE]))
+    u <- do.call("data.frame", mapply(char2utime, x = d[, i, drop = FALSE],
+                                      tz = d[, g, drop = FALSE]))
     names(u) <- gsub("(date|)time", "utime", names(u), perl = TRUE)
     d <- cbind(d, u)
   }

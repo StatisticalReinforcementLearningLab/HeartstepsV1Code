@@ -38,20 +38,25 @@ gps2timezone <- function(lat, long, utime = 0) {
   json2data(readLines(u))
 }
 
-## convert character string to Date, assuming the given format
+## convert character string to Date, under the given format
 char2date <- function(x, format = "%Y-%m-%d")
   as.Date(paste(x), format = format)
 
-## convert character string to Unix time, under the given time zone and format
-## (Unix time is seconds since 1970-01-01 00:00.00 UTC)
-char2utime <- function(x, tz = "UTC", format = "%Y-%m-%d %H:%M:%S") {
-  do.call("c", mapply(strptime, x = x, format = format, tz = tz, SIMPLIFY = FALSE))
+## convert character string to Unix time (seconds since 1970-01-01 00:00 UTC),
+## under the given GMT/UTC offset and format
+char2utime <- function(x, offset = 0, format = "%Y-%m-%d %H:%M:%S") {
+  l <- mapply(strptime, x = x, format = format, tz = "GMT", SIMPLIFY = FALSE)
+  l <- do.call("c", lapply(l, as.POSIXct, tz = "GMT"))
+  as.numeric(l) - offset
 }
 
-## convert POSIXlt to Unix time (seconds since 1970-01-01 00:00.00 UTC)
-## nb: this accounts for different time zones
-ltime2utime <- function(x)
-  unclass(as.POSIXct(x))
+## convert character string to POSIXlt elements (weekday, month, etc.),
+## under the given time zone and format
+char2calendar <- function(x, tz, format = "%Y-%m-%d %H:%M:%S") {
+  l <- mapply(strptime, x = x, format = format, tz = tz, SIMPLIFY = FALSE)
+  l <- data.frame(do.call("rbind", lapply(l, unlist)))
+  subset(l, select = -(isdst:gmtoff))
+}
 
 ## convert POSIX[cl]t to time of day
 timeofday <- function(x) {
