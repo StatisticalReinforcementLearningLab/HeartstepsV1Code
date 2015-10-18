@@ -13,8 +13,7 @@ copy <- function(x, y, varname, idname)
   y[match(x[[idname]], y[[idname]]), names(y) == varname]
 
 ## --- date and time conversions
-## nb: we always convert from character strings because POSIXt classes don't
-##     support multiple time zones
+## nb: POSIXt objects (scalar, vector, list) don't support multiple time zones
 
 ## convert JSON-formatted character strings to a data frame
 json2data <- function(x) {
@@ -27,7 +26,7 @@ json2data <- function(x) {
           eval(parse(text = paste(c("list(", x, ")"), collapse = ""))))
 }
 
-## retreive Google Maps timezone data from gps coordinates
+## retreive Google Maps timezone data from GPS coordinates
 ## nb: rate and number of daily queries are limited
 ## https://developers.google.com/maps/documentation/timezone/usage-limits
 gps2timezone <- function(lat, long, utime = 0) {
@@ -67,6 +66,7 @@ timeofday <- function(x) {
 
 ## --- checks
 
+## invalid time zone identifier
 checktz <- function(x, tz, file) {
   tz <- substitute(tz)
   tz <- eval(tz, x)
@@ -78,6 +78,7 @@ checktz <- function(x, tz, file) {
     file.remove(file)
 }
 
+## duplicate values in variables passed to ...
 checkdup <- function(x, file, ...) {
   id <- substitute(list(...))
   id <- do.call("paste", eval(id, x))
