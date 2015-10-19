@@ -1,32 +1,57 @@
-## Heartsteps data exporter
+# HeartSteps pilot data analysis
 
-## Setting up
+- [Mounting M+Box](##mouting-m+box)
+- [Exporting data](##exporting-data)
+- [Preparing data for analysis](##preparing-data-for-analysis)
 
-Install the Google App Engine SDK and its dependencies.
+## Mounting M+Box
 
-https://cloud.google.com/appengine/downloads
+The project's remote M+Box share can be accessed as though it were part of your local file system using the WebDAV protocol.
 
+1. From [M+Box settings](https://umich.app.box.com/settings), set up an external password. You will use this password and your primary email address (also found in M+Box setting) as your credentials to access or "mount" M+Box content.
+2. Follow the system-specific instructions below.
+
+### Mac
+
+### Windows
+
+### Ubuntu
+
+The following terminal commands install davfs2 and creates a mount point called `mbox` in your home directory.
 ```shell
-sudo apt-get install libreadline-gplv2-dev libncurses-dev libncursesw5-dev libssl-dev libsqlite3-dev tk-dev libgdbm-dev libc6-dev libbz2-dev
-wget http://python.org/ftp/python/2.7.5/Python-2.7.5.tgz
-tar -xvf Python-2.7.5.tgz
-cd Python-2.7.5
-./configure
-make
-sudo make install
-wget https://storage.googleapis.com/appengine-sdks/featured/google_appengine_1.9.27.zip
-unzip /Data/google_appengine_1.9.27.zip
-export PATH=$PATH:/Data/google_appengine/
-export GAE_SDK_ROOT=/Data/google_appengine
-/usr/bin/env python -V
-./Heartsteps_Data_Exporter/appcfg.py
+~$ sudo pico /etc/davfs2/davfs2.conf
+~$ sudo dpkg-reconfigure davfs2
+~$ sudo usermod -a -G davfs2 USERNAME
+~$ mkdir ~/mbox
+~$ sudo pico /etc/fstab
+```
+To `/etc/fstab` add the line
+```
+https://dav.box.com/dav /home/USERNAME/mbox davfs rw,user,noauto 0 0
+```
+and save. Back in the terminal run:
+```shell
+chmod 600 /home/USERNAME/.davfs2/secrets
+su - $USER
+```
+Now M+Box can be mounted with the following command.
+```shell
+~$ mount mbox
 ```
 
 ## Exporting data
 
-```shell
-cd exporter
-./export.sh
-```
+### Jawbone and Google Fit
 
-When prompted, enter the Heartsteps app credentials.
+Download using the browser interface at <http://jitai-api.appspot.com>.
+
+### HeartSteps
+
+Ensure your system has the following installed.
+
+- [Google App Engine Python SDK](https://cloud.google.com/appengine/downloads)
+- [Python 2.7+](https://www.python.org/downloads/)
+
+From the command line, navigate to the `heartstepsdata/exporter` folder in your local copy of this repository. Run the export script specific to your system. When prompted, enter the HeartSteps account credentials.
+
+## Preparing data for analysis

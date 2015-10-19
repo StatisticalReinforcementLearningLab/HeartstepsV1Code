@@ -4,7 +4,7 @@
 export PATH=$PATH:/path/to/google_appengine/
 export GAE_SDK_ROOT=/Data/google_appengine
 
-dir=~/mbox/HeartSteps/Tables
+dir=~/mbox/HeartSteps/Data
 
 for table in EMA_Completed EMA_Context_Engaged EMA_Context_Notified \
     EMA_Response Heartsteps_Usage_History Momentary_Decision \

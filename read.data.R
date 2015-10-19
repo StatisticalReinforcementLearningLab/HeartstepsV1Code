@@ -8,7 +8,14 @@ Sys.setlocale("LC_TIME", "en_US.UTF-8")
 
 ## read and revise data files
 read.data <- function(file, id = userid, time = utime.stamp) {
-  d <- read.csv(file, header = TRUE)
+  l <- sapply(file, read.csv, header = TRUE, simplify = FALSE)
+  if (length(l) > 1) {
+    n <- unique(unlist(lapply(l, names)))
+    d <- lapply(l, function(x) data.frame(matrix(NA, nrow(x), length(n),
+                                                 dimnames = list(NULL, n))))
+    sapply(1:length(l), function(i) d[[i]][, match(names(l[[i]]), n)] <<- l[[i]])
+  }
+  d <- do.call("rbind", d)
   names(d) <- tolower(names(d))
   names(d) <- gsub("_", ".", names(d))
   names(d)[names(d) == "user"] <- "userid"
@@ -16,7 +23,7 @@ read.data <- function(file, id = userid, time = utime.stamp) {
   if ("userid" %in% names(d))
     d <- subset(d, grepl("heartsteps.test[0-9]+@", userid, perl = TRUE),
                 select = -key)
-  ## offset in seconds from GMT/UTC, time zone identifier
+  ## add offset in seconds from GMT/UTC, time zone identifier
   if (!is.null(d$timezone)) {
     d$gmtoff <- NA
     d$tz <- d$timezone
@@ -50,7 +57,7 @@ read.data <- function(file, id = userid, time = utime.stamp) {
   id <- eval(id, d)
   if (!is.null(id))
     d <- d[order(id), ]
-  rownames(d) <- NULL
+  row.names(d) <- NULL
   d
 }
 
@@ -58,23 +65,19 @@ read.data <- function(file, id = userid, time = utime.stamp) {
 complete <- read.data("EMA_Completed.csv", contextid)
 
 ## context in which the EMA notification was sent
-notify <- read.data("EMA_Context_Notified.csv", contextid, notified.utime)
+notified <- read.data("EMA_Context_Notified.csv", contextid, notified.utime)
 
 ## context in which the user engaged with the EMA
-engage <- read.data("EMA_Context_Engaged.csv", contextid, engaged.utime)
+engaged <- read.data("EMA_Context_Engaged.csv", contextid, engaged.utime)
 
 ## EMA responses
-## FIXME: all timezone data are missing
-## fiddle with this
-emaresponse <- read.data("EMA_Response.csv")
-emaresponse$message <- omit.space(emaresponse$message)
+## nb: all time zone data are missing
+ema <- read.data("EMA_Response.csv", contextid)
 
 ## planning
-struc <- read.data("Structured_Planning_Response.csv", contextid, utime.started)
-unstruc <- read.data("Unstructured_Planning_Response.csv", contextid,
-                     utime.started)
-struc$response <- omit.space(struc$response)
-unstruc$response <- omit.space(unstruc$response)
+plan <- read.data(c("Structured_Planning_Response.csv",
+                    "Unstructured_Planning_Response.csv"),
+                  contextid, utime.finished)
 
 ## suggestions
 ## FIXME: suggestion type (sedentary vs active)? see Excel files on box
@@ -88,7 +91,8 @@ decision$suggestid <- with(decision, paste(decisionid, is_prefetch, sep = "."))
 response <- read.data("Response.csv", decisionid, responded.utime)
 
 ## physical activity
-## one minute windows, but might be more granular depending on server load
+## nb: step counts provided in one minute windows for now;
+##     might eventually be more granular depending on server load
 jawbone <- read.data("jawbone_step_count_data.csv", time = end.utime)
 
 ## application usage
@@ -106,7 +110,7 @@ address <- read.data("User_Addresses.csv", time = time.updated)
 calendar <- read.data("User_Calendars.csv", time = time.updated)
 
 ## suggestion and EMA timeslots
-timeslots <- read.data("User_Decision_Times.csv", time = utime.updated)
+timeslot <- read.data("User_Decision_Times.csv", time = utime.updated)
 
 ## daily weather by city
 weather <- read.data("Weather_History.csv", id = NULL, time = date)
@@ -116,11 +120,11 @@ weather$date <- char2date(weather$date, "%Y:%m:%d")
 get.ids <- function(idname, ...)
   sort(unique(unlist(lapply(list(...), function(x) x[[idname]]))))
 
-length(user.ids <- get.ids("userid", complete, notify, engage, emaresponse,
-                           struc, unstruc, decision, response))
+length(user.ids <- get.ids("userid", complete, notify, engage, ema,
+                           plans, planu, decision, response))
 
 length(context.ids <- get.ids("contextid", complete, notify, engage,
-                              emaresponse, struc, unstruc))
+                              ema, plans, planu))
 
 length(decision.ids <- get.ids("decisionid", decision, response))
 

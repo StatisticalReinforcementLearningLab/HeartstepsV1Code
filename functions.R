@@ -53,21 +53,14 @@ char2utime <- function(x, offset = 0, format = "%Y-%m-%d %H:%M:%S") {
 ## under the given time zone and format
 char2calendar <- function(x, tz, format = "%Y-%m-%d %H:%M:%S") {
   l <- mapply(strptime, x = x, format = format, tz = tz, SIMPLIFY = FALSE)
-  l <- data.frame(do.call("rbind", lapply(l, unlist)))
+  l <- data.frame(do.call("rbind", lapply(l, unlist)), row.names = NULL)
   subset(l, select = -(isdst:gmtoff))
-}
-
-## convert POSIX[cl]t to time of day
-timeofday <- function(x) {
-  x <- as.numeric(format(x, "%H"))
-  cut(x, c(min(x, na.rm = TRUE) - 1, 12, 17, max(x, na.rm = TRUE) + 1),
-      labels = c("Morning", "Afternoon", "Evening"), right = FALSE)
 }
 
 ## --- checks
 
 ## invalid time zone identifier
-checktz <- function(x, tz, file) {
+check.timezone <- function(x, tz, file) {
   tz <- substitute(tz)
   tz <- eval(tz, x)
   d <- d[!(tz %in% OlsonNames()), ]
@@ -79,7 +72,7 @@ checktz <- function(x, tz, file) {
 }
 
 ## duplicate values in variables passed to ...
-checkdup <- function(x, file, ...) {
+check.duplicates <- function(x, file, ...) {
   id <- substitute(list(...))
   id <- do.call("paste", eval(id, x))
   d <- x[id %in% id[duplicated(id)], ]
