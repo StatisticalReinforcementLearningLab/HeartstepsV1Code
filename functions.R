@@ -12,6 +12,10 @@ strip.white <- function(x) {
 copy <- function(x, y, varname, idname)
   y[match(x[[idname]], y[[idname]]), names(y) == varname]
 
+## all unique identifier values
+get.ids <- function(id.name, ...)
+  sort(unique(unlist(lapply(list(...), function(x) x[[id.name]]))))
+
 ## --- date and time conversions
 ## nb: POSIXt objects (scalar, vector, list) don't support multiple time zones
 

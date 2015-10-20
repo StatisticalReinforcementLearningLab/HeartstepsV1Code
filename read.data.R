@@ -28,15 +28,13 @@ read.data <- function(file, order.by = NULL, ...) {
   ## add offset in seconds from GMT/UTC, time zone identifier
   l <- grepl("(^time\\.(fin|sta|up)|\\.(date|)time$)", names(d), perl = TRUE)
   if (any(l)) {
-    if (!is.null(d$utc.to.local.delta) && !all(is.na(d$utc.to.local) {
-      d$gmtoff <- d$tzNA
-    d$tz <- d$timezone
-    l <- d$timezone %in% c("GMT", "UTC")
-    d$gmtoff[l] <- 0
-      d$gmtoff[!l] <- 60 * d$utc.to.local.delta
-      d$tz[!l] <- paste("Etc/GMT", c("-", "+")[pmax(1, sign(d$gmtoff) + 1)],
-                        formatC(abs(d$gmtoff) / 60^2), sep = "")
-      d$tz[is.na(d$gmtoff)] <- NA
+    d$gmtoff <- 0
+    d$tz <- if (is.null(d$timezone)) ""
+            else d$timezone
+    if (!is.null(d$utc.to.local.delta)) {
+      d$gmtoff <- 60 * d$utc.to.local.delta
+      d$tz <- paste("Etc/GMT", c("-", "+")[pmax(1, sign(d$gmtoff) + 1)],
+                    formatC(abs(d$gmtoff) / 60^2), sep = "")
     }
     ## all Unix times, POSIXlt elements
     u <- do.call("data.frame",
@@ -68,23 +66,39 @@ notify <- read.data("EMA_Context_Notified.csv", list(contextid, notified.utime))
 engage <- read.data("EMA_Context_Engaged.csv", list(contextid, engaged.utime))
 
 ## EMA responses
-## nb: all time zone data are missing
-ema <- read.data("EMA_Response.csv", list(contextid, question, time.stamp))
+## nb: time zone data are unavailable
+ema <- read.data("EMA_Response.csv", list(contextid, question, utime.stamp))
+ema$message <- strip.white(ema$message)
 
 ## planning
 plan <- read.data(c("Structured_Planning_Response.csv",
                     "Unstructured_Planning_Response.csv"),
                   list(contextid, utime.finished))
 
-## suggestions
-decision <- read.data("Momentary_Decision.csv", list(decisionid, utime.stamp))
-decision$returned.message <- strip.white(decision$returned.message)
-
+## suggestion messages
 messages <- read.data("Reviewed_Heartsteps_Messages.csv", NULL, skip = 1)
 messages$message <- strip.white(messages$message)
 
+## suggestions
+## nb: prefetch data in a prefetch/non-prefetch dual are irrelvant,
+##     but decisionid sometimes persists into next timeslot
+decision <- read.data("Momentary_Decision.csv", list(decisionid, is.prefetch))
+decision$returned.message <- strip.white(decision$returned.message)
+decision$is.prefetch <- decision$is.prefetch == "true"
+decision$notify <- decision$notify == "True"
+decision$msgid <- with(decision, paste(decisionid, time.slot, sep = "_"))
+decision$drop <- duplicated(decision$msgid)
+
 ## response to suggestions
+## FIXME: merge on message text and proximity in time
 response <- read.data("Response.csv", list(decisionid, responded.utime))
+response$notification.message <- strip.white(response$notification.message)
+response <- merge(response, subset(decision, !drop,
+                               select = c(decisionid, msgid, time.slot,
+                                          is.prefetch, notify,
+                                          returned.message)),
+              by.x = c("decisionid", "notification.message"),
+              by.y = c("decisionid", "returned.message"), all.x = TRUE)
 
 ## physical activity
 ## nb: step counts provided in one minute windows for now;
@@ -112,7 +126,7 @@ timeslot <- read.data("User_Decision_Times.csv", list(userid, utime.updated))
 weather <- read.data("Weather_History.csv", list(date))
 weather$date <- char2date(weather$date, "%Y:%m:%d")
 
-## -- check, record and attempt to resolve duplicates
+## -- check overlap and duplicates
 
 ## keep unique or first-recorded completions
 check.dup(complete, "checks/dup_ema_complete.csv", contextid)
@@ -129,29 +143,30 @@ engage <- engage[with(engage, order(contextid, engaged.utime,
                                     recognized.activity %in% c(NA, "N/A"))), ]
 engage$keep <- !duplicated(subset(engage, select = c(contextid, engaged.utime)))
 
-## keep unique or latest same-day EMAs
+## duplicates due to answer revisions
+## keep unique or latest same-day answers to EMA questions
 dup.ema <- check.dup(ema, "checks/dup_ema_response.csv", contextid, question)
+ema <- ema[with(ema, order(contextid, question,
+                           message.time.mday != time.stamp.mday)), ]
+ema$keep <- !duplicated(subset(ema, select = c(contextid, question)))
 
-
+## duplicates due to answer revisions
 ## keep unique or latest same-day plans
 dup.plan <- check.dup(plan, "checks/dup_planning.csv", contextid)
 plan <- plan[with(plan, order(contextid,
                               time.started.mday != time.finished.mday)), ]
 plan$keep <- !duplicated(plan$contextid)
 
-## here this is a memory issue - old, unsent/prefetch suggestion data is
-## read from flash memory before it is overwritte
-## FIXME: ignore prefetch when... (another record with same id, slot, etc)?
-## FIXME: time of notification, had notify = true?
-## time for treatment occasion is decision table time stamp
-## context for suggestion? in decision table, if two take prefetch = false
-## if just one and is prefetch = true, context will be outdated (30 min)
-check.dup(decision, suggestid, "checks/dup_decision.csv")
-check.dup(response, decisionid, "checks/dup_response.csv")
+check.dup(subset(decision, !drop), "checks/dup_decision.csv",
+          decisionid, time.slot)
 
-## all unique identifier values
-get.ids <- function(idname, ...)
-  sort(unique(unlist(lapply(list(...), function(x) x[[idname]]))))
+check.dup(response, "checks/dup_response.csv", decisionid, time.slot)
+
+check.dup(jawbone, "checks/dup_jawbone.csv", userid, end.utime)
+
+## FIXME: add more checks
+
+## -- sample information
 
 length(user.ids <- get.ids("userid", complete, notify, engage, ema,
                            plans, planu, decision, response))
