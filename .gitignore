@@ -1,6 +1,12 @@
-*.RData
-.fuse*
+*.aux
+*.log
 *.org
 *.pyc
+*.RData
+*.tex
+*.pdf
 .Rhistory
+.fuse*
 *bulkloader
+auto/*
+figure/*
