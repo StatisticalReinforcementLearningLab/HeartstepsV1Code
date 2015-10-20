@@ -3,7 +3,7 @@
 source("init.R")
 
 wd <- getwd()
-setwd(paste(mbox, "HeartSteps/Data", sep = "/"))
+setwd(mbox)
 
 ## -- read CSV files into data frames
 
@@ -90,7 +90,8 @@ decision$msgid <- with(decision, paste(decisionid, time.slot, sep = "_"))
 decision$drop <- duplicated(decision$msgid)
 
 ## response to suggestions
-## FIXME: merge on message text and proximity in time
+## FIXME: merge on message text and proximity in time, check why decisions
+##        with notify = FALSE appear in response
 response <- read.data("Response.csv", list(decisionid, responded.utime))
 response$notification.message <- strip.white(response$notification.message)
 response <- merge(response, subset(decision, !drop,
@@ -168,14 +169,13 @@ check.dup(jawbone, "checks/dup_jawbone.csv", userid, end.utime)
 
 ## -- sample information
 
-length(user.ids <- get.ids("userid", complete, notify, engage, ema,
-                           plans, planu, decision, response))
+length(user.ids <- get.ids("userid", complete, notify, engage, ema, plan,
+                           decision, response))
 
-length(context.ids <- get.ids("contextid", complete, notify, engage,
-                              ema, plans, planu))
+length(context.ids <- get.ids("contextid", complete, notify, engage, ema, plan))
 
-length(decision.ids <- get.ids("decisionid", decision, response))
+length(decision.ids <- get.ids("msgid", decision, response))
 
-save.image("heartsteps.RData")
+save.image("heartsteps.RData", safe = FALSE)
 
 setwd(wd)

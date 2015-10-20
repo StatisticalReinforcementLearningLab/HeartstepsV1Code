@@ -1,5 +1,6 @@
 #!/bin/bash
 # path names assumed local, so run this script from its directory
+# FIXME: can we better preserve the M+Box version history?
 
 export PATH=$PATH:/path/to/google_appengine/
 export GAE_SDK_ROOT=/Data/google_appengine

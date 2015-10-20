@@ -1,5 +1,14 @@
 \documentclass{article}
-\title{HeartSteps Codebook}
+
+\usepackage{microtype}
+\usepackage{amsfonts,amssymb,amsbsy,amsmath,amsthm,mathtools}
+\usepackage[onehalfspacing]{setspace}
+\usepackage{times}
+\IfFileExists{mtpro2.sty}
+  {\let\Bbbk\relax\usepackage[mtphrb]{mtpro2}}
+  {\usepackage{mathptmx}}
+
+\title{HeartSteps data summary}
 \usepackage{graphicx}
 
 \begin{document}
@@ -10,30 +19,18 @@
   % Read in the data: must be done by knitr (for some reason it can't read the global environment unless it creates it?). Options: don't _include_ output in the final .tex file. It's possible to somehow cache chunks, but there seem to be some nuanced best practices that I haven't quite gotten a grip on yet. I'll update when I do.
   
 <<read_data, echo = FALSE, include = FALSE>>=
-  library(xtable)
-  mbox = "Z:/"
-  source("readcsv.R")
+  source("init.R")
+  load(paste(mbox, "heartsteps.RData", sep = ""))
 @
-  
-  \section{Suggestion Data}
+
+\section{Anomalies}
+
+
   % You can pass LaTeX figure options through chunk options (but names are different; usually fig.TKTK, see link above). Backslashes need to be escaped.
   
 <<rnorm_hist, echo = FALSE, out.width = ".5\\textwidth", fig.align = "center">>=
   x = rnorm(10)
   hist(x)
-@
-
-<<decision_table, warning = FALSE>>=
-  summary(as.numeric(!is.na(decision$temperature)))
-  # Kable will print a nice table 
-  knitr::kable(head(decision[, c("userID", "notify", "time_slot", "temperature")]))
-@
-
-  
-% xtable will print \LaTeX code instead of the table itself. To avoid this, we set the result type to 'asis'. This will force knitr to view the output of this chunk as code, rather than usual R markup.
-
-<<decision_xtable, warning = FALSE, results = "asis">>=
-  xtable::xtable(head(decision[, c("userID", "notify", "time_slot", "temperature")]))
 @
 
 % R output can be included inline using \Sexpr{}. (the S seems to stand for Sweave)

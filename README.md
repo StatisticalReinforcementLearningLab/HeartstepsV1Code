@@ -7,9 +7,9 @@
 
 ## Mounting M+Box
 
-The project's remote M+Box share can be accessed as though it were part of your local file system using the WebDAV protocol.
+Mounting via [WebDAV](http://community.box.com/t5/Managing-Your-Content/Does-Box-support-WebDAV/ta-p/310) allows you to access remote content stored on M+Box as though it were part of your local filesystem.
 
-1. From your [M+Box account settings](https://umich.app.box.com/settings/account), set up an external password. You will use this password and your primary M+Box email address (also found in settings) as your credentials to access or "mount" M+Box content.
+1. From your [M+Box account settings](https://umich.app.box.com/settings/account), set up an external password. You will use this password and your primary M+Box email address (also found in settings) as the credentials to mount access M+Box content.
 2. Follow the system-specific instructions below.
 
 ### Mac
@@ -18,13 +18,13 @@ The project's remote M+Box share can be accessed as though it were part of your 
 
 ### Ubuntu
 
-- Run these terminal commands to install davfs2 and create a mount point called `mbox` in your home directory.
+- Install [davfs2](http://savannah.nongnu.org/projects/davfs2) and create a mount point called `mbox` in your home directory with the following terminal commands. Here `USERNAME` should be replace with your own system login name.
 ```shell
-~$ sudo pico /etc/davfs2/davfs2.conf
-~$ sudo dpkg-reconfigure davfs2
-~$ sudo usermod -a -G davfs2 USERNAME
-~$ mkdir ~/mbox
-~$ echo "https://dav.box.com/dav /home/USERNAME/mbox davfs rw,user,noauto 0 0" | sudo tee -a /etc/fstab
+sudo pico /etc/davfs2/davfs2.conf
+sudo dpkg-reconfigure davfs2
+sudo usermod -a -G davfs2 USERNAME
+mkdir ~/mbox
+echo "https://dav.box.com/dav /home/USERNAME/mbox davfs rw,user,noauto 0 0" | sudo tee -a /etc/fstab
 chmod 600 /home/USERNAME/.davfs2/secrets
 ```
 - Logout and log back in.
@@ -38,7 +38,7 @@ Download using the browser interface at <http://jitai-api.appspot.com>.
 
 ### HeartSteps
 
-Ensure your system has [M+Box mounted](#mounting-m+box) the following installed.
+Ensure your system has [M+Box mounted](#mounting-m+box) and the following software installed.
 
 - [Google App Engine Python SDK](https://cloud.google.com/appengine/downloads)
 - [Python 2.7+](https://www.python.org/downloads/)
