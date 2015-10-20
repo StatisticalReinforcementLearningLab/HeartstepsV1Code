@@ -1,11 +1,11 @@
 ## helper functions
 
-## strip whitespace
-omit.space <- function(x) {
+## strip whitespace, normalize quotes
+strip.white <- function(x) {
   x <- gsub("\\n", "", x, perl = TRUE)
   x <- gsub("^ +", "", x, perl = TRUE)
   x <- gsub(" +$", "", x, perl = TRUE)
-  gsub(" +$", " ", x, perl = TRUE)
+  gsub("[‘’“”\"]", "'", x, perl = TRUE)
 }
 
 ## copy variable from y to x, taking first matches in an identifier
@@ -54,17 +54,16 @@ char2utime <- function(x, offset = 0, format = "%Y-%m-%d %H:%M:%S") {
 char2calendar <- function(x, tz, format = "%Y-%m-%d %H:%M:%S") {
   l <- mapply(strptime, x = x, format = format, tz = tz, SIMPLIFY = FALSE)
   l <- data.frame(do.call("rbind", lapply(l, unlist)), row.names = NULL)
-  subset(l, select = -(isdst:gmtoff))
+  subset(l, select = sec:yday)
 }
 
 ## --- checks
 
 ## invalid time zone identifier
-check.timezone <- function(x, tz, file) {
+check.tz <- function(x, tz, file) {
   tz <- substitute(tz)
   tz <- eval(tz, x)
   d <- d[!(tz %in% OlsonNames()), ]
-  print(nrow(d))
   if (nrow(d))
     write.csv(d, row.names = FALSE, file = file)
   else if (file.exists(file))
@@ -72,13 +71,14 @@ check.timezone <- function(x, tz, file) {
 }
 
 ## duplicate values in variables passed to ...
-check.duplicates <- function(x, file, ...) {
+check.dup <- function(x, file, ...) {
   id <- substitute(list(...))
   id <- do.call("paste", eval(id, x))
-  d <- x[id %in% id[duplicated(id)], ]
-  print(nrow(d))
-  if (nrow(d))
+  d <- x[id %in% id[duplicated(id)], , drop = FALSE]
+  print(n <- nrow(d))
+  if (n)
     write.csv(d, row.names = FALSE, file = file)
   else if (file.exists(file))
     file.remove(file)
+  invisible(d)
 }

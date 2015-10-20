@@ -49,9 +49,3 @@ transformers:
 
     - property: userID
       external_name: userID
-
-    - property: timezone
-      external_name: timezone
-
-    - property: utc_to_local_delta
-      external_name: utc_to_local_delta 
