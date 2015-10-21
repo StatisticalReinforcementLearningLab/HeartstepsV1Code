@@ -20,14 +20,18 @@ read.data <- function(file, order.by = NULL, ...) {
   d <- do.call("rbind", d)
   names(d) <- tolower(names(d))
   names(d) <- gsub("_", ".", names(d))
-  names(d)[names(d) == "user"] <- "userid"
   d <- d[, names(d) != "key", drop = FALSE]
   ## keep only pilot users
-  if ("userid" %in% names(d))
+  names(d)[names(d) == "user"] <- "userid"
+  if ("userid" %in% names(d)) {
     d <- subset(d, grepl("heartsteps.test[0-9]+@", userid, perl = TRUE))
+    d$user <- as.numeric(gsub("(heartsteps\\.test|@gmail.*$)", "", d$userid,
+                              perl = TRUE))
+  }
   ## add offset in seconds from GMT/UTC, time zone identifier
   l <- grepl("(^time\\.(fin|sta|up)|\\.(date|)time$)", names(d), perl = TRUE)
   if (any(l)) {
+    l <- c(l, FALSE, FALSE)
     d$gmtoff <- 0
     d$tz <- if (is.null(d$timezone)) ""
             else d$timezone
@@ -35,6 +39,7 @@ read.data <- function(file, order.by = NULL, ...) {
       d$gmtoff <- 60 * d$utc.to.local.delta
       d$tz <- paste("Etc/GMT", c("-", "+")[pmax(1, sign(d$gmtoff) + 1)],
                     formatC(abs(d$gmtoff) / 60^2), sep = "")
+      d$tz[is.na(d$gmtoff)] <- ""
     }
     ## all Unix times, POSIXlt elements
     u <- do.call("data.frame",
@@ -127,7 +132,20 @@ timeslot <- read.data("User_Decision_Times.csv", list(userid, utime.updated))
 weather <- read.data("Weather_History.csv", list(date))
 weather$date <- char2date(weather$date, "%Y:%m:%d")
 
-## -- check overlap and duplicates
+## -- check times, overlap and duplicates
+
+## check timezones
+## nb: notification are sent according to the time slots of the local time zone
+##     at which HeartSteps was installed or the last instance where the phone
+##     was restarted (powered on)
+user.tz <- get.values(c("user", "tz", "timezone"), c(
+                      complete, notify, engage, plan, decision, response, usage,
+                      snooze)
+write.data(subset(user.tz, !(tz %in% OlsonNames())
+                  | grepl("?", timezone, fixed = TRUE)),
+           "checks/invalid_timezone.csv")
+write.data(subset(user.tz, !(timezone %in% "Eastern Standard Time")),
+           "checks/outside_est_timezone.csv")
 
 ## keep unique or first-recorded completions
 check.dup(complete, "checks/dup_ema_complete.csv", contextid)
@@ -169,12 +187,12 @@ check.dup(jawbone, "checks/dup_jawbone.csv", userid, end.utime)
 
 ## -- sample information
 
-length(user.ids <- get.ids("userid", complete, notify, engage, ema, plan,
-                           decision, response))
+length(users <- get.values("user", complete, notify, engage, ema, plan,
+                           decision, response, jawbone))
 
-length(context.ids <- get.ids("contextid", complete, notify, engage, ema, plan))
+length(contexts <- get.values("contextid", complete, notify, engage, ema, plan))
 
-length(decision.ids <- get.ids("msgid", decision, response))
+length(decisions <- get.values("msgid", decision, response))
 
 save.image("heartsteps.RData", safe = FALSE)
 

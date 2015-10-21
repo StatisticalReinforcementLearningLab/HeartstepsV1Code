@@ -9,12 +9,31 @@ strip.white <- function(x) {
 }
 
 ## copy variable from y to x, taking first matches in an identifier
-copy <- function(x, y, varname, idname)
-  y[match(x[[idname]], y[[idname]]), names(y) == varname]
+copy <- function(x, y, var.name, id.name)
+  y[match(x[[id.name]], y[[id.name]]), names(y) == var.name]
 
-## all unique identifier values
-get.ids <- function(id.name, ...)
-  sort(unique(unlist(lapply(list(...), function(x) x[[id.name]]))))
+## data frame of unique variable values, possibly indexed by any additional
+## "time" named in var.name
+get.values <- function(var.name, index = FALSE, ...) {
+  d <- lapply(list(...), function(x) x[var.name[var.name %in% names(x)]])
+  m <- min(unlist(lapply(d, ncol)))
+  if (index) {
+    d <- lapply(d, function(x) x[, 1:m, drop = FALSE])
+    sapply(1:length(d), function(x) names(d[[x]][m]) <<- "time")
+  }
+  d <- do.call("rbind", d)
+  d <- d[do.call("order", d), , drop = FALSE]
+  d <- d[!duplicated(d[1:(m - index), , drop = FALSE]), , drop = FALSE]
+  row.names(d) <- NULL
+  d
+}
+
+write.data <- function(x, file, ...) {
+  if (nrow(x))
+    write.csv(x, file = file, row.names = FALSE, ...)
+  else if (file.exists(file))
+    file.remove(file)
+}
 
 ## --- date and time conversions
 ## nb: POSIXt objects (scalar, vector, list) don't support multiple time zones
@@ -63,26 +82,12 @@ char2calendar <- function(x, tz, format = "%Y-%m-%d %H:%M:%S") {
 
 ## --- checks
 
-## invalid time zone identifier
-check.tz <- function(x, tz, file) {
-  tz <- substitute(tz)
-  tz <- eval(tz, x)
-  d <- d[!(tz %in% OlsonNames()), ]
-  if (nrow(d))
-    write.csv(d, row.names = FALSE, file = file)
-  else if (file.exists(file))
-    file.remove(file)
-}
-
 ## duplicate values in variables passed to ...
 check.dup <- function(x, file, ...) {
   id <- substitute(list(...))
   id <- do.call("paste", eval(id, x))
   d <- x[id %in% id[duplicated(id)], , drop = FALSE]
-  print(n <- nrow(d))
-  if (n)
-    write.csv(d, row.names = FALSE, file = file)
-  else if (file.exists(file))
-    file.remove(file)
+  print(nrow(d))
+  write.data(d, file = file)
   invisible(d)
 }
