@@ -16,6 +16,30 @@ Connect to M+Box via [WebDAV](http://community.box.com/t5/Managing-Your-Content/
 
 ### Windows
 
+#### Windows 8/8.1/10
+
+- Open File Explorer, from either the Start Menu (Windows 10) or the Taskbar. Click "This PC" (This will likely be listed in "Frequent Folders", but if not, find it in the sidebar).
+- Click "Map Network Drive" in the Ribbon at the top of the window. If you do not see this, click the "Computer" tab next to the blue File button.
+- From the "Drive" dropdown menu, choose `Z:\`.
+- In "Folder", enter `https://dav.box.com/dav`
+- Check the "Connect using different credentials" box, then click Finish.
+- Enter your U-M email address and the external password you created in your M+Box account settings, and click OK.
+
+You may need to close and reopen File Explorer for the new drive to appear.
+
+#### Windows 7
+
+
+- Click Start, then Computer.
+- Click "Map network drive" towards the top of the window.
+- From the "Drive" dropdown menu, choose `Z:\`.
+- In "Folder", enter `https://dav.box.com/dav`
+- Check the "Connect using different credentials" box, then click Finish.
+- Enter your U-M email address and the external password you created in your M+Box account settings, and click OK.
+
+You may need to close and reopen File Explorer for the new drive to appear.
+
+
 ### Ubuntu
 
 - Install [davfs2](http://savannah.nongnu.org/projects/davfs2) and create a mount point called `mbox` in your home directory with the following terminal commands. Here `USERNAME` should be replaced with your own system login name.
