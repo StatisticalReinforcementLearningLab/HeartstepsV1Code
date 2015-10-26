@@ -1,6 +1,5 @@
 ## run this first
 
-library(knitr)
 library(xtable)
 library(zoo)
 

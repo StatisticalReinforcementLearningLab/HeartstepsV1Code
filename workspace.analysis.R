@@ -3,12 +3,11 @@
 
 source("init.R")
 setwd(mbox)
-file <- "analysis.RData"
-
 load("csv.RData")
+file <- "analysis.RData"
 
 steps <- merge.last(jawbone,
                     subset(decision, select = c(user, notify, utime.stamp)),
                     "user", "end.utime", "utime.stamp")
 
-save.image(file, safe = FALSE)
+save(steps, file = file)
