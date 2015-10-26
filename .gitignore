@@ -3,6 +3,7 @@
 *.org
 *.pyc
 *.RData
+*.Rout
 *.tex
 *.pdf
 .Rhistory

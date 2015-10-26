@@ -1,6 +1,7 @@
 #!/bin/bash
 # path names assumed local, so run this script from its directory
-# FIXME: can we better preserve the M+Box version history?
+# nb: file overwrites via appcfg.py throw an error with no option to avoid,
+#     via system commands are prone to errors with WebDAV
 
 export PATH=$PATH:/path/to/google_appengine/
 export GAE_SDK_ROOT=/Data/google_appengine
@@ -20,10 +21,9 @@ if [ -f $dir/$table.csv ]
 then
     if  [ -f $dir/oldfiles/$table.csv ]
     then
-        rm $dir/$table.csv
-    else
-        mv $dir/$table.csv $dir/oldfiles/$table.csv
+        rm $dir/oldfiles/$table.csv
     fi
+    mv $dir/$table.csv $dir/oldfiles/$table.csv
 fi
 ./appcfg.py download_data \
     --url=https://com-um-heartsteps.appspot.com/remote_api \
