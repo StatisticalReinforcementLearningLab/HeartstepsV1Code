@@ -6,8 +6,8 @@ setwd(mbox)
 load("csv.RData")
 file <- "analysis.RData"
 
-steps <- merge.last(jawbone,
-                    subset(decision, select = c(user, notify, utime.stamp)),
-                    "user", "end.utime", "utime.stamp")
+suggest <- merge.last(jawbone,
+                      subset(decision, select = c(user, notify, utime.stamp)),
+                      "user", "end.utime", "utime.stamp")
 
-save(steps, file = file)
+save(suggest, file = file)

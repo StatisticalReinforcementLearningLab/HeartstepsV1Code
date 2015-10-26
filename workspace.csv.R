@@ -28,6 +28,9 @@ plan <- read.data(c("Structured_Planning_Response.csv",
                   list(user, contextid, utime.finished))
 
 ## suggestion messages
+## FIXME: typo variants are added to source file
+## FIXME: clarify meaning of tags; for example,
+##        suggestions tagged neither active nor sedentary - what does this mean?
 messages <- read.data("Reviewed_Heartsteps_Messages.csv", NULL, skip = 1)
 messages$message <- strip.white(messages$message)
 ## replace recurrent tag variable with tag indicators
@@ -39,6 +42,7 @@ messages <- data.frame(message = messages$message,
                                  any(grepl(tag, x))))))
 names(messages)[-1] <- paste("tag", tags, sep = ".")
 ## combine recurrent messages
+## FIXME: check that this makes sense
 messages <- aggregate(. ~ message, data = messages, any)
 
 ## suggestions
@@ -58,6 +62,13 @@ write.data(subset(decision, decisionid %in% decisionid[duplicated(decisionid)]),
            "checks/persist_decisionid.csv")
 ## missing day of week
 write.data(subset(decision, day.of.week == ""), "checks/decision_nowkday.csv")
+## add message tags
+decision <- merge(decision, messages,
+                  by.x = "returned.message", by.y = "message",
+                  all.x = TRUE, sort = FALSE)
+## missing tags
+write.data(subset(decision, notify & is.na(tag.active)),
+           "checks/decision_notags.csv")
 
 ## response to suggestions
 ## FIXME: merge on message text and proximity in time

@@ -1,6 +1,6 @@
 \documentclass{article}
 
-%\usepackage[margin=1in]{geometry}
+\usepackage[margin=1in]{geometry}
 \usepackage{microtype}
 \usepackage{amsfonts,amssymb,amsbsy,amsmath,amsthm,mathtools}
 \usepackage[onehalfspacing]{setspace}

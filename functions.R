@@ -1,11 +1,12 @@
 ## helper functions
 
-## strip whitespace, normalize quotes
+## strip whitespace, normalize punctuation
 strip.white <- function(x) {
   x <- gsub("\\n", "", x, perl = TRUE)
   x <- gsub("^ +", "", x, perl = TRUE)
   x <- gsub(" +$", "", x, perl = TRUE)
-  gsub("[‘’“”\"]", "'", x, perl = TRUE)
+  x <- gsub("[‘’“”\"]", "'", x, perl = TRUE)
+  gsub("—", "--", x, fixed = TRUE)
 }
 
 ## copy variable from y to x, taking first matches in an identifier
@@ -83,7 +84,7 @@ char2date <- function(x, format = "%Y-%m-%d")
 
 ## convert character string to Unix time (seconds since 1970-01-01 00:00 UTC),
 ## under the given GMT/UTC offset and format
-char2utime <- function(x, offset = 0, format = "%Y-%m-%d %H:%M:%S") {
+char2utime <- function(x, offset = 0, format = "%Y-%m-%d %H:%M:%OS") {
   l <- mapply(strptime, x = x, format = format, tz = "GMT", SIMPLIFY = FALSE)
   l <- do.call("c", lapply(l, as.POSIXct, tz = "GMT"))
   as.numeric(l) - offset
@@ -91,7 +92,7 @@ char2utime <- function(x, offset = 0, format = "%Y-%m-%d %H:%M:%S") {
 
 ## convert character string to POSIXlt elements (weekday, month, etc.),
 ## under the given time zone and format
-char2calendar <- function(x, tz, format = "%Y-%m-%d %H:%M:%S") {
+char2calendar <- function(x, tz, format = "%Y-%m-%d %H:%M:%OS") {
   l <- mapply(strptime, x = x, format = format, tz = tz, SIMPLIFY = FALSE)
   l <- data.frame(do.call("rbind", lapply(l, unlist)), row.names = NULL)
   subset(l, select = sec:yday)
