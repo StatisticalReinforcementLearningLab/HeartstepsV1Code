@@ -28,7 +28,7 @@ fi
 ./appcfg.py download_data \
     --url=https://com-um-heartsteps.appspot.com/remote_api \
     --filename=$dir/$table.csv --kind=$table \
-    --config_file=config_files/$table.yaml
+    --config_file=config_files/$table.yaml --no_cookie
 done
 
 rm bulkloader*

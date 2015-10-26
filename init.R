@@ -1,6 +1,12 @@
 ## run this first
 
+library(knitr)
+library(xtable)
+library(zoo)
+
+source("xzoo.R")
 source("functions.R")
+source("read.data.R")
 
 ## FIXME: Add other systems
 mbox <- switch(Sys.info()["sysname"],
@@ -9,6 +15,3 @@ mbox <- switch(Sys.info()["sysname"],
 
 options(stringsAsFactors = FALSE)
 Sys.setlocale("LC_TIME", "en_US.UTF-8")
-
-library(knitr)
-library(xtable)

@@ -28,11 +28,34 @@ get.values <- function(var.name, index = FALSE, ...) {
   d
 }
 
+## bring y into x, such that id.x = id.y and the largest time.y <= time.x
+merge.last <- function(x, y, id.name, var.name.x, var.name.y, ...) {
+  by.x <- c(id.name, var.name.x)
+  by.y <- c(id.name, var.name.y)
+  d <- merge(x[, names(x) %in% by.x], y,
+             by.x = by.x, by.y = by.y, all = TRUE, ...)
+  d <- impute.locf(d, d[[id.name]])
+  merge(x, d, by = by.x, all.x = TRUE)
+}
+
+## write data frame to file if non-empty, otherwise delete file
 write.data <- function(x, file, ...) {
-  if (nrow(x))
+  print(n <- nrow(x))
+  if (n)
     write.csv(x, file = file, row.names = FALSE, ...)
   else if (file.exists(file))
     file.remove(file)
+  invisible(x)
+}
+
+## duplicate values in variables passed to ...
+check.dup <- function(x, file, ...) {
+  id <- substitute(list(...))
+  id <- do.call("paste", eval(id, x))
+  dup <- duplicated(id)
+  d <- x[id %in% id[dup], , drop = FALSE]
+  write.data(d, file = file)
+  invisible(dup)
 }
 
 ## --- date and time conversions
@@ -78,16 +101,4 @@ char2calendar <- function(x, tz, format = "%Y-%m-%d %H:%M:%S") {
   l <- mapply(strptime, x = x, format = format, tz = tz, SIMPLIFY = FALSE)
   l <- data.frame(do.call("rbind", lapply(l, unlist)), row.names = NULL)
   subset(l, select = sec:yday)
-}
-
-## --- checks
-
-## duplicate values in variables passed to ...
-check.dup <- function(x, file, ...) {
-  id <- substitute(list(...))
-  id <- do.call("paste", eval(id, x))
-  d <- x[id %in% id[duplicated(id)], , drop = FALSE]
-  print(nrow(d))
-  write.data(d, file = file)
-  invisible(d)
 }
