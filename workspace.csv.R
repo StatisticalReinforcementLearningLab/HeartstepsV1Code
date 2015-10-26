@@ -95,8 +95,12 @@ jawbone$days.since[jawbone$days.since == 0] <- NA
 write.data(subset(jawbone, days.since > 1), "checks/days_since_jbsteps_gt1.csv")
 
 ## physical activity - Google Fit
-## FIXME incorporate fractions of a second
 googlefit <- read.data("google_fit_data.csv", list(user, end.utime))
+googlefit$duration <- with(googlefit, end.utime - start.utime)
+googlefit$days.since <- with(googlefit, change(user, start.utime, end.utime)
+                             - duration) / (60^2 * 24)
+googlefit$days.since[googlefit$days.since == 0] <- NA
+write.data(subset(googlefit, days.since > 1), "checks/days_since_gfsteps_gt1.csv")
 
 ## application usage
 usage <- read.data("Heartsteps_Usage_History.csv", list(user, end.utime))
