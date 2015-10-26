@@ -19,7 +19,7 @@ Connect to M+Box via [WebDAV](http://community.box.com/t5/Managing-Your-Content/
 - Click **Connect**. Select **Connect as Registered User**.
 - Enter you M+Box primary email address (under **Name**) and your M+Box external password.
 
-The mount point for your M+Box account's root folder is `/Volumes/dav.box.com/dav`.
+The mount point for your M+Box account's root folder should be `/Volumes/dav`.
 
 ### Windows
 
