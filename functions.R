@@ -12,18 +12,13 @@ strip.white <- function(x) {
 copy <- function(x, y, var.name, id.name)
   y[match(x[[id.name]], y[[id.name]]), names(y) == var.name]
 
-## data frame of unique variable values, possibly indexed by any additional
-## "time" named in var.name
-get.values <- function(var.name, index = FALSE, ...) {
+## data frame of unique variable values
+get.values <- function(var.name, ...) {
   d <- lapply(list(...), function(x) x[var.name[var.name %in% names(x)]])
   m <- min(unlist(lapply(d, ncol)))
-  if (index) {
-    d <- lapply(d, function(x) x[, 1:m, drop = FALSE])
-    sapply(1:length(d), function(x) names(d[[x]][m]) <<- "time")
-  }
   d <- do.call("rbind", d)
   d <- d[do.call("order", d), , drop = FALSE]
-  d <- d[!duplicated(d[1:(m - index), , drop = FALSE]), , drop = FALSE]
+  d <- d[!duplicated(d[1:m, , drop = FALSE]), , drop = FALSE]
   row.names(d) <- NULL
   d
 }
@@ -32,10 +27,9 @@ get.values <- function(var.name, index = FALSE, ...) {
 merge.last <- function(x, y, id.name, var.name.x, var.name.y, ...) {
   by.x <- c(id.name, var.name.x)
   by.y <- c(id.name, var.name.y)
-  d <- merge(x[, names(x) %in% by.x], y,
-             by.x = by.x, by.y = by.y, all = TRUE, ...)
+  d <- merge(x[, names(x) %in% by.x], y, by.x = by.x, by.y = by.y, all = TRUE)
   d <- impute.locf(d, d[[id.name]])
-  merge(x, d, by = by.x, all.x = TRUE)
+  merge(x, d, by = by.x, all.x = TRUE, ...)
 }
 
 ## write data frame to file if non-empty, otherwise delete file

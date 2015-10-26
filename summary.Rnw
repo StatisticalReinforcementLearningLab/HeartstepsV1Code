@@ -32,20 +32,20 @@ Instances of all but the last of the following scenarios are small:
 \begin{itemize}
 \item Planning and EMA response resubmitted the next day
 \item No available contextual data for planning
-\item Momentary decision (to provide an activity suggestion or not) identifier (and possibly contextual data) persisting to the next time slot
-\item Suggestion is sent to the user regardless of the decision result
+\item Momentary decision (to provide an activity suggestion or not) identifier persisting to the next time slot
 \item Notifications sent outside time slots after time zone change
-\item Lack of time zone information with EMA response and changes to application settings (calendars, locations, time slots)
+\item Lack of time zone information with EMA response and changes to application settings (home/work locations and calendars)
+\item Calendar data (apart from busyness status for momentary decision) unavailable
 \end{itemize}
 
 \section{Step count}
   
 <<steps, echo = FALSE, out.width = "\\textwidth", fig.align = "center">>=
-sapply(sort(unique(jawbone$user)),
-       function(x) with(subset(jawbone, user == x),
-                        plot((end.utime - min(end.utime))/(60^2 * 24), steps,
-                             pch = 16, col = grey(0, 0.3),
-                             main = paste("User", x))))
+sapply(sort(unique(jawbone$user)), function(u)
+  sapply(sort(unique(with(jawbone, end.datetime.yday[user == u]))), function(d)
+    with(subset(jawbone, user == u & end.datetime.yday == d),
+         plot(end.utime, cumsum(steps), type = "s",
+                             main = paste("User", x)))))
 @
     
 \end{document}

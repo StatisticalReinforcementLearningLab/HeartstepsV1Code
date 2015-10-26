@@ -3,7 +3,7 @@
 
 source("init.R")
 setwd(mbox)
-file <- "exported.data.RData"
+file <- "csv.RData"
 
 ## EMA completion status
 complete <- read.data("EMA_Completed.csv", list(user, contextid, utime.stamp))
@@ -61,6 +61,7 @@ write.data(subset(decision, day.of.week == ""), "checks/decision_nowkday.csv")
 
 ## response to suggestions
 ## FIXME: merge on message text and proximity in time
+## FIXME: parse question options using doc from Andy
 response <- read.data("Response.csv", list(user, decisionid, responded.utime))
 response$notification.message <- strip.white(response$notification.message)
 response <- merge(response,
@@ -72,7 +73,7 @@ response <- merge(response,
 ## responses for decision = 'do not notify'
 write.data(subset(response, !notify), "checks/donotnotify_response.csv")
 
-## physical activity
+## physical activity - Jawbone
 ## nb: step counts provided in one minute windows for now;
 ##     might eventually be more granular depending on server load
 jawbone <- read.data("jawbone_step_count_data.csv", list(user, end.utime))
@@ -80,7 +81,11 @@ jawbone$duration <- with(jawbone, end.utime - start.utime)
 jawbone$days.since <- with(jawbone, change(user, start.utime, end.utime)
                            - duration) / (60^2 * 24)
 jawbone$days.since[jawbone$days.since == 0] <- NA
-write.data(subset(jawbone, days.since > 1), "checks/days_since_steps_gt1.csv")
+write.data(subset(jawbone, days.since > 1), "checks/days_since_jbsteps_gt1.csv")
+
+## physical activity - Google Fit
+## FIXME incorporate fractions of a second
+googlefit <- read.data("google_fit_data.csv", list(user, end.utime))
 
 ## application usage
 usage <- read.data("Heartsteps_Usage_History.csv", list(user, end.utime))
@@ -110,9 +115,8 @@ weather$date <- char2date(weather$date, "%Y:%m:%d")
 ## nb: notification are sent according to the time slots of the local time zone
 ##     at which HeartSteps was installed or the last instance where the phone
 ##     was restarted (powered on)
-user.tz <- get.values(c("user", "tz", "timezone"), c(
-                      complete, notify, engage, plan, decision, response, usage,
-                      snooze)
+user.tz <- get.values(c("user", "tz", "timezone"), complete, notify, engage,
+                      plan, decision, response, usage, snooze)
 write.data(subset(user.tz, !(tz %in% OlsonNames())
                   | grepl("?", timezone, fixed = TRUE)),
            "checks/invalid_timezone.csv")

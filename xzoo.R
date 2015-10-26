@@ -98,6 +98,7 @@ unzoosplit <- function(z, indexed = FALSE) {
 impute.locf <- function(x, id) {
   uid <- unique(id)
   d <- x
-  sapply(uid, function(i) d[id == i, ] <<- lapply(x[id == i, ], na.locf))
+  sapply(uid, function(i)
+    d[id == i, ] <<- lapply(x[id == i, ], na.locf, na.rm = FALSE))
   d
 }
