@@ -24,13 +24,23 @@ get.values <- function(var.name, ...) {
   d
 }
 
-## match options to delimited string
-match.delimit <- function(x, y, sep = "@") {
-  d <- lapply(strsplit(y, "@"), unlist)
-  d <- lapply(d, function(l) match(x, l, nomatch = 0))
-  d <- data.frame(do.call("rbind", d))
+## like match, but elementwise for the delimited table 'y'
+match.option <- function(x, y, l = rep(TRUE, length(y)), prefix = "",
+                          other = TRUE, sep = "@", other.prefix = "Other==") {
+  d <- data.frame(matrix(NA, length(y), length(x)))
+  d[l, ] <- data.frame(do.call("rbind",
+                               lapply(lapply(strsplit(y[l], "@"), unlist),
+                                      function(z) match(x, z, nomatch = 0))))
   if (!is.null(names(x)))
     names(d) <- names(x)
+  if (other) {
+    d$other <- NA
+    sapply(c(x, other.prefix),
+           function(o) y[l] <<- gsub(o, "", y[l], fixed = TRUE))
+    y[l] <- gsub("@", "", y[l])
+    d$other[l] <- y[l]
+  }
+  names(d) <- paste(prefix, names(d), sep = ".")
   d
 }
 

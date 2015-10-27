@@ -2,6 +2,7 @@
 ## tidy up and save as an R workspace (.RData file)
 
 source("init.R")
+source("ema.options.R")
 setwd(mbox)
 file <- "csv.RData"
 
@@ -24,8 +25,18 @@ ema$message <- strip.white(ema$message)
 ema$response <- strip.white(ema$response)
 
 ema$q1.hectic <- with(ema, as.numeric(ifelse(question == "1", response, NA)))
-ema$q2.stressful <- with(ema, as.numeric(ifelse(question == "2", response, NA)))
+ema$q2.stress <- with(ema, as.numeric(ifelse(question == "2", response, NA)))
 ema$q3.typical <- with(ema, as.numeric(ifelse(question == "3", response, NA)))
+ema$q5.plan <- with(ema, ifelse(question == "5", response, NA))
+
+ema <- cbind(ema,
+             match.option(ema4, ema$response, ema$question == "4", "q4", FALSE),
+             match.option(ema6, ema$response, ema$question == "6", "q6"),
+             match.option(ema6, ema$response, ema$question == "7", "q7"),
+             match.option(research1, ema$response,
+                          ema$question == "research1", "rq1"),
+             match.option(research2, ema$response,
+                          ema$question == "research2", "rq2"))
 
 ## planning
 plan <- read.data(c("Structured_Planning_Response.csv",
