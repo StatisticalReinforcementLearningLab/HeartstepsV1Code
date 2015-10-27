@@ -24,7 +24,7 @@ get.values <- function(var.name, ...) {
   d
 }
 
-## like match, but elementwise for the delimited table 'y'
+## match x against values delimited in y
 match.option <- function(x, y, l = rep(TRUE, length(y)), prefix = "",
                           other = TRUE, sep = "@", other.prefix = "Other==") {
   d <- data.frame(matrix(NA, length(y), length(x)))

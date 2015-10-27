@@ -21,22 +21,8 @@ engage <- read.data("EMA_Context_Engaged.csv",
 ## nb: time zone data are unavailable
 ema <- read.data("EMA_Response.csv",
                  list(user, contextid, question, utime.stamp))
-ema$message <- strip.white(ema$message)
 ema$response <- strip.white(ema$response)
-
-ema$q1.hectic <- with(ema, as.numeric(ifelse(question == "1", response, NA)))
-ema$q2.stress <- with(ema, as.numeric(ifelse(question == "2", response, NA)))
-ema$q3.typical <- with(ema, as.numeric(ifelse(question == "3", response, NA)))
-ema$q5.plan <- with(ema, ifelse(question == "5", response, NA))
-
-ema <- cbind(ema,
-             match.option(ema4, ema$response, ema$question == "4", "q4", FALSE),
-             match.option(ema6, ema$response, ema$question == "6", "q6"),
-             match.option(ema6, ema$response, ema$question == "7", "q7"),
-             match.option(research1, ema$response,
-                          ema$question == "research1", "rq1"),
-             match.option(research2, ema$response,
-                          ema$question == "research2", "rq2"))
+ema$message <- strip.white(ema$message)
 
 ## planning
 plan <- read.data(c("Structured_Planning_Response.csv",
@@ -173,7 +159,28 @@ engage <- subset(engage, !dup)
 ema <- ema[with(ema, order(contextid, question,
                            message.time.mday != time.stamp.mday)), ]
 dup <- check.dup(ema, "checks/dup_ema_response.csv", contextid, question)
-ema <- subset(ema, !dup)
+## single option answers
+ema$q1.hectic <- with(ema, as.numeric(ifelse(question == "1", response, NA)))
+ema$q2.stress <- with(ema, as.numeric(ifelse(question == "2", response, NA)))
+ema$q3.typical <- with(ema, as.numeric(ifelse(question == "3", response, NA)))
+ema$q5.plan <- with(ema, ifelse(question == "5", response, NA))
+ema$q6.msg <- with(ema, ifelse(question == "6", message, NA))
+ema$q7.msg <- with(ema, ifelse(question == "7", message, NA))
+## checklist answers
+ema <- cbind(ema,
+             match.option(ema4, ema$response, ema$question == "4", "q4", FALSE),
+             match.option(ema6, ema$response, ema$question == "6", "q6"),
+             match.option(ema6, ema$response, ema$question == "7", "q7"),
+             match.option(research1, ema$response,
+                          ema$question == "research1", "rq1"),
+             match.option(research2, ema$response,
+                          ema$question == "research2", "rq2"))
+## aggregate from EMA-question to EMA level
+## nb: this dispenses with question order
+ema <- subset(ema, !dup, select = -c(order, question, response))
+ema <- aggregate(. ~ contextid, data = ema,
+                 function(x) ifelse(all(is.na(x)), NA, min(x, na.rm = TRUE)))
+
 
 ## duplicates due to answer revisions
 ## keep unique or latest same-day plans
@@ -182,8 +189,12 @@ plan <- plan[with(plan, order(contextid,
 dup <- check.dup(plan, "checks/dup_planning.csv", contextid)
 plan <- subset(plan, !dup)
 
-check.dup(decision, "checks/dup_decision.csv", decisionid, time.slot)
-check.dup(response, "checks/dup_response.csv", decisionid, time.slot)
+dup <- check.dup(decision, "checks/dup_decision.csv", decisionid, time.slot)
+decision <- subset(plan, !dup)
+
+dup <- check.dup(response, "checks/dup_response.csv", decisionid, time.slot)
+response <- subset(response, !dup)
+
 check.dup(jawbone, "checks/dup_jawbone.csv", user, end.utime)
 
 length(users <- get.values("user", complete, notify, engage, ema, plan,
