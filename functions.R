@@ -24,6 +24,16 @@ get.values <- function(var.name, ...) {
   d
 }
 
+## match options to delimited string
+match.delimit <- function(x, y, sep = "@") {
+  d <- lapply(strsplit(y, "@"), unlist)
+  d <- lapply(d, function(l) match(x, l, nomatch = 0))
+  d <- data.frame(do.call("rbind", d))
+  if (!is.null(names(x)))
+    names(d) <- names(x)
+  d
+}
+
 ## bring y into x, such that id.x = id.y and the largest time.y <= time.x
 merge.last <- function(x, y, id.name, var.name.x, var.name.y, ...) {
   by.x <- c(id.name, var.name.x)

@@ -21,6 +21,11 @@ engage <- read.data("EMA_Context_Engaged.csv",
 ema <- read.data("EMA_Response.csv",
                  list(user, contextid, question, utime.stamp))
 ema$message <- strip.white(ema$message)
+ema$response <- strip.white(ema$response)
+
+ema$q1.hectic <- with(ema, as.numeric(ifelse(question == "1", response, NA)))
+ema$q2.stressful <- with(ema, as.numeric(ifelse(question == "2", response, NA)))
+ema$q3.typical <- with(ema, as.numeric(ifelse(question == "3", response, NA)))
 
 ## planning
 plan <- read.data(c("Structured_Planning_Response.csv",
