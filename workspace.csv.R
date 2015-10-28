@@ -7,14 +7,25 @@ file <- "csv.RData"
 
 ## EMA completion status
 complete <- read.data("EMA_Completed.csv", list(user, contextid, utime.stamp))
+## keep unique or first-recorded completions
+dup <- check.dup(complete, "checks/dup_ema_complete.csv", contextid)
+complete <- subset(complete, !dup)
 
 ## context in which the EMA notification was sent
 notify <- read.data("EMA_Context_Notified.csv",
                     list(user, contextid, notified.utime))
+## keep unique or first-recorded notifications
+dup <- check.dup(notify, "checks/dup_ema_notified.csv", contextid)
+notify <- subset(notify, !dup)
 
 ## context in which the user engaged with the EMA
 engage <- read.data("EMA_Context_Engaged.csv",
                     list(user, contextid, engaged.utime))
+## keep unique or classified activity engagements
+engage <- engage[with(engage, order(contextid, engaged.utime,
+                                    recognized.activity %in% c(NA, "N/A"))), ]
+dup <- check.dup(engage, "checks/dup_ema_engaged.csv", contextid, engaged.utime)
+engage <- subset(engage, !dup)
 
 ## EMA responses
 ## nb: time zone data are unavailable
@@ -22,6 +33,12 @@ ema <- read.data("EMA_Response.csv",
                  list(user, contextid, question, utime.stamp))
 ema$response <- strip.white(ema$response)
 ema$message <- strip.white(ema$message)
+## duplicates due to answer revisions
+## keep unique or latest same-day answers to EMA questions
+ema <- ema[with(ema, order(contextid, question,
+                           message.time.mday != time.stamp.mday)), ]
+dup <- check.dup(ema, "checks/dup_ema_response.csv", contextid, question)
+ema <- subset(ema, !dup)
 
 ## planning
 plan <- read.data(c("Structured_Planning_Response.csv",
@@ -70,6 +87,8 @@ decision <- merge(decision, messages,
 ## missing tags
 write.data(subset(decision, notify & is.na(tag.active)),
            "checks/decision_notags.csv")
+dup <- check.dup(decision, "checks/dup_decision.csv", decisionid, time.slot)
+decision <- subset(plan, !dup)
 
 ## response to suggestions
 ## FIXME: merge on message text and proximity in time
@@ -84,6 +103,8 @@ response <- merge(response,
                   by.y = c("decisionid", "returned.message"), all.x = TRUE)
 ## responses for decision = 'do not notify'
 write.data(subset(response, !notify), "checks/donotnotify_response.csv")
+dup <- check.dup(response, "checks/dup_response.csv", decisionid, time.slot)
+response <- subset(response, !dup)
 
 ## physical activity - Jawbone
 ## nb: step counts provided in one minute windows for now;
@@ -94,6 +115,7 @@ jawbone$days.since <- with(jawbone, change(user, start.utime, end.utime)
                            - duration) / (60^2 * 24)
 jawbone$days.since[jawbone$days.since == 0] <- NA
 write.data(subset(jawbone, days.since > 1), "checks/days_since_jbsteps_gt1.csv")
+check.dup(jawbone, "checks/dup_jawbone.csv", user, end.utime)
 
 ## physical activity - Google Fit
 googlefit <- read.data("google_fit_data.csv", list(user, end.utime))
@@ -138,63 +160,6 @@ write.data(subset(user.tz, !(tz %in% OlsonNames())
            "checks/invalid_timezone.csv")
 write.data(subset(user.tz, !(timezone %in% "Eastern Standard Time")),
            "checks/outside_est_timezone.csv")
-
-## keep unique or first-recorded completions
-dup <- check.dup(complete, "checks/dup_ema_complete.csv", contextid)
-complete <- subset(complete, !dup)
-
-## keep unique or first-recorded notifications
-dup <- check.dup(notify, "checks/dup_ema_notified.csv", contextid)
-notify <- subset(notify, !dup)
-
-## keep unique or classified activity engagements
-engage <- engage[with(engage, order(contextid, engaged.utime,
-                                    recognized.activity %in% c(NA, "N/A"))), ]
-dup <- check.dup(engage, "checks/dup_ema_engaged.csv", contextid, engaged.utime)
-engage <- subset(engage, !dup)
-
-## duplicates due to answer revisions
-## keep unique or latest same-day answers to EMA questions
-ema <- ema[with(ema, order(contextid, question,
-                           message.time.mday != time.stamp.mday)), ]
-dup <- check.dup(ema, "checks/dup_ema_response.csv", contextid, question)
-## single option answers
-ema$q1.hectic <- with(ema, as.numeric(ifelse(question == "1", response, NA)))
-ema$q2.stress <- with(ema, as.numeric(ifelse(question == "2", response, NA)))
-ema$q3.typical <- with(ema, as.numeric(ifelse(question == "3", response, NA)))
-ema$q5.plan <- with(ema, ifelse(question == "5", response, NA))
-ema$q6.msg <- with(ema, ifelse(question == "6", message, NA))
-ema$q7.msg <- with(ema, ifelse(question == "7", message, NA))
-## checklist answers
-ema <- cbind(ema,
-             match.option(ema4, ema$response, ema$question == "4", "q4", FALSE),
-             match.option(ema6, ema$response, ema$question == "6", "q6"),
-             match.option(ema6, ema$response, ema$question == "7", "q7"),
-             match.option(research1, ema$response,
-                          ema$question == "research1", "rq1"),
-             match.option(research2, ema$response,
-                          ema$question == "research2", "rq2"))
-## aggregate from EMA-question to EMA level
-## nb: this dispenses with question order
-ema <- subset(ema, !dup, select = -c(order, question, response))
-ema <- aggregate(. ~ contextid, data = ema,
-                 function(x) ifelse(all(is.na(x)), NA, min(x, na.rm = TRUE)))
-
-
-## duplicates due to answer revisions
-## keep unique or latest same-day plans
-plan <- plan[with(plan, order(contextid,
-                              time.started.mday != time.finished.mday)), ]
-dup <- check.dup(plan, "checks/dup_planning.csv", contextid)
-plan <- subset(plan, !dup)
-
-dup <- check.dup(decision, "checks/dup_decision.csv", decisionid, time.slot)
-decision <- subset(plan, !dup)
-
-dup <- check.dup(response, "checks/dup_response.csv", decisionid, time.slot)
-response <- subset(response, !dup)
-
-check.dup(jawbone, "checks/dup_jawbone.csv", user, end.utime)
 
 length(users <- get.values("user", complete, notify, engage, ema, plan,
                            decision, response, jawbone))
