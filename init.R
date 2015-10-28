@@ -8,10 +8,6 @@ source("functions.R")
 source("read.data.R")
 
 wd <- getwd()
-mbox <- switch(Sys.info()["sysname"],
-               "Windows" = "Z:/HeartSteps/Data/",
-               "Darwin" = "/Volumes/dav/HeartSteps/Data/",
-               "Linux" = "~/mbox/HeartSteps/Data/")
 
 options(stringsAsFactors = FALSE)
 
@@ -23,7 +19,16 @@ options(digits.secs = 6)
 options(digits = 10 + 6)
 
 if (Sys.info()["sysname"] == "Windows") {
+  mbox <- "Z:/HeartSteps/Data/"
   Sys.setlocale("LC_TIME", "English")
-} else {
+}
+else if (Sys.info()["sysname"] == "Darwin") { # Mac
+  mbox <- "/Volumes/dav/HeartSteps/Data/"
+  Sys.setlocale("LC_TIME", "en_US")
+}
+else if (Sys.info()["sysname"] == "Linux") {
+  mbox <- "~/mbox/HeartSteps/Data/"
   Sys.setlocale("LC_TIME", "en_US.UTF-8")
 }
+else
+  warning("Unrecognized system. Set 'mbox' path and time locale manually.")
