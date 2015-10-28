@@ -15,9 +15,9 @@ read.data <- function(file, order.by = NULL, ...) {
   names(d) <- gsub("_", ".", names(d))
   d <- d[, names(d) != "key", drop = FALSE]
   ## keep only pilot users
-  names(d)[names(d) == "user"] <- "userid"
+  names(d)[names(d) %in% c("id", "user")] <- "userid"
   if ("userid" %in% names(d)) {
-    d <- subset(d, grepl("heartsteps.test[0-9]+@", userid, perl = TRUE))
+    d <- subset(d, grepl("heartsteps.test[0-9]+", userid, perl = TRUE))
     d$user <- as.numeric(gsub("(heartsteps\\.test|@gmail.*$)", "", d$userid,
                               perl = TRUE))
   }

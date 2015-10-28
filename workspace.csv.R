@@ -43,7 +43,7 @@ ema$message <- strip.white(ema$message)
 ema <- ema[with(ema, order(contextid, question,
                            message.time.mday != time.stamp.mday)), ]
 dup <- check.dup(ema, "checks/dup_ema_response.csv", contextid, question)
-ema <- subset(ema, !dup)
+ema <- subset(ema, !dup, select = -(gmtoff:time.stamp.yday))
 
 ## --- planning
 plan <- read.data(c("Structured_Planning_Response.csv",
