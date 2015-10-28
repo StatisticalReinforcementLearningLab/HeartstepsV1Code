@@ -27,4 +27,4 @@ sys.var <- switch(Sys.info()["sysname"],
                   "Linux" = list(mbox = "~/mbox/HeartSteps/Data/",
                                  locale = "en_US.UTF-8"))
 
-Sys.setlocale(sys.var$locale)
+Sys.setlocale("LC_TIME", sys.var$locale)
