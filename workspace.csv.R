@@ -2,8 +2,7 @@
 ## tidy up and save as an R workspace (.RData file)
 
 source("init.R")
-source("ema.options.R")
-setwd(mbox)
+setwd(sys.var$mbox)
 file <- "csv.RData"
 
 ## EMA completion status

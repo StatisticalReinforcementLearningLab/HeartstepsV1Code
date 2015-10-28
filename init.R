@@ -6,6 +6,7 @@ library(zoo)
 source("xzoo.R")
 source("functions.R")
 source("read.data.R")
+source("ema.options.R")
 
 wd <- getwd()
 
@@ -14,21 +15,16 @@ options(stringsAsFactors = FALSE)
 ## largest number of digits used to represent fractional seconds
 options(digits.secs = 6)
 
-## largest number of digits used to represent fractional seconds
-## + number of digits in Unix time
+## number of digits in Unix time (seconds since 1970-01-01 00:00 UTC)
+## + largest number of digits used to represent fractional seconds
 options(digits = 10 + 6)
 
-if (Sys.info()["sysname"] == "Windows") {
-  mbox <- "Z:/HeartSteps/Data/"
-  Sys.setlocale("LC_TIME", "English")
-}
-else if (Sys.info()["sysname"] == "Darwin") { # Mac
-  mbox <- "/Volumes/dav/HeartSteps/Data/"
-  Sys.setlocale("LC_TIME", "en_US")
-}
-else if (Sys.info()["sysname"] == "Linux") {
-  mbox <- "~/mbox/HeartSteps/Data/"
-  Sys.setlocale("LC_TIME", "en_US.UTF-8")
-}
-else
-  warning("Unrecognized system. Set 'mbox' path and time locale manually.")
+sys.var <- switch(Sys.info()["sysname"],
+                  "Windows" = list(mbox = "Z:/HeartSteps/Data/",
+                                   locale = "English"),
+                  "Darwin" = list(mbox = "/Volumes/dav/HeartSteps/Data/",
+                                  locale = "en_US"),
+                  "Linux" = list(mbox = "~/mbox/HeartSteps/Data/",
+                                 locale = "en_US.UTF-8"))
+
+Sys.setlocale(sys.var$locale)

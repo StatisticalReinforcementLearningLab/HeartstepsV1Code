@@ -2,7 +2,7 @@
 ## tidy up and save as an R workspace (.RData file)
 
 source("init.R")
-setwd(mbox)
+setwd(sys.var$mbox)
 load("csv.RData")
 file <- "analysis.RData"
 
