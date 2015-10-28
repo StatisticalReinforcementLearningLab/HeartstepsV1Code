@@ -15,4 +15,7 @@ mbox <- switch(Sys.info()["sysname"],
                "Linux" = "~/mbox/HeartSteps/Data/")
 
 options(stringsAsFactors = FALSE)
-Sys.setlocale("LC_TIME", "en_US.UTF-8")
+if (Sys.info()["sysname"] == "Windows") {
+  Sys.setlocale("LC_TIME", "English")
+} else
+  Sys.setlocale("LC_TIME", "en_US.UTF-8")

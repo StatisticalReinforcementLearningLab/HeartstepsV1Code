@@ -1,8 +1,13 @@
 ## read csv file(s) into a data frame
 
 read.data <- function(file, order.by = NULL, ...) {
+  ## Read all files in, store each as an element in a list d
   d <- sapply(file, read.csv, header = TRUE, strip.white = TRUE, ...,
               simplify = FALSE)
+  
+  ## If more than 1 file name is supplied, extract unique columns
+  ## from both and create a single data.frame containing all entries
+  ## (Used if dataset is split over multiple files)
   if (length(d) > 1) {
     l <- d
     n <- unique(unlist(lapply(d, names)))
@@ -15,9 +20,9 @@ read.data <- function(file, order.by = NULL, ...) {
   names(d) <- gsub("_", ".", names(d))
   d <- d[, names(d) != "key", drop = FALSE]
   ## keep only pilot users
-  names(d)[names(d) == "user"] <- "userid"
+  names(d)[names(d) %in% c("user", "id")] <- "userid"
   if ("userid" %in% names(d)) {
-    d <- subset(d, grepl("heartsteps.test[0-9]+@", userid, perl = TRUE))
+    d <- subset(d, grepl("heartsteps.test[0-9]", userid, perl = TRUE))
     d$user <- as.numeric(gsub("(heartsteps\\.test|@gmail.*$)", "", d$userid,
                               perl = TRUE))
   }
