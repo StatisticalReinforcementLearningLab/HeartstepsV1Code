@@ -34,16 +34,18 @@ read.data <- function(file, order.by = NULL, ...) {
                     formatC(abs(d$gmtoff) / 60^2), sep = "")
       d$tz[is.na(d$gmtoff)] <- ""
     }
-    ## all Unix times, POSIXlt elements
+    ## Unix time in UTC
     u <- do.call("data.frame",
                  mapply(char2utime, x = d[, l, drop = FALSE],
                         offset = d[, ncol(d) - 1, drop = FALSE],
                         SIMPLIFY = FALSE))
     names(u) <- gsub("(date|)time", "utime", names(u), perl = TRUE)
+    ## selected POSIXlt elements in local time
     p <- do.call("data.frame",
                  mapply(char2calendar, x = d[, l, drop = FALSE],
                         tz = d[, ncol(d), drop = FALSE], SIMPLIFY = FALSE))
-    d <- cbind(d, u, p)  }
+    d <- cbind(d, u, p)
+  }
   ## sort by given list of variables
   order.by <- substitute(order.by)
   order.by <- eval(order.by, d)

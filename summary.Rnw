@@ -1,5 +1,6 @@
 \documentclass{article}
 
+\usepackage[margin=1in]{geometry}
 \usepackage{microtype}
 \usepackage{amsfonts,amssymb,amsbsy,amsmath,amsthm,mathtools}
 \usepackage[onehalfspacing]{setspace}
@@ -21,8 +22,8 @@
   
 <<read_data, echo = FALSE, include = FALSE>>=
 source("init.R")
-load(paste(mbox, "heartsteps.RData", sep = ""))
-jawbone$user <- gsub("(heartsteps\\.test|@gmail.*$)", "", jawbone$userid, perl = TRUE)
+setwd(mbox)
+load("analysis.RData")
 @
 
 \section{Issues}
@@ -40,12 +41,13 @@ Instances of all but the last of the following scenarios are small:
 
 \section{Step count}
   
-<<steps, echo = FALSE, out.width = "\\textwidth", fig.align = "center">>=
-sapply(sort(unique(jawbone$user)), function(u)
-  sapply(sort(unique(with(jawbone, end.datetime.yday[user == u]))), function(d)
-    with(subset(jawbone, user == u & end.datetime.yday == d),
-         plot(end.utime, cumsum(steps), type = "s",
-                             main = paste("User", x)))))
+<<steps, echo = FALSE, out.height = "\\textheight", out.width = "\\textwidth", fig.align = "center">>=
+sapply(sort(unique(steps$user)), function(u)
+  sapply(sort(unique(with(steps, end.datetime.yday[user == u]))), function(d)
+    with(subset(steps, user == u & end.datetime.yday == d),
+         plot((end.utime - min(end.utime))/(60*60), cumsum(steps),
+              type = "s", xlab = "Hours", ylab = "Cumulative steps",
+              main = paste("User", user[1])))))
 @
-    
+
 \end{document}

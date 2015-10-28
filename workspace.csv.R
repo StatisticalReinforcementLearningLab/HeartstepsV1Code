@@ -2,6 +2,7 @@
 ## tidy up and save as an R workspace (.RData file)
 
 source("init.R")
+source("ema.options.R")
 setwd(mbox)
 file <- "csv.RData"
 
@@ -20,6 +21,7 @@ engage <- read.data("EMA_Context_Engaged.csv",
 ## nb: time zone data are unavailable
 ema <- read.data("EMA_Response.csv",
                  list(user, contextid, question, utime.stamp))
+ema$response <- strip.white(ema$response)
 ema$message <- strip.white(ema$message)
 
 ## planning
@@ -28,6 +30,9 @@ plan <- read.data(c("Structured_Planning_Response.csv",
                   list(user, contextid, utime.finished))
 
 ## suggestion messages
+## FIXME: typo variants are added to source file
+## FIXME: clarify meaning of tags; for example,
+##        suggestions tagged neither active nor sedentary - what does this mean?
 messages <- read.data("Reviewed_Heartsteps_Messages.csv", NULL, skip = 1)
 messages$message <- strip.white(messages$message)
 ## replace recurrent tag variable with tag indicators
@@ -39,6 +44,7 @@ messages <- data.frame(message = messages$message,
                                  any(grepl(tag, x))))))
 names(messages)[-1] <- paste("tag", tags, sep = ".")
 ## combine recurrent messages
+## FIXME: check that this makes sense
 messages <- aggregate(. ~ message, data = messages, any)
 
 ## suggestions
@@ -58,6 +64,13 @@ write.data(subset(decision, decisionid %in% decisionid[duplicated(decisionid)]),
            "checks/persist_decisionid.csv")
 ## missing day of week
 write.data(subset(decision, day.of.week == ""), "checks/decision_nowkday.csv")
+## add message tags
+decision <- merge(decision, messages,
+                  by.x = "returned.message", by.y = "message",
+                  all.x = TRUE, sort = FALSE)
+## missing tags
+write.data(subset(decision, notify & is.na(tag.active)),
+           "checks/decision_notags.csv")
 
 ## response to suggestions
 ## FIXME: merge on message text and proximity in time
@@ -84,8 +97,12 @@ jawbone$days.since[jawbone$days.since == 0] <- NA
 write.data(subset(jawbone, days.since > 1), "checks/days_since_jbsteps_gt1.csv")
 
 ## physical activity - Google Fit
-## FIXME incorporate fractions of a second
 googlefit <- read.data("google_fit_data.csv", list(user, end.utime))
+googlefit$duration <- with(googlefit, end.utime - start.utime)
+googlefit$days.since <- with(googlefit, change(user, start.utime, end.utime)
+                             - duration) / (60^2 * 24)
+googlefit$days.since[googlefit$days.since == 0] <- NA
+write.data(subset(googlefit, days.since > 1), "checks/days_since_gfsteps_gt1.csv")
 
 ## application usage
 usage <- read.data("Heartsteps_Usage_History.csv", list(user, end.utime))
@@ -142,7 +159,28 @@ engage <- subset(engage, !dup)
 ema <- ema[with(ema, order(contextid, question,
                            message.time.mday != time.stamp.mday)), ]
 dup <- check.dup(ema, "checks/dup_ema_response.csv", contextid, question)
-ema <- subset(ema, !dup)
+## single option answers
+ema$q1.hectic <- with(ema, as.numeric(ifelse(question == "1", response, NA)))
+ema$q2.stress <- with(ema, as.numeric(ifelse(question == "2", response, NA)))
+ema$q3.typical <- with(ema, as.numeric(ifelse(question == "3", response, NA)))
+ema$q5.plan <- with(ema, ifelse(question == "5", response, NA))
+ema$q6.msg <- with(ema, ifelse(question == "6", message, NA))
+ema$q7.msg <- with(ema, ifelse(question == "7", message, NA))
+## checklist answers
+ema <- cbind(ema,
+             match.option(ema4, ema$response, ema$question == "4", "q4", FALSE),
+             match.option(ema6, ema$response, ema$question == "6", "q6"),
+             match.option(ema6, ema$response, ema$question == "7", "q7"),
+             match.option(research1, ema$response,
+                          ema$question == "research1", "rq1"),
+             match.option(research2, ema$response,
+                          ema$question == "research2", "rq2"))
+## aggregate from EMA-question to EMA level
+## nb: this dispenses with question order
+ema <- subset(ema, !dup, select = -c(order, question, response))
+ema <- aggregate(. ~ contextid, data = ema,
+                 function(x) ifelse(all(is.na(x)), NA, min(x, na.rm = TRUE)))
+
 
 ## duplicates due to answer revisions
 ## keep unique or latest same-day plans
@@ -151,8 +189,12 @@ plan <- plan[with(plan, order(contextid,
 dup <- check.dup(plan, "checks/dup_planning.csv", contextid)
 plan <- subset(plan, !dup)
 
-check.dup(decision, "checks/dup_decision.csv", decisionid, time.slot)
-check.dup(response, "checks/dup_response.csv", decisionid, time.slot)
+dup <- check.dup(decision, "checks/dup_decision.csv", decisionid, time.slot)
+decision <- subset(plan, !dup)
+
+dup <- check.dup(response, "checks/dup_response.csv", decisionid, time.slot)
+response <- subset(response, !dup)
+
 check.dup(jawbone, "checks/dup_jawbone.csv", user, end.utime)
 
 length(users <- get.values("user", complete, notify, engage, ema, plan,

@@ -3,12 +3,11 @@
 
 source("init.R")
 setwd(mbox)
+load("csv.RData")
 file <- "analysis.RData"
 
-load("csv.RData")
+suggest <- merge.last(jawbone,
+                      subset(decision, select = c(user, notify, utime.stamp)),
+                      "user", "end.utime", "utime.stamp")
 
-steps <- merge.last(jawbone,
-                    subset(decision, select = c(user, notify, utime.stamp)),
-                    "user", "end.utime", "utime.stamp")
-
-save.image(file, safe = FALSE)
+save(suggest, file = file)
