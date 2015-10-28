@@ -22,4 +22,8 @@ options(digits.secs = 6)
 ## + number of digits in Unix time
 options(digits = 10 + 6)
 
-Sys.setlocale("LC_TIME", "en_US.UTF-8")
+if (Sys.info()["sysname"] == "Windows") {
+  Sys.setlocale("LC_TIME", "English")
+} else {
+  Sys.setlocale("LC_TIME", "en_US.UTF-8")
+}
