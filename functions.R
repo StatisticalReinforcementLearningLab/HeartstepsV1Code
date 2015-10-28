@@ -112,8 +112,11 @@ char2utime <- function(x, offset = 0, format = "%Y-%m-%d %H:%M:%OS") {
 
 ## convert character string to POSIXlt elements (weekday, month, etc.),
 ## under the given time zone and format
-char2calendar <- function(x, tz, format = "%Y-%m-%d %H:%M:%OS") {
+char2calendar <- function(x, tz, format = "%Y-%m-%d %H:%M:%OS", prefix = NULL) {
   l <- mapply(strptime, x = x, format = format, tz = tz, SIMPLIFY = FALSE)
   l <- data.frame(do.call("rbind", lapply(l, unlist)), row.names = NULL)
-  subset(l, select = sec:yday)
+  l <- subset(l, select = sec:yday)
+  if (!is.null(prefix))
+    names(l) <- paste(prefix, names(l), sep = ".")
+  l
 }
