@@ -137,7 +137,7 @@ jawbone$duration <- with(jawbone, end.utime - start.utime)
 jawbone$days.since <- with(jawbone, change(user, start.utime, end.utime)
                            - duration) / (60^2 * 24)
 jawbone$days.since[jawbone$days.since == 0] <- NA
-write.data(subset(jawbone, days.since > 1), "checks/days_since_jbsteps_gt1.csv")
+write.data(subset(jawbone, days.since > 1), "checks/inactivity_jbone_gt1.csv")
 check.dup(jawbone, "checks/dup_jawbone.csv", user, end.utime)
 
 ## --- physical activity - Google Fit
@@ -148,7 +148,7 @@ googlefit$duration <- with(googlefit, end.utime - start.utime)
 googlefit$days.since <- with(googlefit, change(user, start.utime, end.utime)
                              - duration) / (60^2 * 24)
 googlefit$days.since[googlefit$days.since == 0] <- NA
-write.data(subset(googlefit, days.since > 1), "checks/days_since_gfsteps_gt1.csv")
+write.data(subset(googlefit, days.since > 1), "checks/inactivity_gfit_gt1.csv")
 
 ## --- application usage
 usage <- read.data("Heartsteps_Usage_History.csv", list(user, end.utime))
