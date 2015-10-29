@@ -1,51 +1,13 @@
 ## load exported csv files into data frames,
 ## tidy up and save as an R workspace (.RData file)
 
+load("csv.RData")
 source("init.R")
 setwd(sys.var$mbox)
-load("csv.RData")
 file <- "analysis.RData"
 
-## drop Unix time, POSIX elements when locale is unknown
-## time zone fix 10-28-2015
-
-## --- infer EMA response time zone from other EMA data frames
-temp <-
-  Reduce(function(x, y) merge(x, y, all = TRUE, by = "contextid"),
-         list(with(notify,
-                   data.frame(contextid, notified.timezone = timezone,
-                              notified.tz = tz, notified.gmtoff = gmtoff)),
-              with(subset(engage, !duplicated(contextid)),
-                   data.frame(contextid, engaged.timezone = timezone,
-                              engaged.tz = tz, engaged.gmtoff = gmtoff)),
-              with(plan,
-                   data.frame(contextid, plan.timezone = timezone,
-                              plan.tz = tz, plan.gmtoff = gmtoff)),
-              with(complete,
-                   data.frame(contextid, complete.timezone = timezone,
-                              complete.tz = tz, complete.gmtoff = gmtoff))))
-temp$min.gmtoff <- with(temp, pmin(notified.gmtoff, engaged.gmtoff, plan.gmtoff,
-                                   complete.gmtoff, na.rm = TRUE))
-temp$max.gmtoff <- with(temp, pmax(notified.gmtoff, engaged.gmtoff, plan.gmtoff,
-                                   complete.gmtoff, na.rm = TRUE))
-
-## no EMA context
-write.data(subset(temp, is.na(notified.tz) & is.na(engaged.tz)),
-           file = "checks/missing_ema_context.csv")
-
-## EMA saddling different time zones or DST settings
-write.data(subset(temp, min.gmtoff != max.gmtoff),
-           file = "checks/ema_multiple_tzdst.csv")
-## if no instances of this, just take the time zone of completion
-ema <- merge(ema, subset(complete, select = c(contextid, timezone, tz, gmtoff)),
-             by = "contextid", all.x = TRUE)
-
-ema$message.utime <- with(ema, char2utime(message.time, gmtoff))
-ema$utime.stamp <- with(ema, char2utime(time.stamp, gmtoff))
-
-ema <- cbind(ema,
-             with(ema, char2calendar(message.time, tz, prefix = "message.time")),
-             with(ema, char2calendar(time.stamp, tz, prefix = "time.stamp")))
+## --- users
+user <- merge(intake, exit, by = c("user", "userid"), all = TRUE)
 
 ## --- aggregate EMA data frame from EMA-question to EMA level
 
@@ -100,4 +62,4 @@ ema <- merge(temp, ema, by = c("user", "contextid"), sort = TRUE)
 dim(ema)
 
 
-save(ema, file = file)
+save(user, ema, file = file)
