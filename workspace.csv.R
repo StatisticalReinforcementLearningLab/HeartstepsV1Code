@@ -5,18 +5,19 @@ source("init.R")
 setwd(sys.var$mbox)
 file <- "csv.RData"
 
-## --- intake and exit interviews
+## --- user list, intake and exit interviews
 ## FIXME: try with CSV file exported by Nick (Office Libre works fine)
 ## FIXME: apply more meaningful variable names on the Excel end
 ## FIXME: check missing values
-intake <- read.data("Survey_Intake.csv", list(user), skip = 3)
-exit <- read.data("Survey_Exit.csv", list(user), skip = 3)
+user <- read.data("HeartSteps Participant Directory.csv", list(user))
+user$intake.date <- char2date(user$intake.interview.date, "%m/%d/%Y")
+user$exit.date <- char2date(user$exit.interview.date, "%m/%d/%Y")
 
-## convert to date class, calculate day of year
+intake <- read.data("Survey_Intake.csv", list(user), skip = 3)
 intake$date1 <- char2date(intake$date1, "%m/%d/%Y")
-intake$yday1 <- strftime(intake$date1, format = "%j")
+
+exit <- read.data("Survey_Exit.csv", list(user), skip = 3)
 exit$date2 <- char2date(exit$date2, "%m/%d/%Y")
-exit$yday2 <- strftime(exit$date2, format = "%j")
 
 ## --- EMA completion status
 complete <- read.data("EMA_Completed.csv", list(user, contextid, utime.stamp))
@@ -253,11 +254,6 @@ write.data(subset(user.tz, !(tz %in% OlsonNames())
            "checks/invalid_timezone.csv")
 write.data(subset(user.tz, !(timezone %in% "Eastern Standard Time")),
            "checks/outside_est_timezone.csv")
-
-length(users <- get.values("user", complete, notify, engage, ema, plan,
-                           decision, response, jawbone))
-length(contexts <- get.values("contextid", complete, notify, engage, ema, plan))
-length(decisions <- get.values("msgid", decision, response))
 
 rm(temp)
 save.image(file, safe = FALSE)
