@@ -53,9 +53,9 @@ daily.plot <- function(u) {
        xlab = "", ylab = "", main = "", axes = FALSE, frame.plot = FALSE)
   mtext(paste("User", u), 2, line = 2, cex = 0.75)
   sapply(subset(d, !completed)$study.day,
-         function(j) rect(j - 1, 0, j, m, col = grey(0, 0.2), border = NA))
+         function(j) rect(j - 1, 0, j, m, col = grey(0, 0.3), border = NA))
   sapply(subset(d, study.udate > last.date)$study.day,
-         function(j) rect(j - 1, 0, j, m, col = grey(0, 0.05), border = NA))
+         function(j) rect(j - 1, 0, j, m, col = grey(0, 0.1), border = NA))
   with(d, points(study.day, steps, type = "l"))
   at <- c(0, with(d, study.day[(na.steps & !lag1.na.steps)
                                | (!na.steps & lag1.na.steps)][-1]), n)
