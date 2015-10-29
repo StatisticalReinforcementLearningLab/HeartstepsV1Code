@@ -1,12 +1,22 @@
-## load exported csv files into data frames,
+## load exported CSV files into data frames,
 ## tidy up and save as an R workspace (.RData file)
 
 source("init.R")
 setwd(sys.var$mbox)
 file <- "csv.RData"
 
+## --- intake and exit interviews
+## FIXME: try with CSV file exported by Nick (Office Libre works fine)
+intake <- read.data("Survey_Intake.csv", list(user), skip = 3)
+intake$date1 <- char2date(intake$date1, "%m/%d/%Y")
+
+exit <- read.data("Survey_Exit.csv", list(user), skip = 3)
+exit$date2 <- char2date(exit$date2, "%m/%d/%Y")
+
 ## --- EMA completion status
 complete <- read.data("EMA_Completed.csv", list(user, contextid, utime.stamp))
+
+complete$completed <- complete$completed == "true"
 
 ## keep unique or first-recorded completions
 dup <- check.dup(complete, "checks/dup_ema_complete.csv", contextid)
@@ -25,15 +35,27 @@ engage <- read.data("EMA_Context_Engaged.csv",
                     list(user, contextid, engaged.utime))
 
 ## keep unique or classified activity engagements
-engage <- engage[with(engage, order(contextid, engaged.utime,
+engage <- engage[with(engage, order(user, contextid, engaged.utime,
                                     recognized.activity %in% c(NA, "N/A"))), ]
 dup <- check.dup(engage, "checks/dup_ema_engaged.csv", contextid, engaged.utime)
 engage <- subset(engage, !dup)
 
+## --- planning
+plan <- read.data(c("Structured_Planning_Response.csv",
+                    "Unstructured_Planning_Response.csv"),
+                  list(user, contextid, utime.finished))
+
+## duplicates due to answer revisions
+## keep unique or latest same-day plans
+plan <- plan[with(plan, order(user, contextid,
+                              time.started.mday != time.finished.mday)), ]
+dup <- check.dup(plan, "checks/dup_planning.csv", contextid)
+plan <- subset(plan, !dup)
+
 ## --- EMA responses
 ## nb: time zone data are unavailable
 ema <- read.data("EMA_Response.csv",
-                 list(user, contextid, question, utime.stamp))
+                 list(user, contextid, question, time.stamp), utime = FALSE)
 
 ema$response <- strip.white(ema$response)
 ema$message <- strip.white(ema$message)
@@ -45,17 +67,44 @@ ema <- ema[with(ema, order(contextid, question,
 dup <- check.dup(ema, "checks/dup_ema_response.csv", contextid, question)
 ema <- subset(ema, !dup, select = -(gmtoff:time.stamp.yday))
 
-## --- planning
-plan <- read.data(c("Structured_Planning_Response.csv",
-                    "Unstructured_Planning_Response.csv"),
-                  list(user, contextid, utime.finished))
+## infer EMA response time zone from other EMA tables
+temp <-
+  Reduce(function(x, y) merge(x, y, all = TRUE, by = "contextid"),
+         list(with(notify,
+                   data.frame(contextid, notified.timezone = timezone,
+                              notified.tz = tz, notified.gmtoff = gmtoff)),
+              with(subset(engage, !duplicated(contextid)),
+                   data.frame(contextid, engaged.timezone = timezone,
+                              engaged.tz = tz, engaged.gmtoff = gmtoff)),
+              with(plan,
+                   data.frame(contextid, plan.timezone = timezone,
+                              plan.tz = tz, plan.gmtoff = gmtoff)),
+              with(complete,
+                   data.frame(contextid, complete.timezone = timezone,
+                              complete.tz = tz, complete.gmtoff = gmtoff))))
+temp$min.gmtoff <- with(temp, pmin(notified.gmtoff, engaged.gmtoff, plan.gmtoff,
+                                   complete.gmtoff, na.rm = TRUE))
+temp$max.gmtoff <- with(temp, pmax(notified.gmtoff, engaged.gmtoff, plan.gmtoff,
+                                   complete.gmtoff, na.rm = TRUE))
 
-## duplicates due to answer revisions
-## keep unique or latest same-day plans
-plan <- plan[with(plan, order(contextid,
-                              time.started.mday != time.finished.mday)), ]
-dup <- check.dup(plan, "checks/dup_planning.csv", contextid)
-plan <- subset(plan, !dup)
+## no EMA context
+write.data(subset(temp, is.na(notified.tz) & is.na(engaged.tz)),
+           file = "checks/missing_ema_context.csv")
+
+## EMA saddling different time zones or DST settings
+write.data(subset(temp, min.gmtoff != max.gmtoff),
+           file = "checks/ema_multiple_tzdst.csv")
+
+## zero rows returned above => just take time zone from complete
+ema <- merge(ema, subset(complete, select = c(contextid, timezone, tz, gmtoff)),
+             by = "contextid", all.x = TRUE)
+
+## recalculate Unix time and POSIXlt elements
+ema$message.utime <- with(ema, char2utime(message.time, gmtoff))
+ema$utime.stamp <- with(ema, char2utime(time.stamp, gmtoff))
+ema <- cbind(ema,
+             with(ema, char2calendar(message.time, tz, prefix = "message.time")),
+             with(ema, char2calendar(time.stamp, tz, prefix = "time.stamp")))
 
 ## --- suggestion messages
 ## FIXME: typo variants are added to source file
@@ -88,13 +137,15 @@ decision$msgid <- with(decision, paste(decisionid, time.slot, sep = "_"))
 write.data(subset(decision, duplicated(msgid) & !is.prefetch),
            "check/recur_nonprefetch.csv")
 
-## drop prefetch data in a prefetch/non-prefetch dual
+## drop prefetch data in a prefetch/non-prefetch duo
 decision <- subset(decision, !duplicated(msgid))
+
 ## decisionid persisting into next time slot
 write.data(subset(decision, decisionid %in% decisionid[duplicated(decisionid)]),
            "checks/persist_decisionid.csv")
 
 ## missing day of week
+## FIXME: would this affect the message selection?
 write.data(subset(decision, day.of.week == ""), "checks/decision_nowkday.csv")
 
 ## add message tags
@@ -127,10 +178,14 @@ write.data(subset(response, !notify), "checks/donotnotify_response.csv")
 dup <- check.dup(response, "checks/dup_response.csv", decisionid, time.slot)
 response <- subset(response, !dup)
 
-## --- physical activity - Jawbone
+## --- Jawbone
 ## nb: step counts provided in one minute windows for now;
 ##     might eventually be more granular depending on server load
-jawbone <- read.data("jawbone_step_count_data.csv", list(user, end.utime))
+jawbone <- read.data(c("jawbone_step_count_data_07-15.csv",
+                       "jawbone_step_count_data_08-15.csv",
+                       "jawbone_step_count_data_09-15.csv",
+                       "jawbone_step_count_data_10-15.csv"),
+                     list(user, end.utime), ptime = FALSE)
 
 ## periods of inactivity longer than one day
 jawbone$duration <- with(jawbone, end.utime - start.utime)
@@ -140,8 +195,13 @@ jawbone$days.since[jawbone$days.since == 0] <- NA
 write.data(subset(jawbone, days.since > 1), "checks/inactivity_jbone_gt1.csv")
 check.dup(jawbone, "checks/dup_jawbone.csv", user, end.utime)
 
-## --- physical activity - Google Fit
-googlefit <- read.data("google_fit_data.csv", list(user, end.utime))
+## --- Google Fit
+## nb: step counts provided over time intervals of continuous physical activity
+googlefit <- read.data(c("google_fit_data_07-15.csv",
+                         "google_fit_data_08-15.csv",
+                         "google_fit_data_09-15.csv",
+                         "google_fit_data_10-15.csv"),
+                       list(user, end.utime), ptime = FALSE)
 
 ## periods of inactivity longer than one day
 googlefit$duration <- with(googlefit, end.utime - start.utime)
@@ -158,14 +218,17 @@ snooze <- read.data("Snoozed_FromInApp.csv")
 
 ## --- home and work locations
 ## nb: time zone data are unavailable
-address <- read.data("User_Addresses.csv", list(user, time.updated))
+address <- read.data("User_Addresses.csv", list(user, time.updated),
+                     utime = FALSE, ptime = FALSE)
 
 ## --- calendars
 ## nb: time zone data are unavailable
-calendar <- read.data("User_Calendars.csv", list(user, time.updated))
+calendar <- read.data("User_Calendars.csv", list(user, time.updated),
+                      utime = FALSE, ptime = FALSE)
 
 ## --- suggestion and EMA timeslots
 timeslot <- read.data("User_Decision_Times.csv", list(user, utime.updated))
+
 ## drop redundant timeslots
 timeslot <- subset(timeslot, !duplicated(paste(user, morning, lunch, dinner,
                                                evening, ema, sep = "_")))

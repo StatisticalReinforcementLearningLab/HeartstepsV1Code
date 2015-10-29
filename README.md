@@ -49,6 +49,8 @@ chmod 600 /home/USERNAME/.davfs2/secrets
 
 ## Exporting data
 
+Application data are exported either manually through a web browser interface or via the export scripts in this repository. Data recorded by hand, such as message tags and intake/exit interviews, are exported manually by saving the corresponding file in CSV format. For this task, be sure to set your Excel locale to US English.
+
 ### Jawbone and Google Fit
 
 Download using the browser interface at <http://jitai-api.appspot.com>.
