@@ -19,15 +19,6 @@ intake$date1 <- char2date(intake$date1, "%m/%d/%Y")
 exit <- read.data("Survey_Exit.csv", list(user), skip = 3)
 exit$date2 <- char2date(exit$date2, "%m/%d/%Y")
 
-## reconstruct linkage ID
-## user + udate
-## udate = local date of notification + UTC offset
-
-## notify -> next 
-
-## complete - use only to infer time zone for ema
-## - for each EMA, take time zone of next available complete
-
 ## --- EMA completion status
 complete <- read.data("EMA_Completed.csv", list(user, utime.stamp))
 complete$completed <- complete$completed == "true"
@@ -263,9 +254,10 @@ weather <- read.data("Weather_History.csv", list(date))
 weather$date <- char2date(weather$date, "%Y:%m:%d")
 
 ## --- check timezones
+## FIXME: time zone fix - test with users 3, 4, 6, 10, 13, 14, 17, 22
 ## nb: notification are sent according to the time slots of the local time zone
 ##     at which HeartSteps was installed or the last instance where the phone
-##     was restarted (powered on)
+##     was restarted (powered on) - this is prior to 2015-10-28/9
 user.tz <- get.values(c("user", "tz", "timezone"), complete, notify, engage,
                       plan, decision, response, usage, snooze)
 write.data(subset(user.tz, !(tz %in% OlsonNames())
