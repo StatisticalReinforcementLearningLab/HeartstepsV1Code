@@ -42,6 +42,8 @@ Instances of all but the last of the following scenarios are small:
 \item Notifications sent outside time slots after time zone change and (post fix) multiple notifications potentially sent in the same time slot when moving between time zones.
 \item Lack of time zone information with EMA response and changes to application settings (home/work locations and calendars)
 \item Calendar data (apart from busyness status for momentary decision) unavailable
+\item EMA notification table indicates planning should be provided, but no associated data in the planning table. Per Andy, this is a race condition error, so the notification table can't be trusted. We can infer who was randomized to planning using the responses, but this only accounts for completed EMAs. 
+\item Identically duplicated EMA responses (per Andy: race condition error)
 \end{itemize}
 
 \section{User demographics and selected baseline activity}
