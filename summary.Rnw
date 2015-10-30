@@ -24,7 +24,7 @@
 source("init.R")
 setwd(sys.var$mbox)
 load("analysis.RData")
-intake <- intake <- read.data("Survey_Intake.csv", order.by = list(userid), skip = 3)
+intake <- read.data("Survey_Intake.csv", order.by = list(userid), skip = 3)
 @
 
 \section{Issues}
