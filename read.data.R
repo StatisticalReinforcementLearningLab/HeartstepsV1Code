@@ -20,7 +20,9 @@ read.data <- function(file, order.by = NULL, utime = TRUE, ptime = TRUE, ...) {
   ## normalize variable names
   names(d) <- tolower(names(d))
   names(d) <- gsub("_", ".", names(d))
+  names(d) <- gsub("\\.$", "", names(d))
   names(d)[grep("^(user|id)$", names(d))[1]] <- "userid"
+  names(d)[names(d) == "test.id"] <- "user"
   ## omit extraneous variables
   d <- d[, !(names(d) %in% c("key", "variable.name")), drop = FALSE]
   ## keep only pilot users
@@ -43,14 +45,18 @@ read.data <- function(file, order.by = NULL, utime = TRUE, ptime = TRUE, ...) {
                     formatC(abs(d$gmtoff) / 60^2), sep = "")
       d$tz[is.na(d$gmtoff)] <- ""
     }
-    ## Unix time in UTC
+    ## POSIXct and date in UTC
     if (utime) {
       u <- do.call("data.frame",
                    mapply(char2utime, x = d[, l, drop = FALSE],
                           offset = d[, names(d) == "gmtoff", drop = FALSE],
                           SIMPLIFY = FALSE))
       names(u) <- gsub("(date|)time", "utime", names(u))
-      d <- cbind(d, u)
+      y <- do.call("data.frame", lapply(u, as.Date))
+      names(y) <- gsub("utime", "udate", names(y))
+      ly <- do.call("data.frame", lapply(d[, l, drop = FALSE], as.Date))
+      names(ly) <- gsub("(date|)time", "date", names(ly))
+      d <- cbind(d, u, y, ly)
     }
     ## selected POSIXlt elements in time zone/DST specified by tz
     if (ptime) {

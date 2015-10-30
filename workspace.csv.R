@@ -5,63 +5,74 @@ source("init.R")
 setwd(sys.var$mbox)
 file <- "csv.RData"
 
-## --- intake and exit interviews
+## --- user list, intake and exit interviews
 ## FIXME: try with CSV file exported by Nick (Office Libre works fine)
 ## FIXME: apply more meaningful variable names on the Excel end
 ## FIXME: check missing values
-intake <- read.data("Survey_Intake.csv", list(user), skip = 3)
-exit <- read.data("Survey_Exit.csv", list(user), skip = 3)
+user <- read.data("HeartSteps Participant Directory.csv", list(user))
+user$intake.date <- char2date(user$intake.interview.date, "%m/%d/%Y")
+user$exit.date <- char2date(user$exit.interview.date, "%m/%d/%Y")
 
-## convert to date class, calculate day of year
+intake <- read.data("Survey_Intake.csv", list(user), skip = 3)
 intake$date1 <- char2date(intake$date1, "%m/%d/%Y")
-intake$yday1 <- strftime(intake$date1, format = "%j")
+
+exit <- read.data("Survey_Exit.csv", list(user), skip = 3)
 exit$date2 <- char2date(exit$date2, "%m/%d/%Y")
-exit$yday2 <- strftime(exit$date2, format = "%j")
 
 ## --- EMA completion status
-complete <- read.data("EMA_Completed.csv", list(user, contextid, utime.stamp))
-
+complete <- read.data("EMA_Completed.csv", list(user, utime.stamp))
 complete$completed <- complete$completed == "true"
 
-## keep unique or first-recorded completions
-dup <- check.dup(complete, "checks/dup_ema_complete.csv", contextid)
-complete <- subset(complete, !dup)
+## completion status might not be confirmed until X hours after EMA time slot,
+## so if hour < earliest time slot, move date back one day
+## FIXME: check that this makes sense
+check.dup(complete, "checks/dup_ema_complete.csv", user, date.stamp)
+complete$date.stamp <- with(complete, date.stamp
+                            - (!completed & time.stamp.hour < 20))
+dup <- check.dup(complete, "checks/dup_ema_complete.csv", user, date.stamp)
 
 ## --- context in which the EMA notification was sent
-notify <- read.data("EMA_Context_Notified.csv",
-                    list(user, contextid, notified.utime))
+notify <- read.data("EMA_Context_Notified.csv", list(user, notified.utime))
 
 ## keep unique or first-recorded notifications
-dup <- check.dup(notify, "checks/dup_ema_notified.csv", contextid)
-notify <- subset(notify, !dup)
+dup <- check.dup(notify, "checks/dupid_ema_notified.csv", contextid)
+notify <- notify[!dup, ]
+
+## 
+dup <- check.dup(notify, "checks/dup_ema_notify.csv", user, notified.date)
+
+dup <- check.dup(notify, "checks/dup_ema_notify.csv", user, date.stamp)
 
 ## --- context in which the user engaged with the EMA
 engage <- read.data("EMA_Context_Engaged.csv",
-                    list(user, contextid, engaged.utime))
+                    list(user, engaged.utime,
+                         recognized.activity %in% c(NA, "N/A")))
 
 ## keep unique or classified activity engagements
-engage <- engage[with(engage, order(user, contextid, engaged.utime,
-                                    recognized.activity %in% c(NA, "N/A"))), ]
 dup <- check.dup(engage, "checks/dup_ema_engaged.csv", contextid, engaged.utime)
-engage <- subset(engage, !dup)
+engage <- engage[!dup, ]
 
 ## --- planning
 plan <- read.data(c("Structured_Planning_Response.csv",
                     "Unstructured_Planning_Response.csv"),
-                  list(user, contextid, utime.finished))
+                  list(user, contextid, time.started.yday != time.finished.yday))
 
 ## duplicates due to answer revisions
 ## keep unique or latest same-day plans
-plan <- plan[with(plan, order(user, contextid,
-                              time.started.mday != time.finished.mday)), ]
-dup <- check.dup(plan, "checks/dup_planning.csv", contextid)
+dup <- check.dup(plan, "checks/dupid_planning.csv", contextid)
 plan <- subset(plan, !dup)
+plan <- plan[with(plan, order(user, utime.finished)), ]
+
+## remaining duplicate occurs in the central time zone;
+## this is likely due to the pre 10/28 time zone bug, so discard the earlier
+## FIXME: check this
+dup <- check.dup(plan, "checks/dup_planning.csv", user, date.finished)
+plan <- plan[!dup, ]
 
 ## --- EMA responses
 ## nb: time zone data are unavailable
 ema <- read.data("EMA_Response.csv",
                  list(user, contextid, question, time.stamp), utime = FALSE)
-
 ema$response <- strip.white(ema$response)
 ema$message <- strip.white(ema$message)
 
@@ -243,9 +254,10 @@ weather <- read.data("Weather_History.csv", list(date))
 weather$date <- char2date(weather$date, "%Y:%m:%d")
 
 ## --- check timezones
+## FIXME: time zone fix - test with users 3, 4, 6, 10, 13, 14, 17, 22
 ## nb: notification are sent according to the time slots of the local time zone
 ##     at which HeartSteps was installed or the last instance where the phone
-##     was restarted (powered on)
+##     was restarted (powered on) - this is prior to 2015-10-28/9
 user.tz <- get.values(c("user", "tz", "timezone"), complete, notify, engage,
                       plan, decision, response, usage, snooze)
 write.data(subset(user.tz, !(tz %in% OlsonNames())
@@ -253,11 +265,6 @@ write.data(subset(user.tz, !(tz %in% OlsonNames())
            "checks/invalid_timezone.csv")
 write.data(subset(user.tz, !(timezone %in% "Eastern Standard Time")),
            "checks/outside_est_timezone.csv")
-
-length(users <- get.values("user", complete, notify, engage, ema, plan,
-                           decision, response, jawbone))
-length(contexts <- get.values("contextid", complete, notify, engage, ema, plan))
-length(decisions <- get.values("msgid", decision, response))
 
 rm(temp)
 save.image(file, safe = FALSE)

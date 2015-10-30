@@ -1,9 +1,10 @@
-\documentclass{article}
+\documentclass[landscape]{article}
 
 \usepackage[margin=1in]{geometry}
 \usepackage{microtype}
 \usepackage{amsfonts,amssymb,amsbsy,amsmath,amsthm,mathtools}
 \usepackage[onehalfspacing]{setspace}
+\usepackage[section]{placeins}
 \usepackage{times}
 \IfFileExists{mtpro2.sty}
   {\let\Bbbk\relax\usepackage[mtphrb]{mtpro2}}
@@ -19,7 +20,10 @@
   % To include and evaluate R code inside knitr, enclose the code block in a "chunk". Open the chunk with << >>=, enclosing chunk name and options inside the brackets (See http://yihui.name/knitr/options/#chunk_options for chunk options). There can't be any line breaks in << >> and options are separated by commas. Close the chunk with @. Objects created inside chunks are global.
   
   % Read in the data: must be done by knitr (for some reason it can't read the global environment unless it creates it?). Options: don't _include_ output in the final .tex file. It's possible to somehow cache chunks, but there seem to be some nuanced best practices that I haven't quite gotten a grip on yet. I'll update when I do.
-  
+
+% Rscript -e "library(knitr); knit('summary.Rnw')"
+% pdflatex summary
+
 <<read_data, echo = FALSE, include = FALSE>>=
 source("init.R")
 setwd(sys.var$mbox)
@@ -35,12 +39,13 @@ Instances of all but the last of the following scenarios are small:
 \item Planning and EMA response resubmitted the next day
 \item No available contextual data for planning
 \item Momentary decision (to provide an activity suggestion or not) identifier persisting to the next time slot
-\item Notifications sent outside time slots after time zone change
+\item Notifications sent outside time slots after time zone change and (post fix) multiple notifications potentially sent in the same time slot when moving between time zones.
 \item Lack of time zone information with EMA response and changes to application settings (home/work locations and calendars)
 \item Calendar data (apart from busyness status for momentary decision) unavailable
 \end{itemize}
 
 \section{User demographics and selected baseline activity}
+
 \begin{table}[h]
   \centering
   \begin{tabular}{l|cc}
@@ -64,16 +69,26 @@ Instances of all but the last of the following scenarios are small:
    \end{tabular}
 \end{table}
 
+\section{Step count - Jawbone}
 
-\section{Step count}
-  
-<<steps, echo = FALSE, out.height = "\\textheight", out.width = "\\textwidth", fig.align = "center">>=
-sapply(sort(unique(steps$user)), function(u)
-  sapply(sort(unique(with(steps, end.datetime.yday[user == u]))), function(d)
-    with(subset(steps, user == u & end.datetime.yday == d),
-         plot((end.utime - min(end.utime))/(60*60), cumsum(steps),
-              type = "s", xlab = "Hours", ylab = "Cumulative steps",
-              main = paste("User", user[1])))))
+The following plots give the daily step count. Breaks in the series indicate no available minute-by-minute step counts were recorded that day. Areas shaded dark grey correspond to days on which the EMA that evening was not completed (either wholly or in part). Light grey regions correspond to study days that have not yet been recorded, since the participant is still in the in the field.
+
+<<dailysteps1, echo = FALSE, out.height = "\\textheight", out.width = "\\textwidth", fig.align = "center">>=
+par(mfrow = c(10, 1), mar = c(0.5, 4, 0.5, 0), mgp = c(0.5, 0.1, 0),
+    oma = c(1, 2, 0, 0), tcl = 0.25, las = 1)
+invisible(sapply(users[1:10], daily.plot))
+@
+
+<<dailysteps2, echo = FALSE, out.height = "\\textheight", out.width = "\\textwidth", fig.align = "center">>=
+par(mfrow = c(10, 1), mar = c(0.5, 4, 0.5, 0), mgp = c(0.5, 0.1, 0),
+    oma = c(1, 2, 0, 0), tcl = 0.25, las = 1)
+invisible(sapply(users[11:20], daily.plot))
+@
+
+<<dailysteps3, echo = FALSE, out.height = "\\textheight", out.width = "\\textwidth", fig.align = "center">>=
+par(mfrow = c(10, 1), mar = c(0.5, 4, 0.5, 0), mgp = c(0.5, 0.1, 0),
+    oma = c(1, 2, 0, 0), tcl = 0.25, las = 1)
+invisible(sapply(users[21:length(users)], daily.plot))
 @
 
 \end{document}

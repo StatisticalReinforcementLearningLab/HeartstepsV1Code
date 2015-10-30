@@ -16,10 +16,8 @@ copy <- function(x, y, var.name, id.name)
 ## data frame of unique variable values
 get.values <- function(var.name, ...) {
   d <- lapply(list(...), function(x) x[var.name[var.name %in% names(x)]])
-  m <- min(unlist(lapply(d, ncol)))
   d <- do.call("rbind", d)
-  d <- d[do.call("order", d), , drop = FALSE]
-  d <- d[!duplicated(d[1:m, , drop = FALSE]), , drop = FALSE]
+  d <- d[!duplicated(d), , drop = FALSE]
   row.names(d) <- NULL
   d
 }
@@ -102,12 +100,12 @@ gps2timezone <- function(lat, long, utime = 0) {
 char2date <- function(x, format = "%Y-%m-%d")
   as.Date(paste(x), format = format)
 
-## convert character string to Unix time (seconds since 1970-01-01 00:00 UTC),
-## under the given GMT/UTC offset and format
+## convert character string to POSIXct in GMT/UTC,
+## under the given offset and format
 char2utime <- function(x, offset = 0, format = "%Y-%m-%d %H:%M:%OS") {
   l <- mapply(strptime, x = x, format = format, tz = "GMT", SIMPLIFY = FALSE)
   l <- do.call("c", lapply(l, as.POSIXct, tz = "GMT"))
-  as.numeric(l) - offset
+  l - offset
 }
 
 ## convert character string to POSIXlt elements (weekday, month, etc.),
@@ -120,3 +118,7 @@ char2calendar <- function(x, tz, format = "%Y-%m-%d %H:%M:%OS", prefix = NULL) {
     names(l) <- paste(prefix, names(l), sep = ".")
   l
 }
+
+## days between two dates/times, presumed UTC in days
+diff.udays <- function(time1, time2)
+  as.numeric(floor(difftime(time1, time2, units = "days")))
