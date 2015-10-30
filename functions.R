@@ -16,10 +16,8 @@ copy <- function(x, y, var.name, id.name)
 ## data frame of unique variable values
 get.values <- function(var.name, ...) {
   d <- lapply(list(...), function(x) x[var.name[var.name %in% names(x)]])
-  m <- min(unlist(lapply(d, ncol)))
   d <- do.call("rbind", d)
-  d <- d[do.call("order", d), , drop = FALSE]
-  d <- d[!duplicated(d[1:m, , drop = FALSE]), , drop = FALSE]
+  d <- d[!duplicated(d), , drop = FALSE]
   row.names(d) <- NULL
   d
 }

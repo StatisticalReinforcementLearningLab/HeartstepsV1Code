@@ -54,7 +54,9 @@ read.data <- function(file, order.by = NULL, utime = TRUE, ptime = TRUE, ...) {
       names(u) <- gsub("(date|)time", "utime", names(u))
       y <- do.call("data.frame", lapply(u, as.Date))
       names(y) <- gsub("utime", "udate", names(y))
-      d <- cbind(d, u, y)
+      ly <- do.call("data.frame", lapply(d[, l, drop = FALSE], as.Date))
+      names(ly) <- gsub("(date|)time", "date", names(ly))
+      d <- cbind(d, u, y, ly)
     }
     ## selected POSIXlt elements in time zone/DST specified by tz
     if (ptime) {

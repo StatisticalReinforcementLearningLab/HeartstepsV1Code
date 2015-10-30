@@ -19,50 +19,69 @@ intake$date1 <- char2date(intake$date1, "%m/%d/%Y")
 exit <- read.data("Survey_Exit.csv", list(user), skip = 3)
 exit$date2 <- char2date(exit$date2, "%m/%d/%Y")
 
-## --- EMA completion status
-complete <- read.data("EMA_Completed.csv", list(user, contextid, utime.stamp))
+## reconstruct linkage ID
+## user + udate
+## udate = local date of notification + UTC offset
 
+## notify -> next 
+
+## complete - use only to infer time zone for ema
+## - for each EMA, take time zone of next available complete
+
+## --- EMA completion status
+complete <- read.data("EMA_Completed.csv", list(user, utime.stamp))
 complete$completed <- complete$completed == "true"
 
-## keep unique or first-recorded completions
-dup <- check.dup(complete, "checks/dup_ema_complete.csv", contextid)
-complete <- subset(complete, !dup)
+## completion status might not be confirmed until X hours after EMA time slot,
+## so if hour < earliest time slot, move date back one day
+## FIXME: check that this makes sense
+check.dup(complete, "checks/dup_ema_complete.csv", user, date.stamp)
+complete$date.stamp <- with(complete, date.stamp
+                            - (!completed & time.stamp.hour < 20))
+dup <- check.dup(complete, "checks/dup_ema_complete.csv", user, date.stamp)
 
 ## --- context in which the EMA notification was sent
-notify <- read.data("EMA_Context_Notified.csv",
-                    list(user, contextid, notified.utime))
+notify <- read.data("EMA_Context_Notified.csv", list(user, notified.utime))
 
 ## keep unique or first-recorded notifications
-dup <- check.dup(notify, "checks/dup_ema_notified.csv", contextid)
-notify <- subset(notify, !dup)
+dup <- check.dup(notify, "checks/dupid_ema_notified.csv", contextid)
+notify <- notify[!dup, ]
+
+## 
+dup <- check.dup(notify, "checks/dup_ema_notify.csv", user, notified.date)
+
+dup <- check.dup(notify, "checks/dup_ema_notify.csv", user, date.stamp)
 
 ## --- context in which the user engaged with the EMA
 engage <- read.data("EMA_Context_Engaged.csv",
-                    list(user, contextid, engaged.utime))
+                    list(user, engaged.utime,
+                         recognized.activity %in% c(NA, "N/A")))
 
 ## keep unique or classified activity engagements
-engage <- engage[with(engage, order(user, contextid, engaged.utime,
-                                    recognized.activity %in% c(NA, "N/A"))), ]
 dup <- check.dup(engage, "checks/dup_ema_engaged.csv", contextid, engaged.utime)
-engage <- subset(engage, !dup)
+engage <- engage[!dup, ]
 
 ## --- planning
 plan <- read.data(c("Structured_Planning_Response.csv",
                     "Unstructured_Planning_Response.csv"),
-                  list(user, contextid, utime.finished))
+                  list(user, contextid, time.started.yday != time.finished.yday))
 
 ## duplicates due to answer revisions
 ## keep unique or latest same-day plans
-plan <- plan[with(plan, order(user, contextid,
-                              time.started.mday != time.finished.mday)), ]
-dup <- check.dup(plan, "checks/dup_planning.csv", contextid)
+dup <- check.dup(plan, "checks/dupid_planning.csv", contextid)
 plan <- subset(plan, !dup)
+plan <- plan[with(plan, order(user, utime.finished)), ]
+
+## remaining duplicate occurs in the central time zone;
+## this is likely due to the pre 10/28 time zone bug, so discard the earlier
+## FIXME: check this
+dup <- check.dup(plan, "checks/dup_planning.csv", user, date.finished)
+plan <- plan[!dup, ]
 
 ## --- EMA responses
 ## nb: time zone data are unavailable
 ema <- read.data("EMA_Response.csv",
                  list(user, contextid, question, time.stamp), utime = FALSE)
-
 ema$response <- strip.white(ema$response)
 ema$message <- strip.white(ema$message)
 
