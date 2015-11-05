@@ -3,85 +3,131 @@
 
 source("init.R")
 setwd(sys.var$mbox)
-file <- "csv.RData"
 
-## --- user list, intake and exit interviews
-## FIXME: try with CSV file exported by Nick (Office Libre works fine)
-## FIXME: apply more meaningful variable names on the Excel end
-## FIXME: check missing values
+## --- participant-level data
+## FIXME: check with Shawna about time "off-study" (e.g. vacation)
+## FIXME: finalize interview spreadsheet format
+
+## user list
 user <- read.data("HeartSteps Participant Directory.csv", list(user))
 user$intake.date <- char2date(user$intake.interview.date, "%m/%d/%Y")
 user$exit.date <- char2date(user$exit.interview.date, "%m/%d/%Y")
 
+## intake interviews
 intake <- read.data("Survey_Intake.csv", list(user), skip = 3)
 intake$date1 <- char2date(intake$date1, "%m/%d/%Y")
 
+## exit interviews
 exit <- read.data("Survey_Exit.csv", list(user), skip = 3)
 exit$date2 <- char2date(exit$date2, "%m/%d/%Y")
 
-## --- EMA completion status
+## --- evening questionnaire (EMA) and planning intervention
+
+## EMA completion status
 complete <- read.data("EMA_Completed.csv", list(user, utime.stamp))
-complete$completed <- complete$completed == "true"
 
-## completion status might not be confirmed until X hours after EMA time slot,
-## so if hour < earliest time slot, move date back one day
-## FIXME: check that this makes sense
-check.dup(complete, "checks/dup_ema_complete.csv", user, date.stamp)
-complete$date.stamp <- with(complete, date.stamp
-                            - (!completed & time.stamp.hour < 20))
-dup <- check.dup(complete, "checks/dup_ema_complete.csv", user, date.stamp)
+## planning
+plan <- read.data(c("Structured_Planning_Response.csv",
+                    "Unstructured_Planning_Response.csv"),
+                  list(user, date.started,
+                       time.started.yday != time.finished.yday,
+                       -as.numeric(utime.finished)))
+plan$response <- strip.white(plan$response)
+plan$list.of.options <- strip.white(plan$list.of.options)
+plan$planning <- c("structured", "unstructured")[1 + is.na(plan$list.of.options)]
+## keep unique or latest same-day plans
+dup.plan <- check.dup(subset(plan,
+                             select = c(user, contextid, date.started,
+                                        time.started, time.finished, planning,
+                                        response)),
+                      "checks/dup_planning.csv", user, date.started)
+plan <- plan[-dup.plan$which, ]
 
-## --- context in which the EMA notification was sent
+## EMA responses
+## nb: time zone data are unavailable
+## nb: time stamp subject to error, so user message.date instead
+ema <- read.data("EMA_Response.csv", list(user, message.date, order))
+ema$response <- strip.white(ema$response)
+ema$message <- strip.white(ema$message)
+## administered EMA question set
+ema <- merge(ema,
+             with(ema, aggregate(question,
+                                 by = list(user, message.date, contextid),
+                                 function(x) paste(unique(x), collapse = ","))),
+             by.x = c("user", "message.date", "contextid"),
+             by.y = paste("Group", 1:3, sep = "."))
+names(ema)[ncol(ema)] <- "ema.set"
+ema <- ema[with(ema, order(user, message.date, order,
+                           message.time.yday !=  time.stamp.yday,
+                           -as.numeric(utime.stamp))), ]
+## keep unique or same-day EMA responses
+dup.ema <- check.dup(subset(ema,
+                            select = c(user, contextid, message.date, time.stamp,
+                                       order, question, ema.set, response)),
+                     "checks/dup_ema_response.csv",
+                     user, message.date, order, ema.set, subset = order == 1)
+ema <- ema[-dup.ema$which, ]
+## same user-day, but different question set - we resolve this below
+dup.ema <- check.dup(subset(ema,
+                            select = c(user, contextid, message.date, time.stamp,
+                                       order, question, ema.set, response)),
+                     "checks/dup_ema_response_multiset.csv",
+                     user, message.date, order, subset = order == 1)
+
+## context in which the EMA notification was sent
 notify <- read.data("EMA_Context_Notified.csv", list(user, notified.utime))
+notify$ema.set.today <- gsub(",ema_finish", "", notify$ema.set.today)
+notify <- merge(notify,
+                subset(ema, order == 1,
+                       select = c(contextid, message.date, ema.set)),
+                by = "contextid", all.x = TRUE)
+notify <- notify[with(notify, order(user, notified.utime)), ]
+## resolve duplicates
+dup.notify <- check.dup(subset(notify,
+                               select = c(user, contextid, notified.date,
+                                          message.date, ema.set.today, ema.set)),
+                        "checks/dup_ema_notify.csv", user, notified.date)
+
+## context in which the user engaged with the EMA
+engage <- read.data("EMA_Context_Engaged.csv",
+                    list(user, engaged.utime, recognized.activity == "N/A"))
+## keep unique or classified activity engagements
+dup.engage <- check.dup(subset(engage,
+                               select = c(user, contextid, engaged.time,
+                                          recognized.activity)),
+                        "checks/dup_ema_engaged.csv", user, engaged.utime)
+engage[-dup.engage$which, ]
+
+
+## infer planning status from planning table
+notify$in.ema <- notify$contextid %in% ema$contextid
+notify$in.plan <- 
+notify$structured <- notify$contextid %in% with(plan, contextid[structured])
+notify$unstructured <- notify$contextid %in% with(plan, contextid[!structured])
+notify$plan.infer <- with(notify,
+with(notify, table(planning.today, plan.infer))
+
+## i.e. set no_planning to structured/unstructured if present in plan
+##      set structured/unstructured and in EMA response but not plan to no_planning
+
+## duplicates due to answer revisions
+ema <- ema[with(ema, order(contextid, question,
+                           message.time.mday != time.stamp.mday)), ]
+ema <- subset(ema, !dup, select = -(gmtoff:time.stamp.yday))
 
 ## keep unique or first-recorded notifications
 dup <- check.dup(notify, "checks/dupid_ema_notified.csv", contextid)
 notify <- notify[!dup, ]
 
+
 ## 
-dup <- check.dup(notify, "checks/dup_ema_notify.csv", user, notified.date)
 
 dup <- check.dup(notify, "checks/dup_ema_notify.csv", user, date.stamp)
 
-## --- context in which the user engaged with the EMA
-engage <- read.data("EMA_Context_Engaged.csv",
-                    list(user, engaged.utime,
-                         recognized.activity %in% c(NA, "N/A")))
-
-## keep unique or classified activity engagements
-dup <- check.dup(engage, "checks/dup_ema_engaged.csv", contextid, engaged.utime)
 engage <- engage[!dup, ]
 
-## --- planning
-plan <- read.data(c("Structured_Planning_Response.csv",
-                    "Unstructured_Planning_Response.csv"),
-                  list(user, contextid, time.started.yday != time.finished.yday))
 
-## duplicates due to answer revisions
-## keep unique or latest same-day plans
-dup <- check.dup(plan, "checks/dupid_planning.csv", contextid)
-plan <- subset(plan, !dup)
-plan <- plan[with(plan, order(user, utime.finished)), ]
-
-## remaining duplicate occurs in the central time zone;
-## this is likely due to the pre 10/28 time zone bug, so discard the earlier
-## FIXME: check this
-dup <- check.dup(plan, "checks/dup_planning.csv", user, date.finished)
-plan <- plan[!dup, ]
-
-## --- EMA responses
-## nb: time zone data are unavailable
-ema <- read.data("EMA_Response.csv",
-                 list(user, contextid, question, time.stamp), utime = FALSE)
-ema$response <- strip.white(ema$response)
-ema$message <- strip.white(ema$message)
-
-## duplicates due to answer revisions
-## keep unique or latest same-day answers to EMA questions
-ema <- ema[with(ema, order(contextid, question,
-                           message.time.mday != time.stamp.mday)), ]
-dup <- check.dup(ema, "checks/dup_ema_response.csv", contextid, question)
-ema <- subset(ema, !dup, select = -(gmtoff:time.stamp.yday))
+## duplicate
 
 ## infer EMA response time zone from other EMA tables
 temp <-
@@ -122,7 +168,7 @@ ema <- cbind(ema,
              with(ema, char2calendar(message.time, tz, prefix = "message.time")),
              with(ema, char2calendar(time.stamp, tz, prefix = "time.stamp")))
 
-## --- suggestion messages
+## suggestion messages
 ## FIXME: typo variants are added to source file
 ## FIXME: clarify meaning of tags; for example,
 ##        suggestions tagged neither active nor sedentary - what does this mean?
@@ -140,7 +186,7 @@ names(messages)[-1] <- paste("tag", tags, sep = ".")
 ## FIXME: check that this makes sense
 messages <- aggregate(. ~ message, data = messages, any)
 
-## --- momentary decision (send suggestion or not)
+## momentary decision (send suggestion or not)
 decision <- read.data("Momentary_Decision.csv",
                       list(user, decisionid, is.prefetch))
 
@@ -175,7 +221,7 @@ write.data(subset(decision, notify & is.na(tag.active)),
 dup <- check.dup(decision, "checks/dup_decision.csv", decisionid, time.slot)
 decision <- subset(decision, !dup)
 
-## --- response to suggestions
+## response to suggestions
 ## FIXME: merge on message text and proximity in time
 ## FIXME: parse question options using doc from Andy
 response <- read.data("Response.csv", list(user, decisionid, responded.utime))
@@ -194,7 +240,7 @@ write.data(subset(response, !notify), "checks/donotnotify_response.csv")
 dup <- check.dup(response, "checks/dup_response.csv", decisionid, time.slot)
 response <- subset(response, !dup)
 
-## --- Jawbone
+## Jawbone
 ## nb: step counts provided in one minute windows for now;
 ##     might eventually be more granular depending on server load
 jawbone <- read.data(c("jawbone_step_count_data_07-15.csv",
@@ -211,7 +257,7 @@ jawbone$days.since[jawbone$days.since == 0] <- NA
 write.data(subset(jawbone, days.since > 1), "checks/inactivity_jbone_gt1.csv")
 check.dup(jawbone, "checks/dup_jawbone.csv", user, end.utime)
 
-## --- Google Fit
+## Google Fit
 ## nb: step counts provided over time intervals of continuous physical activity
 googlefit <- read.data(c("google_fit_data_07-15.csv",
                          "google_fit_data_08-15.csv",
@@ -226,34 +272,35 @@ googlefit$days.since <- with(googlefit, change(user, start.utime, end.utime)
 googlefit$days.since[googlefit$days.since == 0] <- NA
 write.data(subset(googlefit, days.since > 1), "checks/inactivity_gfit_gt1.csv")
 
-## --- application usage
+## application usage
 usage <- read.data("Heartsteps_Usage_History.csv", list(user, end.utime))
 
-## --- snooze enabled or disabled
+## snooze enabled or disabled
 snooze <- read.data("Snoozed_FromInApp.csv")
 
-## --- home and work locations
+## home and work locations
 ## nb: time zone data are unavailable
 address <- read.data("User_Addresses.csv", list(user, time.updated),
                      utime = FALSE, ptime = FALSE)
 
-## --- calendars
+## calendars
 ## nb: time zone data are unavailable
 calendar <- read.data("User_Calendars.csv", list(user, time.updated),
                       utime = FALSE, ptime = FALSE)
 
-## --- suggestion and EMA timeslots
+## suggestion and EMA timeslots
 timeslot <- read.data("User_Decision_Times.csv", list(user, utime.updated))
 
 ## drop redundant timeslots
+## use this to infer intake interview time
 timeslot <- subset(timeslot, !duplicated(paste(user, morning, lunch, dinner,
                                                evening, ema, sep = "_")))
 
-## --- daily weather by city
+## daily weather by city
 weather <- read.data("Weather_History.csv", list(date))
 weather$date <- char2date(weather$date, "%Y:%m:%d")
 
-## --- check timezones
+## check timezones
 ## FIXME: time zone fix - test with users 3, 4, 6, 10, 13, 14, 17, 22
 ## nb: notification are sent according to the time slots of the local time zone
 ##     at which HeartSteps was installed or the last instance where the phone
@@ -267,4 +314,4 @@ write.data(subset(user.tz, !(timezone %in% "Eastern Standard Time")),
            "checks/outside_est_timezone.csv")
 
 rm(temp)
-save.image(file, safe = FALSE)
+save.image("csv.RData", safe = FALSE)

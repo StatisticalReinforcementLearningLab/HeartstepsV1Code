@@ -62,13 +62,17 @@ write.data <- function(x, file, ...) {
 }
 
 ## duplicate values in variables passed to ...
-check.dup <- function(x, file, ...) {
+check.dup <- function(x, file, ..., subset = rep(TRUE, nrow(x))) {
   id <- substitute(list(...))
   id <- do.call("paste", eval(id, x))
-  dup <- duplicated(id)
-  d <- x[id %in% id[dup], , drop = FALSE]
+  if (!missing(subset)) {
+    subset <- substitute(subset)
+    subset <- eval(subset, x)
+  }
+  x$dup <- duplicated(id)
+  d <- x[subset & id %in% id[x$dup], , drop = FALSE]
   write.data(d, file = file)
-  invisible(dup)
+  invisible(list(which = which(x$dup), data = d))
 }
 
 ## --- date and time conversions
