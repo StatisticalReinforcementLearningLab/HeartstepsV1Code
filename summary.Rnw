@@ -46,7 +46,7 @@ Instances of all but the last of the following scenarios are small:
 \item Identically duplicated EMA responses (per Andy: race condition error)
 \end{itemize}
 
-\section{User demographics and selected baseline activity}
+\section{User demographics and selected baseline activity levels}
 
 \begin{table}[h]
   \centering
@@ -70,6 +70,18 @@ Instances of all but the last of the following scenarios are small:
     \quad \footnotesize{Median (range)} & \multicolumn{2}{c}{\Sexpr{median(intake$vigacthr*60 + intake$vigactmin1, na.rm = T)} (\Sexpr{min(intake$vigacthr*60 + intake$vigactmin1)} - \Sexpr{max(intake$vigacthr*60 + intake$vigactmin1)})}
    \end{tabular}
 \end{table}
+
+
+% Toy example for using xtable
+<<xtable, echo = FALSE, results = "asis">>=
+n <- 100
+x <- rnorm(n)
+y <- 2*x + rnorm(n)
+out <- lm(y ~ x)
+library(xtable)
+tab <- xtable(summary(out)$coef, digits=c(0, 2, 2, 1, 2))
+print(tab)
+@
 
 \section{Step count - Jawbone}
 
