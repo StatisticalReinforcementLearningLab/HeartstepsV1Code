@@ -29,7 +29,9 @@ source("init.R")
 setwd(sys.var$mbox)
 load("analysis.RData")
 intake <- read.data("Survey_Intake.csv", order.by = list(userid), skip = 3)
+library(tikzDevice)
 @
+
 
 \section{Issues}
 
@@ -79,9 +81,14 @@ x <- rnorm(n)
 y <- 2*x + rnorm(n)
 out <- lm(y ~ x)
 library(xtable)
-tab <- xtable(summary(out)$coef, digits=c(0, 2, 2, 1, 2))
+tab <- xtable(summary(out)$coef, digits = c(0, 2, 2, 1, 2))
 print(tab)
 @
+
+% Toy example with TikzDevice
+<<fig1, eval=TRUE, echo=FALSE, dev='tikz', fig.height=3.25, fig.width=3.25, fig.align='center'>>= 
+plot(1, 1, main = 'Hello \\TeX !')
+@ 
 
 \section{Step count - Jawbone}
 
