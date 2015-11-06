@@ -10,6 +10,18 @@ users <- sort(user$user)
 
 ## --- daily data
 
+## planning status inconsistent with planning response
+
+notify$in.ema <- notify$contextid %in% ema$contextid
+notify$in.plan <- 
+notify$structured <- notify$contextid %in% with(plan, contextid[structured])
+notify$unstructured <- notify$contextid %in% with(plan, contextid[!structured])
+notify$plan.infer <- with(notify,
+with(notify, table(planning.today, plan.infer))
+
+## i.e. set no_planning to structured/unstructured if present in plan
+##      set structured/unstructured and in EMA response but not plan to no_planning
+
 ## taking intake and exit interview dates, generate sequence of study dates
 ## (which we can safely consider in UTC, since EST is 4-5 hours behind UTC)
 daily <- do.call("rbind", sapply(1:nrow(user), function(x)

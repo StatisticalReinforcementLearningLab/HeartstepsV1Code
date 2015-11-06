@@ -1,12 +1,15 @@
 ## helper functions
 
-## strip whitespace, normalize punctuation
-strip.white <- function(x) {
-  x <- gsub("\\n", "", x, perl = TRUE)
-  x <- gsub("^ +", "", x, perl = TRUE)
-  x <- gsub(" +$", "", x, perl = TRUE)
-  x <- gsub("[‘’“”\"]", "'", x, perl = TRUE)
-  gsub("—", "--", x, fixed = TRUE)
+## strip extraneous whitespace, all punctuation, all non-ASCII characters
+## nb: necessary since messages are inconsistent in their representation
+##     of UTF-8 characters
+normalize.text <- function(x) {
+  x <- gsub("\\n", "", x)
+  x <- gsub("[[:punct:]]", "", x)
+  x <- gsub("^[[:space:]]+", "", x)
+  x <- gsub("[[:space:]]+$", "", x)
+  x <- gsub("[[:space:]]", " ", x)
+  iconv(x, "UTF-8", "ASCII", "")
 }
 
 ## copy variable from y to x, taking first matches in an identifier
@@ -42,12 +45,15 @@ match.option <- function(x, y, l = rep(TRUE, length(y)), prefix = "",
   d
 }
 
-## bring y into x, such that id.x = id.y and the largest time.y <= time.x
-merge.last <- function(x, y, id.name, var.name.x, var.name.y, ...) {
-  by.x <- c(id.name, var.name.x)
-  by.y <- c(id.name, var.name.y)
+## bring y into x, such that id.x = id.y and the largest var.y <= var.x
+merge.last <- function(x, y, id, var, id.x = id, id.y = id, var.x = var,
+                       var.y = var, order.by = NULL, ...) {
+  by.x <- c(id.x, var.x)
+  by.y <- c(id.y, var.y)
   d <- merge(x[, names(x) %in% by.x], y, by.x = by.x, by.y = by.y, all = TRUE)
-  d <- impute.locf(d, d[[id.name]])
+  if (!missing(order.by))
+    d <- d[with(d, order(order.by)), ]
+  d <- impute.locf(d, d[[id]])
   merge(x, d, by = by.x, all.x = TRUE, ...)
 }
 
@@ -72,7 +78,7 @@ check.dup <- function(x, file, ..., subset = rep(TRUE, nrow(x))) {
   x$dup <- duplicated(id)
   d <- x[subset & id %in% id[x$dup], , drop = FALSE]
   write.data(d, file = file)
-  invisible(list(which = which(x$dup), data = d))
+  invisible(list(is.dup = x$dup, data = d))
 }
 
 ## --- date and time conversions
@@ -118,6 +124,7 @@ char2calendar <- function(x, tz, format = "%Y-%m-%d %H:%M:%OS", prefix = NULL) {
   l <- mapply(strptime, x = x, format = format, tz = tz, SIMPLIFY = FALSE)
   l <- data.frame(do.call("rbind", lapply(l, unlist)), row.names = NULL)
   l <- subset(l, select = sec:yday)
+  l <- apply(l, 2, as.numeric)
   if (!is.null(prefix))
     names(l) <- paste(prefix, names(l), sep = ".")
   l

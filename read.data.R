@@ -1,13 +1,11 @@
-read.data <- function(file, order.by = NULL, utime = TRUE, ptime = TRUE, ...) {
-  ## read CSV-formatted data into an R data frame
-  ##
-  ## arguments
-  ##       file  character vector naming one or more CSV files to read
-  ##   order.by  list of variables to sort the resulting data frame
-  ##      utime  if TRUE, add UTC date-time and date to the data frame
-  ##      ptime  if TRUE, add local date-time elements (e.g. weekday, month, ...)
-  ##        ...  additional arguments passed to read.csv
-  ##
+## read CSV-formatted data into an R data frame
+
+## arguments
+##       file  character vector naming one or more CSV files to read
+##   order.by  list of variables to sort the resulting data frame
+##        ...  additional arguments passed to read.csv
+
+read.data <- function(file, order.by = NULL, ...) {
   ## read named files into a list of data frame
   d <- sapply(file, read.csv, header = TRUE, strip.white = TRUE, ...,
               simplify = FALSE)
@@ -39,16 +37,21 @@ read.data <- function(file, order.by = NULL, utime = TRUE, ptime = TRUE, ...) {
   ## indicate character date-time variables representing by name
   ## (e.g. 'time.finished', 'time.started', 'time.stamp', 'time.updated', ...)
   l <- which(grepl("(^time\\.(fin|sta|up)|\\.(date|)time$)", names(d)))
+  utime <- ptime <- FALSE
   if (length(l)) {
-    ## add offset in seconds from GMT/UTC
-    d$gmtoff <- 0
-    ## time zone identifier
-    d$tz <- if (is.null(d$timezone)) "" else d$timezone
-    if (!is.null(d$utc.to.local.delta)) {
-      d$gmtoff <- 60 * d$utc.to.local.delta
-      d$tz <- paste("Etc/GMT", c("-", "+")[pmax(1, sign(d$gmtoff) + 1)],
-                    formatC(abs(d$gmtoff) / 60^2), sep = "")
-      d$tz[is.na(d$gmtoff)] <- ""
+    if (!is.null(d$timezone)) {
+      ## add offset in seconds from GMT/UTC
+      d$gmtoff <- 0
+      ## time zone identifier
+      d$tz <- d$timezone
+      if (!is.null(d$utc.to.local.delta)) {
+        d$gmtoff <- 60 * d$utc.to.local.delta
+        d$tz <- paste("Etc/GMT", c("-", "+")[pmax(1, sign(d$gmtoff) + 1)],
+                      formatC(abs(d$gmtoff) / 60^2), sep = "")
+        d$tz[is.na(d$gmtoff)] <- ""
+      }
+      utime <- TRUE
+      ptime <- !all(d$tz %in% c("", "GMT", "UTC"))
     }
     ## for each of the character date-time variables...
     ## ... extract the date part

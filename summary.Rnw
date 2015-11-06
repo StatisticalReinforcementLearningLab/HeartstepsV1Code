@@ -33,6 +33,40 @@ intake <- read.data("Survey_Intake.csv", order.by = list(userid), skip = 3)
 
 \section{Issues}
 
+% irregularities
+
+% EMA completion status - duplicates, typically with conflicting status
+% read.csv("checks/dup_complete.csv")
+% Unknown
+% Use EMA response and notification tables to establish completion
+
+% Response to planning - duplicates, possibly with different responses
+% read.csv("checks/dup_planning.csv")
+% Mainly revisions to response
+% Use latest same-day response
+
+% Context of engagements with EMA questionnaire - duplicates
+% read.csv("checks/dup_ema_engaged.csv")
+% Server-side handling of unlabelled activity classification,
+% re-engagement with questionnaire before the last activity has been recognized
+% Dispense with duplicate engagements having unknown activity status
+
+% EMA response - multiple responses to the same question set
+% read.csv("checks/dup_ema_response.csv")
+% Answer revisions?
+% Take latest same-day response
+
+% Context/availability for planning
+% Invalid linkage, conflict between randomized and actual planning status
+% read.csv("checks/badlink_plan_notify.csv")
+% Planning status read from device storage before being updated
+% Use actual planning status and randomly generate any unknown planning allocation
+
+% other issues
+
+% Inconsistencies in message strings, needed for suggestion tagging and validation
+% Strip escape codes, punctuation, non-ASCII characters, normalize white space
+
 Instances of all but the last of the following scenarios are small:
 
 \begin{itemize}
