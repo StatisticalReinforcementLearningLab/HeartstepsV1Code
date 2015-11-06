@@ -31,20 +31,18 @@ snooze <- read.data("Snoozed_FromInApp.csv", list(user, utime.stamp))
 
 ## home and work locations
 ## nb: time zone data are unavailable
-address <- read.data("User_Addresses.csv", list(user, time.updated),
-                     utime = FALSE, ptime = FALSE)
+address <- read.data("User_Addresses.csv", list(user, time.updated))
 
 ## calendars
 ## nb: time zone data are unavailable
-calendar <- read.data("User_Calendars.csv", list(user, time.updated),
-                      utime = FALSE, ptime = FALSE)
+calendar <- read.data("User_Calendars.csv", list(user, time.updated))
 
 ## suggestion and EMA timeslots
 timeslot <- read.data("User_Decision_Times.csv", list(user, utime.updated))
-
 ## drop redundant timeslots
-timeslot <- subset(timeslot, !duplicated(paste(user, morning, lunch, dinner,
-                                               evening, ema, sep = "_")))
+timeslot <- subset(timeslot,
+                   !duplicated(cbind(user, date.updated, tz, morning, lunch,
+                                     dinner, evening, ema)))
 
 ## daily weather by city
 weather <- read.data("Weather_History.csv", list(date))
@@ -87,11 +85,8 @@ notify <- notify[!dup.notify$is.dup, ]
 engage <- read.data("EMA_Context_Engaged.csv",
                     list(user, engaged.utime, recognized.activity == "N/A"))
 ## keep unique or classified activity engagements
-dup.engage <- check.dup(subset(engage,
-                               select = c(user, engaged.utime, contextid,
-                                          engaged.time, tz, gmtoff,
-                                          recognized.activity)),
-                        "checks/dup_ema_engaged.csv", user, engaged.utime)
+dup.engage <- check.dup(engage, "checks/dup_ema_engaged.csv",
+                        user, engaged.utime)
 engage <- engage[!dup.engage$is.dup, ]
 
 ## EMA responses
@@ -141,18 +136,15 @@ notify <- notify[!dup.notify$is.dup, -ncol(notify)]
 ## EMA response duplicates by user-day, but different EMA question set
 ## keep EMAs that link to EMA notification
 ema <- merge(ema,
-             subset(notify, select = c(user, notified.date, ema.set.today,
+             subset(notify, select = c(user, notified.date, tz, ema.set.today,
                                        notified.utime)),
-             by.x = c("user", "message.date", "ema.set"),
-             by.y = c("user", "notified.date", "ema.set.today"), all.x = TRUE)
+             by.x = c("user", "message.date", "tz", "ema.set"),
+             by.y = c("user", "notified.date", "tz", "ema.set.today"),
+             all.x = TRUE)
 ema <- ema[with(ema, order(user, message.date, order, -ema.set.length,
                            is.na(notified.utime))), ]
-dup.ema <- check.dup(subset(ema,
-                            select = c(user, contextid, message.date, time.stamp,
-                                       order, question, response, ema.set,
-                                       ema.set.length, notified.utime)),
-                     "checks/dup_ema_response_multiset.csv",
-                     user, message.date, order)
+dup.ema <- check.dup(ema, "checks/dup_ema_response_multiset.csv",
+                     user, message.date, tz, order)
 ema <- ema[!dup.ema$is.dup, -ncol(ema)]
 
 ## assess link between plan and notify
@@ -253,14 +245,13 @@ jawbone <- read.data(c("jawbone_step_count_data_07-15.csv",
                        "jawbone_step_count_data_09-15.csv",
                        "jawbone_step_count_data_10-15.csv"),
                      list(user, end.utime))
-
+check.dup(jawbone, "checks/dup_jawbone.csv", user, end.utime)
 ## periods of inactivity longer than one day
 jawbone$duration <- with(jawbone, end.utime - start.utime)
 jawbone$days.since <- with(jawbone, change(user, start.utime, end.utime)
                            - duration) / (60^2 * 24)
 jawbone$days.since[jawbone$days.since == 0] <- NA
 write.data(subset(jawbone, days.since > 1), "checks/inactivity_jbone_gt1.csv")
-check.dup(jawbone, "checks/dup_jawbone.csv", user, end.utime)
 
 ## Google Fit
 ## nb: step counts provided over time intervals of continuous physical activity
@@ -269,6 +260,7 @@ googlefit <- read.data(c("google_fit_data_07-15.csv",
                          "google_fit_data_09-15.csv",
                          "google_fit_data_10-15.csv"),
                        list(user, end.utime))
+check.dup(googlefit, "checks/dup_googlefit.csv", user, end.utime)
 ## periods of inactivity longer than one day
 googlefit$duration <- with(googlefit, end.utime - start.utime)
 googlefit$days.since <- with(googlefit, change(user, start.utime, end.utime)
