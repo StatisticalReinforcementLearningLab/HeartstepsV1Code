@@ -5,29 +5,38 @@ source("init.R")
 setwd(sys.var$mbox)
 load("csv.RData")
 
-max.date <- as.Date("2015-10-31")
+max.date <- as.Date("2015-11-08")
 
 ## --- daily data
 
 ## users
+## intake from first point at which the user selected time slots
+## last "contact" from last momentry decision date
 users <- merge(subset(timeslot, !duplicated(user),
-                      select = c(user, date.updated, ema, tz, gmtoff)),
-               aggregate(message.date ~ user, data = ema,
-                         function(x) min(max(x), max.date)),
+                      select = c(user, date.updated, tz, gmtoff)),
+               aggregate(date.stamp ~ user, data = decision, max),
                by = "user", all = TRUE)
-names(users)[c(2, 3, ncol(users))] <- c("intake.date", "ema.slot", "last.date")
-users <- subset(users, user != 12 & intake.date < last.date)
+users <- merge(users,
+               subset(decision, !duplicated(cbind(user, date.stamp)),
+                      select = c(user, date.stamp, tz, gmtoff)),
+               by = c("user", "date.stamp"), all.x = TRUE,
+               suffixes = c(".intake", ".last"))
+names(users)[2:3] <- c("last.date", "intake.date")
+## days from intake to last momentary decision date
+users$days <- with(users, as.numeric(difftime(last.date, intake.date, "days")))
+## indicate users that just enrolled or dropped out
+users$exclude <- with(users, intake.date >= max.date | days < 7 |
+                             (intake.date + 42 < max.date & days < 10))
 
 ## expand to user-day level
 daily <- do.call("rbind", sapply(1:nrow(users), function(r)
   with(users[r, , drop = FALSE],
-       data.frame(user = user, tz = tz, gmtoff = gmtoff, ema.slot = ema.slot,
-                  intake.date = intake.date,
+       data.frame(user = user, intake.date = intake.date, tz.intake = tz.intake,
+                  gmtoff.intake = gmtoff.intake,
                   study.date = seq(intake.date, last.date, by = "days"))),
   simplify = FALSE))
-daily$study.day <- with(daily,
-                        as.numeric(difftime(study.date, intake.date,
-                                            units = "days")))
+daily$study.day <- with(daily, as.numeric(difftime(study.date, intake.date,
+                                                   "days")))
 
 ## EMA (partial) completion status
 daily <- merge(daily,

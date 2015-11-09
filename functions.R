@@ -1,14 +1,19 @@
 ## helper functions
 
-## strip extraneous whitespace, all punctuation, all non-ASCII characters
-## nb: necessary since messages are inconsistent in their representation
-##     of UTF-8 characters
+## normalize text fields
+## nb: messages are inconsistent in their representation of UTF-8 characters
+##     (e.g. some sources omit, others use an ASCII replacement)
 normalize.text <- function(x) {
+  ## strip new line escape code
   x <- gsub("\\n", "", x)
+  ## strip all punctuation
   x <- gsub("[[:punct:]]", "", x)
+  ## strip leading and trailing whitespace
   x <- gsub("^[[:space:]]+", "", x)
   x <- gsub("[[:space:]]+$", "", x)
+  ## normalize remaining whitespace
   x <- gsub("[[:space:]]", " ", x)
+  ## strip non-ASCII characters
   iconv(x, "UTF-8", "ASCII", "")
 }
 
@@ -87,10 +92,10 @@ check.dup <- function(x, file, ..., subset = rep(TRUE, nrow(x))) {
 ## convert JSON-formatted character strings to a data frame
 json2data <- function(x) {
   x <- x[-c(1, length(x))]
-  x <- sapply(x, gsub, pattern = "[{[]$", replacement = "list(", perl = TRUE)
-  x <- sapply(x, gsub, pattern = "[}]],$", replacement = "),", perl = TRUE)
-  x <- sapply(x, gsub, pattern = "\" +: +", replacement = "=", perl = TRUE)
-  x <- sapply(x, gsub, pattern = " +\"", replacement = "", perl = TRUE)
+  x <- sapply(x, gsub, pattern = "[{[]$", replacement = "list(")
+  x <- sapply(x, gsub, pattern = "[}]],$", replacement = "),")
+  x <- sapply(x, gsub, pattern = "\" +: +", replacement = "=")
+  x <- sapply(x, gsub, pattern = " +\"", replacement = "")
   do.call("data.frame",
           eval(parse(text = paste(c("list(", x, ")"), collapse = ""))))
 }
@@ -120,16 +125,24 @@ char2utime <- function(x, offset = 0, format = "%Y-%m-%d %H:%M:%OS") {
 
 ## convert character string to POSIXlt elements (weekday, month, etc.),
 ## under the given time zone and format
-char2calendar <- function(x, tz, format = "%Y-%m-%d %H:%M:%OS", prefix = NULL) {
+char2calendar <- function(x, tz = "GMT", format = "%Y-%m-%d %H:%M:%OS",
+                          prefix = NULL) {
   l <- mapply(strptime, x = x, format = format, tz = tz, SIMPLIFY = FALSE)
   l <- data.frame(do.call("rbind", lapply(l, unlist)), row.names = NULL)
   l <- subset(l, select = sec:yday)
-  l <- apply(l, 2, as.numeric)
+  l <- do.call("data.frame", lapply(l, as.numeric))
   if (!is.null(prefix))
     names(l) <- paste(prefix, names(l), sep = ".")
   l
 }
 
-## days between two dates/times, presumed UTC in days
-diff.udays <- function(time1, time2)
-  as.numeric(floor(difftime(time1, time2, units = "days")))
+## convert hour (0-23) to (approximate) time slot
+## nb: (after) dinner and EMA slot definitions are dependent
+hour2slot <- function(x)
+  s <- c("ema",       # dinner + 1 hour - 23:59
+         "morning",   # 05:00 - 09:30
+         "lunch",     # 11:00 - 13:00
+         "afternoon", # 14:30 - 15:00
+         "evening",   # 16:30 - 18:00
+         "dinner",    # 19:30 - 20:30
+         "ema")[findInterval(x, c(0, 4, 11, 14, 16, 19, 21, 23))]

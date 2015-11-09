@@ -51,7 +51,7 @@ read.data <- function(file, order.by = NULL, ...) {
         d$tz[is.na(d$gmtoff)] <- ""
       }
       utime <- TRUE
-      ptime <- !all(d$tz %in% c("", "GMT", "UTC"))
+      ptime <- !all(d$tz %in% c("GMT", "UTC"))
     }
     ## for each of the character date-time variables...
     ## ... extract the date part
@@ -72,13 +72,18 @@ read.data <- function(file, order.by = NULL, ...) {
       d <- cbind(d, u, y)
     }
     ## ... using the time zone, calculate POSIXlt elements
+    ##     and approximate time slot
     ## (e.g. day of year (0-366), month (0-11), weekday (0-6), etc.
     if (ptime) {
       p <- do.call("data.frame",
                    mapply(char2calendar, x = d[, l, drop = FALSE],
                           tz = d[, names(d) == "tz", drop = FALSE],
                           SIMPLIFY = FALSE))
-      d <- cbind(d, p)
+      s <- do.call("data.frame",
+                   lapply(p[, grep("\\.hour$", names(p)), drop = FALSE],
+                          hour2slot))
+      names(s) <- gsub("\\.hour$", ".slot", names(s))
+      d <- cbind(d, p, s)
     }
   }
   ## sort by given list of variables

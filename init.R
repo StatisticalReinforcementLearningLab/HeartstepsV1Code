@@ -28,6 +28,3 @@ sys.var <- switch(Sys.info()["sysname"],
                                  locale = "en_US.UTF-8"))
 
 Sys.setlocale("LC_TIME", sys.var$locale)
-
-## latest date of user activity reflected in the data files
-last.date <- char2date("2015-10-28")
