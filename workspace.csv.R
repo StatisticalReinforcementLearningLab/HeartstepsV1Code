@@ -209,6 +209,8 @@ decision <- subset(decision,
 ## missing day of week
 ## FIXME: would this affect the message selection?
 write.data(subset(decision, day.of.week == ""), "checks/decision_nowkday.csv")
+dup.decision <- check.dup(decision, "checks/dup_decision.csv",
+                          user, date.stamp, tz, time.slot)
 ## add message tags
 decision <- merge(decision, messages,
                   by.x = "returned.message", by.y = "message",
@@ -218,13 +220,12 @@ decision <- decision[with(decision, order(user, date.stamp, time.slot,
 ## missing tags
 write.data(subset(decision, notify & is.na(tag.active)),
            "checks/decision_notags.csv")
-## duplicate decisions
-dup.decision <- check.dup(decision, "checks/dup_decision.csv",
-                          user, date.stamp, tz, time.slot)
 
 ## response to suggestions
 response <- read.data("Response.csv", list(user, responded.utime))
 response$notification.message <- normalize.text(response$notification.message)
+dup.response <- check.dup(response, "checks/dup_response.csv",
+                          user, notified.date, tz, notified.time.slot)
 
 ## assess link between response and decision
 temp <- merge(response, decision, by = "decisionid", all.x = TRUE,
