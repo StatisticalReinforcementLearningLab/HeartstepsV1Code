@@ -4,125 +4,93 @@
 source("init.R")
 setwd(sys.var$mbox)
 load("csv.RData")
-file <- "analysis.RData"
 
-users <- sort(user$user)
+max.date <- as.Date("2015-10-31")
 
 ## --- daily data
 
-## planning status inconsistent with planning response
+## users
+users <- merge(subset(timeslot, !duplicated(user),
+                      select = c(user, date.updated, ema, tz, gmtoff)),
+               aggregate(message.date ~ user, data = ema,
+                         function(x) min(max(x), max.date)),
+               by = "user", all = TRUE)
+names(users)[c(2, 3, ncol(users))] <- c("intake.date", "ema.slot", "last.date")
+users <- subset(users, user != 12 & intake.date < last.date)
 
-notify$in.ema <- notify$contextid %in% ema$contextid
-notify$in.plan <- 
-notify$structured <- notify$contextid %in% with(plan, contextid[structured])
-notify$unstructured <- notify$contextid %in% with(plan, contextid[!structured])
-notify$plan.infer <- with(notify,
-with(notify, table(planning.today, plan.infer))
-
-## i.e. set no_planning to structured/unstructured if present in plan
-##      set structured/unstructured and in EMA response but not plan to no_planning
-
-## taking intake and exit interview dates, generate sequence of study dates
-## (which we can safely consider in UTC, since EST is 4-5 hours behind UTC)
-daily <- do.call("rbind", sapply(1:nrow(user), function(x)
-  with(user[x, , drop = FALSE],
-       data.frame(user = user,
+## expand to user-day level
+daily <- do.call("rbind", sapply(1:nrow(users), function(r)
+  with(users[r, , drop = FALSE],
+       data.frame(user = user, tz = tz, gmtoff = gmtoff, ema.slot = ema.slot,
                   intake.date = intake.date,
-                  study.udate = seq(intake.date, exit.date, by = "days"))),
+                  study.date = seq(intake.date, last.date, by = "days"))),
   simplify = FALSE))
-daily$study.day <- with(daily, as.numeric(difftime(study.udate, intake.date,
-                                                   units = "days")))
+daily$study.day <- with(daily,
+                        as.numeric(difftime(study.date, intake.date,
+                                            units = "days")))
 
-## EMA completion status
-## FIXME: base this on EMA response instead?
-
-## EMA is based on local time, so match on that
-## FIXME: does this make sense?
-## FIXME: we have recurrent completion time stamps!
-complete$date.stamp <- char2date(complete$time.stamp)
+## EMA (partial) completion status
 daily <- merge(daily,
-               subset(complete, select = c(user, date.stamp, completed)),
-               by.x = c("user", "study.udate"), by.y = c("user", "date.stamp"),
-               all.x = TRUE, sort = TRUE)
+               aggregate(ema.set.length ~ user + message.date, data = ema, max),
+               by.x = c("user", "study.date"), by.y = c("user", "message.date"),
+               all.x = TRUE)
 
-daily <- subset(daily, !duplicated(cbind(user, study.day)))
+## planning status
+daily <- merge(daily,
+               with(plan, aggregate(planning, list(user, date.started),
+                                    function(x) x[1])),
+               by.x = c("user", "study.date"), by.y = c("Group.1", "Group.2"),
+               all.x = TRUE)
+daily$plan <- with(daily, ifelse(is.na(ema.set.length),
+                                 NA, ifelse(is.na(x), "none", x)))
+daily$x <- NULL
 
 ## step counts
+## FIXME: align days with EMA slot in home time zone
+jawbone <- merge(jawbone, users, by = "user", suffixes = c("", ".user"))
+jawbone$end.date <- do.call("c",
+                            with(jawbone,
+                                 mapply(as.Date, x = end.utime, tz = tz.user,
+                                        SIMPLIFY = FALSE)))
 daily <- merge(daily,
-               aggregate(steps ~ user + end.udate, data = jawbone, sum),
-               by.x = c("user", "study.udate"), by.y = c("user", "end.udate"),
-               all.x = TRUE, sort = TRUE)
-daily$na.steps <- is.na(daily$steps)
-daily$lag1.na.steps <- with(daily, delay(user, study.day, na.steps))
+               aggregate(steps ~ user + end.date, data = jawbone, sum),
+               by.x = c("user", "study.date"), by.y = c("user", "end.date"),
+               all.x = TRUE)
+names(daily)[ncol(daily)] <- "jbsteps"
+daily$na.jbsteps <- is.na(daily$jbsteps)
+daily$lag1.na.jbsteps <- with(daily, delay(user, study.day, na.jbsteps))
 
-max.day <- max(daily$study.day)
+googlefit <- merge(googlefit, users, by = "user", suffixes = c("", ".user"))
+googlefit$end.date <- do.call("c",
+                            with(googlefit,
+                                 mapply(as.Date, x = end.utime, tz = tz.user,
+                                        SIMPLIFY = FALSE)))
+daily <- merge(daily,
+               aggregate(steps ~ user + end.date, data = googlefit, sum),
+               by.x = c("user", "study.date"), by.y = c("user", "end.date"),
+               all.x = TRUE)
+names(daily)[ncol(daily)] <- "gfsteps"
+daily$na.gfsteps <- is.na(daily$gfsteps)
+daily$lag1.na.gfsteps <- with(daily, delay(user, study.day, na.gfsteps))
 
+## plot a given user's daily step counts
 daily.plot <- function(u) {
   d <- subset(daily, user == u)
-  m <- max(1, d$steps, na.rm = TRUE)
-  n <- max(d$study.day)
-  plot(NULL, xlim = c(0, n), ylim = c(0, m),
+  maxs <- max(1, d$jbsteps, d$gfsteps, na.rm = TRUE)
+  maxd <- max(d$study.day)
+  plot(NULL, xlim = c(0, maxd), ylim = c(0, maxs),
        xlab = "", ylab = "", main = "", axes = FALSE, frame.plot = FALSE)
-  mtext(paste("User", u), 2, line = 2, cex = 0.75)
-  sapply(subset(d, !completed)$study.day,
-         function(j) rect(j - 1, 0, j, m, col = grey(0, 0.3), border = NA))
-  sapply(subset(d, study.udate > last.date)$study.day,
-         function(j) rect(j - 1, 0, j, m, col = grey(0, 0.1), border = NA))
-  with(d, points(study.day, steps, type = "l"))
-  at <- c(0, with(d, study.day[(na.steps & !lag1.na.steps)
-                               | (!na.steps & lag1.na.steps)][-1]), n)
+  mtext(paste(u), 2, line = 3, cex = 0.75)
+  sapply(subset(d, is.na(ema.set.length))$study.day,
+         function(j) abline(v = j, col = grey(0, 0.3)))
+  meanjb <- mean(d$jbsteps, na.rm = TRUE)
+  abline(h = meanjb, col = grey(0, 0.3))
+  with(d, points(study.day, jbsteps, type = "l"))
+  with(d, points(study.day, gfsteps, type = "l", lty = "dotted"))
+  at <- c(0, with(d, study.day[(na.jbsteps & !lag1.na.jbsteps)
+                               | (!na.jbsteps & lag1.na.jbsteps)][-1]), maxd)
   axis(1, at = at)
-  axis(2, at = c(0, m))
+  axis(2, at = sort(round(c(0, meanjb, maxs))))
 }
 
-## minimum and maximum message and stamp times
-temp <- subset(ema, select = c(user, contextid, message.utime, utime.stamp))
-temp.min <- aggregate(temp[, 3:4], temp[, 1:2], function(x) sort(x)[1])
-temp.max <- aggregate(temp[, 3:4], temp[, 1:2], function(x) sort(x)[length(x)])
-names(temp.min)[3:4] <- paste("min", names(temp.min)[3:4], sep = ".")
-names(temp.max)[3:4] <- paste("max", names(temp.max)[3:4], sep = ".")
-temp <- merge(temp.min, temp.max, by = c("user", "contextid"))
-
-## response strings to indicators (where possible)
-ema$hectic <- with(ema, as.numeric(ifelse(question == "1", response, NA)))
-ema$stress <- with(ema, as.numeric(ifelse(question == "2", response, NA)))
-ema$typical <- with(ema, as.numeric(ifelse(question == "3", response, NA)))
-ema$energy <- with(ema, as.numeric(ifelse(question == "research3",
-                                          response, NA)))
-ema$urge <- with(ema, as.numeric(ifelse(question == "research4", response, NA)))
-ema$follow <- with(ema, ifelse(question == "5", response, NA))
-ema$msg.down <- with(ema, ifelse(question == "6", message, NA))
-ema$msg.up <- with(ema, ifelse(question == "7", message, NA))
-
-ema <- cbind(ema,
-             match.option(ema4, ema$response,
-                          ema$question == "4", "active", FALSE),
-             match.option(ema6, ema$response, ema$question == "6", "down"),
-             match.option(ema7, ema$response, ema$question == "7", "up"),
-             match.option(research1, ema$response,
-                          ema$question == "research1", "barrier"),
-             match.option(research2, ema$response,
-                          ema$question == "research2", "enabler"))
-
-## order in which each question was asked
-ema$order.hectic <- with(ema, ifelse(question == "1", order, NA))
-ema$order.stress <- with(ema, ifelse(question == "2", order, NA))
-ema$order.typical <- with(ema, ifelse(question == "3", order, NA))
-ema$order.active <- with(ema, ifelse(question == "4", order, NA))
-ema$order.follow <- with(ema, ifelse(question == "5", order, NA))
-ema$order.down <- with(ema, ifelse(question == "6", order, NA))
-ema$order.up <- with(ema, ifelse(question == "7", order, NA))
-ema$order.barrier <- with(ema, ifelse(question == "research1", order, NA))
-ema$order.enabler <- with(ema, ifelse(question == "research2", order, NA))
-ema$order.energy <- with(ema, ifelse(question == "research3", order, NA))
-ema$order.urge <- with(ema, ifelse(question == "research4", order, NA))
-
-dim(temp)
-ema <- aggregate(subset(ema, select = c(hectic:order.urge)),
-                 subset(ema, select = c(user, contextid)),
-                 function(x) ifelse(all(is.na(x)), NA, x[!is.na(x)][1]))
-dim(ema)
-temp <- merge(temp, ema, by = c("user", "contextid"), sort = TRUE)
-dim(temp)
-
-save(user, users, max.day, daily.plot, intake, daily, ema, file = file)
+save(intake, users, daily, daily.plot, file = "analysis.RData")

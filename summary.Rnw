@@ -28,12 +28,10 @@
 source("init.R")
 setwd(sys.var$mbox)
 load("analysis.RData")
-intake <- read.data("Survey_Intake.csv", order.by = list(userid), skip = 3)
 library(tikzDevice)
 @
 
-
-\section{Issues}
+\section{Data irregularities}
 
 % irregularities
 
@@ -69,17 +67,14 @@ library(tikzDevice)
 % Inconsistencies in message strings, needed for suggestion tagging and validation
 % Strip escape codes, punctuation, non-ASCII characters, normalize white space
 
-Instances of all but the last of the following scenarios are small:
-
 \begin{itemize}
-\item Planning and EMA response resubmitted the next day
+\item Planning and EMA response duplicates/resubmissions
 \item No available contextual data for planning
 \item Momentary decision (to provide an activity suggestion or not) identifier persisting to the next time slot
 \item Notifications sent outside time slots after time zone change and (post fix) multiple notifications potentially sent in the same time slot when moving between time zones.
 \item Lack of time zone information with EMA response and changes to application settings (home/work locations and calendars)
 \item Calendar data (apart from busyness status for momentary decision) unavailable
-\item EMA notification table indicates planning should be provided, but no associated data in the planning table. Per Andy, this is a race condition error, so the notification table can't be trusted. We can infer who was randomized to planning using the responses, but this only accounts for completed EMAs. 
-\item Identically duplicated EMA responses (per Andy: race condition error)
+\item Lack of agreement between randomization decisions (for both planning and activity suggestions) and intervention received.
 \end{itemize}
 
 \section{User demographics and selected baseline activity levels}
@@ -109,41 +104,47 @@ Instances of all but the last of the following scenarios are small:
 
 
 % Toy example for using xtable
-<<xtable, echo = FALSE, results = "asis">>=
-n <- 100
-x <- rnorm(n)
-y <- 2*x + rnorm(n)
-out <- lm(y ~ x)
-library(xtable)
-tab <- xtable(summary(out)$coef, digits = c(0, 2, 2, 1, 2))
-print(tab)
-@
+%<<xtable, echo = FALSE, results = "asis">>=
+%n <- 100
+%x <- rnorm(n)
+%y <- 2*x + rnorm(n)
+%out <- lm(y ~ x)
+%library(xtable)
+%tab <- xtable(summary(out)$coef, digits = c(0, 2, 2, 1, 2))
+%print(tab)
+%@
 
 % Toy example with TikzDevice
-<<fig1, eval=TRUE, echo=FALSE, dev='tikz', fig.height=3.25, fig.width=3.25, fig.align='center'>>= 
-plot(1, 1, main = 'Hello \\TeX !')
-@ 
+%<<fig1, eval=TRUE, echo=FALSE, dev='tikz', fig.height=3.25, fig.width=3.25, %fig.align='center'>>= 
+%plot(1, 1, main = 'Hello \\TeX !')
+%@ 
 
-\section{Step count - Jawbone}
+\section{Daily step count}
 
-The following plots give the daily step count. Breaks in the series indicate no available minute-by-minute step counts were recorded that day. Areas shaded dark grey correspond to days on which the EMA that evening was not completed (either wholly or in part). Light grey regions correspond to study days that have not yet been recorded, since the participant is still in the in the field.
+The following plots give the daily step count for each user; solid lines correspond to Jawbone and the dotted to Google Fit. Breaks in the series indicate no available minute-by-minute step counts were recorded that day. Horizontal lines give the user average Jawbone step count. Vertical lines correspond to days on which the EMA that evening was not completed (either wholly or in part).
 
-<<dailysteps1, echo = FALSE, out.height = "\\textheight", out.width = "\\textwidth", fig.align = "center">>=
-par(mfrow = c(10, 1), mar = c(0.5, 4, 0.5, 0), mgp = c(0.5, 0.1, 0),
+<<dailysteps1, echo=FALSE, dev="tikz", fig.width=9, fig.height=6.5, fig.align="center">>=
+par(mfrow = c(7, 1), mar = c(0.5, 4, 0.5, 0), mgp = c(0.5, 0.1, 0),
     oma = c(1, 2, 0, 0), tcl = 0.25, las = 1)
-invisible(sapply(users[1:10], daily.plot))
+invisible(sapply(users$user[1:7], daily.plot))
 @
 
-<<dailysteps2, echo = FALSE, out.height = "\\textheight", out.width = "\\textwidth", fig.align = "center">>=
-par(mfrow = c(10, 1), mar = c(0.5, 4, 0.5, 0), mgp = c(0.5, 0.1, 0),
+<<dailysteps2, echo=FALSE, dev="tikz", fig.width=9, fig.height=6.5, fig.align="center">>=
+par(mfrow = c(7, 1), mar = c(0.5, 4, 0.5, 0), mgp = c(0.5, 0.1, 0),
     oma = c(1, 2, 0, 0), tcl = 0.25, las = 1)
-invisible(sapply(users[11:20], daily.plot))
+invisible(sapply(users$user[8:14], daily.plot))
 @
 
-<<dailysteps3, echo = FALSE, out.height = "\\textheight", out.width = "\\textwidth", fig.align = "center">>=
-par(mfrow = c(10, 1), mar = c(0.5, 4, 0.5, 0), mgp = c(0.5, 0.1, 0),
+<<dailysteps3, echo=FALSE, dev="tikz", fig.width=9, fig.height=6.5, fig.align="center">>=
+par(mfrow = c(7, 1), mar = c(0.5, 4, 0.5, 0), mgp = c(0.5, 0.1, 0),
     oma = c(1, 2, 0, 0), tcl = 0.25, las = 1)
-invisible(sapply(users[21:length(users)], daily.plot))
+invisible(sapply(users$user[15:21], daily.plot))
+@
+
+<<dailysteps4, echo=FALSE, dev="tikz", fig.width=9, fig.height=6.5, fig.align="center">>=
+par(mfrow = c(7, 1), mar = c(0.5, 4, 0.5, 0), mgp = c(0.5, 0.1, 0),
+    oma = c(1, 2, 0, 0), tcl = 0.25, las = 1)
+invisible(sapply(users$user[22:28], daily.plot))
 @
 
 \end{document}

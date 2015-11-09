@@ -7,8 +7,9 @@
 *.tex
 *.pdf
 *.synctex.*
-.Rhistory
-.fuse*
+*.Rhistory
+*.fuse*
 *bulkloader
+*tikzDictionary
 auto/*
 figure/*
