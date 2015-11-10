@@ -128,9 +128,10 @@ char2utime <- function(x, offset = 0, format = "%Y-%m-%d %H:%M:%OS") {
 char2calendar <- function(x, tz = "GMT", format = "%Y-%m-%d %H:%M:%OS",
                           prefix = NULL) {
   l <- mapply(strptime, x = x, format = format, tz = tz, SIMPLIFY = FALSE)
-  l <- data.frame(do.call("rbind", lapply(l, unlist)), row.names = NULL)
-  l <- subset(l, select = sec:yday)
-  l <- do.call("data.frame", lapply(l, as.numeric))
+  w <- which(names(unclass(l[[1]])) %in%
+             c("year", "mon", "yday", "mday", "wday", "hour", "min", "sec"))
+  l <- data.frame(do.call("rbind", lapply(l, function(y) unlist(unclass(y)[w]))),
+                  row.names = NULL)
   if (!is.null(prefix))
     names(l) <- paste(prefix, names(l), sep = ".")
   l

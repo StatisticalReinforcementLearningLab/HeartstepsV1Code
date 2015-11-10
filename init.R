@@ -27,4 +27,8 @@ sys.var <- switch(Sys.info()["sysname"],
                   "Linux" = list(mbox = "~/mbox/HeartSteps/Data/",
                                  locale = "en_US.UTF-8"))
 
+## time zone identifiers are localized, so set the locale
 Sys.setlocale("LC_TIME", sys.var$locale)
+
+## arithmetic on POSIXct objects uses system time zone, so set this to UTC
+Sys.setenv(TZ = "GMT")

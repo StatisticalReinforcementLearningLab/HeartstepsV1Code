@@ -34,12 +34,13 @@ snooze <- read.data("Snoozed_FromInApp.csv", list(user, utime.stamp))
 address <- read.data("User_Addresses.csv", list(user, time.updated))
 
 ## calendars
+## nb: Google calendar API data are unavailable
 ## nb: time zone data are unavailable
 calendar <- read.data("User_Calendars.csv", list(user, time.updated))
 
 ## suggestion and EMA timeslots
 timeslot <- read.data("User_Decision_Times.csv", list(user, utime.updated))
-## drop redundant timeslots
+## drop redundant timeslot updates
 timeslot <- subset(timeslot, !duplicated(cbind(user, date.updated, tz, morning,
                                                lunch, dinner, evening, ema)))
 
@@ -89,27 +90,13 @@ dup.engage <- check.dup(engage, "checks/dup_ema_engaged.csv",
 engage <- engage[!dup.engage$is.dup, ]
 
 ## EMA response
-## user has 1 hour from notification to complete questionnaire
+## user has 1 hour from initial notification to complete questionnaire
 ## nb: time zone data are unavailable
-ema <- read.data("EMA_Response.csv", list(user, message.date, order, time.stamp))
+ema <- read.data("EMA_Response.csv", list(contextid))
 ema$response <- normalize.text(ema$response)
 ema$message <- normalize.text(ema$message)
-## completed EMA question sets
-## nb: this presumes that contextid can separate same-day EMAs
-ema <- merge(ema,
-             with(ema, aggregate(question,
-                                 by = list(user, message.date, contextid),
-                                 function(x) paste(unique(x), collapse = ","))),
-             by.x = c("user", "message.date", "contextid"),
-             by.y = paste("Group", 1:3, sep = "."))
-names(ema)[ncol(ema)] <- "ema.set"
-ema$ema.set.length <- unlist(lapply(strsplit(ema$ema.set, ","), length))
-## keep unique or latest same-day EMA sets
-dup.ema <- check.dup(ema, "checks/dup_ema_response.csv",
-                     user, message.date, order, question, ema.set)
-ema <- ema[!dup.ema$is.dup, ]
 ## infer time zone
-## nb: this presumes that contextid can distinguish between different-day EMAs
+## nb: this presumes that 'contextid' can distinguish between different-day EMAs
 temp <-
   Reduce(function(x, y) merge(x, y, all = TRUE,
                               by = c("contextid", "timezone", "tz", "gmtoff")),
@@ -125,7 +112,21 @@ ema$utime.stamp <- with(ema, char2utime(time.stamp, gmtoff))
 ema <- cbind(ema,
              with(ema, char2calendar(message.time, tz, prefix = "message.time")),
              with(ema, char2calendar(time.stamp, tz, prefix = "time.stamp")))
-ema$message.slot <- hour2slot(ema$message.time.hour)
+## form list of completed EMA question sets, akin to 'ema.set.today' in 'notify'
+## nb: this presumes that 'contextid' can separate same-day EMAs
+ema <- ema[with(ema, order(user, message.date, contextid, order)), ]
+ema <- merge(ema,
+             with(ema, aggregate(question,
+                                 by = list(user, message.date, contextid),
+                                 function(x) paste(unique(x), collapse = ","))),
+             by.x = c("user", "message.date", "contextid"),
+             by.y = paste("Group", 1:3, sep = "."))
+names(ema)[ncol(ema)] <- "ema.set"
+ema$ema.set.length <- unlist(lapply(strsplit(ema$ema.set, ","), length))
+## keep unique or latest same-day EMA sets
+dup.ema <- check.dup(ema, "checks/dup_ema_response.csv",
+                     user, message.date, tz, order, question, ema.set)
+ema <- ema[!dup.ema$is.dup, ]
 
 ## EMA notification duplicates by user-day, but different question sets
 ## keep notifications that either link to EMA response or occur later
@@ -155,34 +156,32 @@ dup.ema <- check.dup(ema, "checks/dup_ema_response_multiset.csv",
                      user, message.date, tz, order)
 ema <- ema[!dup.ema$is.dup, -ncol(ema)]
 
-## assess link between plan and notify
+## assess link between 'plan' and 'notify' via 'contextid'
 temp <- merge(plan, notify, by = "contextid", all.x = TRUE,
               suffixes = c("", ".notify"))
-temp$link <- with(temp, !(is.na(user.notify) | user != user.notify |
-                          date.started != notified.date |
-                          tz != tz.notify | planning != planning.today))
+## linked to the same user, date and planning status?
+temp$link <- with(temp, !is.na(user.notify) & user == user.notify
+                  & date.started == notified.date
+                  & tz == tz.notify & planning == planning.today)
 table(temp$link)
 write.data(subset(temp, select = c(contextid, link)),
            "checks/link_contextid_plan_notify.csv")
 
-## assess link between ema and notify
+## assess link between 'ema' and 'notify' via 'contextid'
 temp <- merge(subset(ema, order == 1), notify, by = "contextid",
               all.x = TRUE, suffixes = c("", ".notify"))
-temp$link <- with(temp, !(is.na(user.notify) | user != user.notify |
-                          message.date != notified.date |
-                          question != unlist(lapply(strsplit(ema.set.today, ","),
-                                                    function(x) x[1]))))
-table(temp$link)
+## linked to the same user, date and leading question?
+temp$link <- with(temp, user == user.notify & message.date == notified.date
+                  & question == unlist(lapply(strsplit(ema.set.today, ","),
+                                              function(x) x[1])))
+table(with(temp, link[order == 1]))
 write.data(subset(temp, order == 1, select = c(contextid, link)),
            "checks/link_contextid_ema_notify.csv")
 
 ## --- activity suggestion interventions
 
 ## suggestion message tags
-## FIXME: typo variants are added to source file
-##        for messages that have no tags - apply all tags
-## FIXME: clarify meaning of tags; for example,
-##        suggestions tagged neither active nor sedentary - what does this mean?
+## nb: messages were not tagged in GAE tables, so we apply them after the fact
 messages <- read.data("Reviewed_Heartsteps_Messages.csv", NULL, skip = 1)
 messages$message <- normalize.text(messages$message)
 ## replace recurrent tag variable with tag indicators
@@ -197,8 +196,7 @@ messages <- data.frame(message = messages$message,
 names(messages)[-1] <- paste("tag", tags, sep = ".")
 messages[temp, -1] <- TRUE
 ## combine recurrent messages
-## nb: recurrences distinguish context
-## FIXME: check that this makes sense
+## nb: recurrences distinguish context, which we can't recover post-hoc
 messages <- aggregate(. ~ message, data = messages, any)
 
 ## momentary decision (send suggestion or not)
@@ -212,17 +210,21 @@ decision$is.randomized <- decision$is.randomized == "true"
 decision$valid <- decision$valid == "valid"
 decision$snooze.status <- decision$snooze.status == "true"
 ## dispense with extraneous prefetch data
-decision <- subset(decision,
-                   !(is.prefetch
-                     & duplicated(cbind(user, date.stamp, tz, time.slot))))
-decision <- decision[with(decision, order(user, utime.stamp)), ]
+decision <- subset(decision, !(is.prefetch &
+                               duplicated(cbind(user, date.stamp, tz,
+                                                time.slot))))
+## keep unique, "send" or within-slot decisions
+decision <- decision[with(decision,
+                          order(user, date.stamp, tz, time.slot, !valid,
+                                !notify, time.slot != time.stamp.slot,
+                                utime.stamp)), ]
 dup.decision <- check.dup(decision, "checks/dup_decision.csv",
                           user, date.stamp, tz, time.slot)
+decision <- decision[!dup.decision$is.dup, ]
 ## missing day of week
-## FIXME: would this affect the message selection? - Andy looking into it
 write.data(subset(decision, day.of.week == ""), "checks/decision_nowkday.csv")
-## time slot mismatch
-write.data(subset(decision, time.slot != time.stamp.slot),
+## obvious time slot mismatch
+write.data(subset(decision, time.slot != time.stamp.slot & !is.prefetch),
            "checks/decision_outsideslot.csv")
 ## add message tags
 decision <- merge(decision, messages,
@@ -234,17 +236,23 @@ write.data(subset(decision, notify & is.na(tag.active)),
            "checks/decision_notags.csv")
 
 ## response to suggestions
-## user has 30 minutes from notification to respond
-response <- read.data("Response.csv", list(user, responded.utime))
+## suggestion could be prefetched 30 minutes prior to initial notify time
+## user has 30 minutes from the initial notification to respond
+response <- read.data("Response.csv", list(user, notified.utime))
 response$notification.message <- normalize.text(response$notification.message)
-dup.response <- check.dup(response, "checks/dup_response.csv",
-                          user, notified.date, tz, notified.time.slot)
+response <- merge(response,
+                  subset(decision, select = c(user, date.stamp, time.stamp.hour,
+                                              time.slot)),
+                  by.x = c("user", "notified.date", "notified.time.hour"),
+                  by.y = c("user", "date.stamp", "time.stamp.hour"),
+                  all.x = TRUE)
+check.dup(response, "checks/dup_response.csv",
+          user, notified.date, tz, time.slot, notified.time.slot)
 
-## assess link between response and decision
+## assess link via 'decisionid'
 temp <- merge(response, decision, by = "decisionid", all.x = TRUE,
               suffixes = c("", ".decision"))
-## criteria for a valid link
-## FIXME: check time lag tolerance (notify to response is 30 min)
+## linked to the same user, day, message and roughly the same time?
 temp$link <- with(temp, user == user.decision & notified.date == date.stamp
                   & notify & returned.message == notification.message
                   & notified.utime > utime.stamp
@@ -252,12 +260,6 @@ temp$link <- with(temp, user == user.decision & notified.date == date.stamp
 table(temp$link)
 write.data(subset(temp, select = c(decisionid, link)),
            "checks/link_decisionid.csv")
-
-## FIXME: address duplicates, conflicting randomization status
-##        in decision and response
-## dups in either - changes to timeslots, resulting in multiple messages
-## dups in decision - take one linkable to response, if both unlinked, take later
-## dups in response 
 
 ## --- physical activity
 
@@ -279,7 +281,7 @@ jawbone$days.since[jawbone$days.since == 0] <- NA
 write.data(subset(jawbone, days.since > 1), "checks/inactivity_jbone_gt1.csv")
 
 ## Google Fit
-## FIXME: check users with little to no data
+## nb: degree of fractional seconds varies over time
 ## nb: step counts provided over time intervals of continuous physical activity
 googlefit <- read.data(c("google_fit_data_07-15.csv",
                          "google_fit_data_08-15.csv",
