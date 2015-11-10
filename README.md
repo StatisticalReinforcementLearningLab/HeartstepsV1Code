@@ -35,14 +35,14 @@ You may need to close and reopen File Explorer for the new drive to appear.
 
 ### Ubuntu
 
-- Install [davfs2](http://savannah.nongnu.org/projects/davfs2) and create a mount point called `mbox` in your home directory with the following terminal commands. Here `USERNAME` should be replaced with your own system login name.
+- Install [davfs2](http://savannah.nongnu.org/projects/davfs2) and create a mount point called `mbox` in your home directory with the following terminal commands. Here `USER` should be replaced with your own system login name.
 ```shell
 sudo sed -ir 's/^# use_locks(.+)1$/# use_locks\10/g' /etc/davfs2/davfs2.conf
 sudo dpkg-reconfigure davfs2
-sudo usermod -a -G davfs2 USERNAME
+sudo usermod -a -G davfs2 USER
 mkdir ~/mbox
-echo "https://dav.box.com/dav /home/USERNAME/mbox davfs rw,user,noauto 0 0" | sudo tee -a /etc/fstab
-chmod 600 /home/USERNAME/.davfs2/secrets
+echo "https://dav.box.com/dav /home/USER/mbox davfs rw,user,noauto 0 0" | sudo tee -a /etc/fstab
+chmod 600 /home/USER/.davfs2/secrets
 ```
 - Logout and log back in.
 - M+Box can now be mounted with the command `mount ~/mbox`. When prompted, enter the credentials you set up in step 1.
@@ -65,5 +65,12 @@ Ensure your system has [M+Box mounted](#mounting-mbox) and the following softwar
 From the command line, navigate to the `heartstepsdata/exporter` folder in your local copy of this repository. Run the export script specific to your system. When prompted, enter the HeartSteps GAE account credentials.
 
 ## Preparing data for analysis
+
+Ensure your system has [M+Box mounted](#mounting-mbox). From the command line, navigate to your local copy of this repository. Run the commands
+```shell
+R CMD BATCH --vanilla workspace.csv.R
+R CMD BATCH --vanilla workspace.analysis.R
+```
+These R scripts will create or update two R workspace files, `csv.RData` and `analysis.RData` on M+Box. Previous versions of these files can be restored using the M+Box web interface.
 
 ## Running data summaries
