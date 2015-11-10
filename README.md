@@ -35,7 +35,7 @@ You may need to close and reopen File Explorer for the new drive to appear.
 
 ### Ubuntu
 
-- Install [davfs2](http://savannah.nongnu.org/projects/davfs2) and create a mount point called `mbox` in your home directory with the following terminal commands. Here `USER` should be replaced with your own system login name.
+- Install the WebDAV client [davfs2](http://savannah.nongnu.org/projects/davfs2) and create a mount point called `mbox` in your home directory with the following terminal commands. Here `USER` should be replaced with your own system login name.
 ```shell
 sudo sed -ir 's/^# use_locks(.+)1$/# use_locks\10/g' /etc/davfs2/davfs2.conf
 sudo dpkg-reconfigure davfs2
@@ -45,7 +45,7 @@ echo "https://dav.box.com/dav /home/USER/mbox davfs rw,user,noauto 0 0" | sudo t
 chmod 600 /home/USER/.davfs2/secrets
 ```
 - Logout and log back in.
-- M+Box can now be mounted with the command `mount ~/mbox`. When prompted, enter the credentials you set up in step 1.
+- M+Box can now be mounted with the command `mount ~/mbox` and unmounted with `umount ~/mbox`. When prompted, enter the credentials you set up in step 1.
 
 ## Exporting data
 
@@ -53,7 +53,7 @@ Application data are exported either manually through a web browser interface or
 
 ### Jawbone and Google Fit
 
-Download using the browser interface at <http://jitai-api.appspot.com>.
+Download using the browser interface at <http://jitai-api.appspot.com>. Server errors tend to occur when downloading large files, so the data should be downloaded month by month.
 
 ### HeartSteps
 
@@ -66,11 +66,11 @@ From the command line, navigate to the `heartstepsdata/exporter` folder in your 
 
 ## Preparing data for analysis
 
-Ensure your system has [M+Box mounted](#mounting-mbox). From the command line, navigate to your local copy of this repository. Run the commands
+Ensure your system has [M+Box mounted](#mounting-mbox). From the command line, navigate to your local copy of this repository. Run the following:
 ```shell
 R CMD BATCH --vanilla workspace.csv.R
 R CMD BATCH --vanilla workspace.analysis.R
 ```
-These R scripts will create or update two R workspace files, `csv.RData` and `analysis.RData` on M+Box. Previous versions of these files can be restored using the M+Box web interface.
+These R scripts will create or update two R workspace files, `csv.RData` and `analysis.RData` on M+Box. Previous versions of the files can be restored using the M+Box web interface.
 
 ## Running data summaries

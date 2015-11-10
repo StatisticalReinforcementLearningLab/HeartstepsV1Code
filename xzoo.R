@@ -29,7 +29,6 @@ center <- function(id, time, x, sd = FALSE, na.rm = TRUE) {
 }
 
 ## current value minus lagged value, shifted back k time points
-## if current time < k + 1, return fill.value
 change <- function(id, time, x, k = 1) {
   z <- zoosplit(splitdata(id, time, x))
   d <- lapply(z, function(y) diff(y, lag = k, na.pad = TRUE))
