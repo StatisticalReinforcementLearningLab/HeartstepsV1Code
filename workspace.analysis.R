@@ -27,6 +27,8 @@ users$days <- with(users, as.numeric(difftime(last.date, intake.date, "days")))
 ## indicate users that just enrolled or dropped out
 users$exclude <- with(users, intake.date >= max.date | days < 7 |
                              (intake.date + 42 < max.date & days < 10))
+## odd user id implies that HeartSteps is installed on own phone
+users$own.phone <- users$user %% 2 != 0
 
 ## expand to user-day level
 daily <- do.call("rbind", sapply(1:nrow(users), function(r)
@@ -45,8 +47,9 @@ daily <- merge(daily,
                all.x = TRUE)
 
 ## planning status
-## FIXME: check actual distribution - intended is 50% none, 25% structured
-## out of sequence reading: day 1 - default is no planning, o/w yesterday's status
+## nb: if status is written and read from device in reverse order,
+##     the previous planning decision is read (on day 1, this is 'no planning')
+## FIXME: check actual distribution - intended is 50% no planning, 25% structured
 daily <- merge(daily,
                with(plan, aggregate(planning, list(user, date.started),
                                     function(x) x[1])),

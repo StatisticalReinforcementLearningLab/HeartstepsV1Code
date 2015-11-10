@@ -9,7 +9,6 @@ setwd(sys.var$mbox)
 ## FIXME: finalize interview spreadsheet format
 
 ## user list
-## even - study phone, odd - personal phone
 user <- read.data("HeartSteps Participant Directory.csv", list(user))
 user$intake.date <- char2date(user$intake.interview.date, "%m/%d/%Y")
 user$exit.date <- char2date(user$exit.interview.date, "%m/%d/%Y")
@@ -89,9 +88,9 @@ dup.engage <- check.dup(engage, "checks/dup_ema_engaged.csv",
                         user, engaged.utime)
 engage <- engage[!dup.engage$is.dup, ]
 
-## EMA responses
+## EMA response
+## user has 1 hour from notification to complete questionnaire
 ## nb: time zone data are unavailable
-## 1 hour to complete
 ema <- read.data("EMA_Response.csv", list(user, message.date, order, time.stamp))
 ema$response <- normalize.text(ema$response)
 ema$message <- normalize.text(ema$message)
@@ -179,7 +178,7 @@ write.data(subset(temp, order == 1, select = c(contextid, link)),
 
 ## --- activity suggestion interventions
 
-## suggestion messages
+## suggestion message tags
 ## FIXME: typo variants are added to source file
 ##        for messages that have no tags - apply all tags
 ## FIXME: clarify meaning of tags; for example,
@@ -189,11 +188,14 @@ messages$message <- normalize.text(messages$message)
 ## replace recurrent tag variable with tag indicators
 tags <- sort(unique(unlist(subset(messages, select = tag.1:tag.14))))
 tags <- tags[!(tags %in% c("", "other", "outdoor_snow"))]
+## no tags imply that all tags apply
+temp <- messages$tag.1 == ""
 messages <- data.frame(message = messages$message,
                        t(apply(subset(messages, select = tag.1:tag.14), 1,
                                function(x) sapply(tags, function(tag)
                                  any(grepl(tag, x))))))
 names(messages)[-1] <- paste("tag", tags, sep = ".")
+messages[temp, -1] <- TRUE
 ## combine recurrent messages
 ## nb: recurrences distinguish context
 ## FIXME: check that this makes sense
@@ -201,21 +203,24 @@ messages <- aggregate(. ~ message, data = messages, any)
 
 ## momentary decision (send suggestion or not)
 decision <- read.data("Momentary_Decision.csv",
-                      list(user, udate.stamp, time.slot, is.prefetch == "true",
-                           utime.stamp))
+                      list(user, date.stamp, tz, time.slot,
+                           is.prefetch == "true", valid == "valid", utime.stamp))
 decision$returned.message <- normalize.text(decision$returned.message)
 decision$is.prefetch <- decision$is.prefetch == "true"
 decision$notify <- decision$notify == "True"
+decision$is.randomized <- decision$is.randomized == "true"
+decision$valid <- decision$valid == "valid"
+decision$snooze.status <- decision$snooze.status == "true"
 ## dispense with extraneous prefetch data
 decision <- subset(decision,
-                   !is.prefetch | !duplicated(cbind(user, date.stamp, tz,
-                                                    time.slot)))
+                   !(is.prefetch
+                     & duplicated(cbind(user, date.stamp, tz, time.slot))))
 decision <- decision[with(decision, order(user, utime.stamp)), ]
+dup.decision <- check.dup(decision, "checks/dup_decision.csv",
+                          user, date.stamp, tz, time.slot)
 ## missing day of week
 ## FIXME: would this affect the message selection? - Andy looking into it
 write.data(subset(decision, day.of.week == ""), "checks/decision_nowkday.csv")
-dup.decision <- check.dup(decision, "checks/dup_decision.csv",
-                          user, date.stamp, tz, time.slot)
 ## time slot mismatch
 write.data(subset(decision, time.slot != time.stamp.slot),
            "checks/decision_outsideslot.csv")
@@ -229,6 +234,7 @@ write.data(subset(decision, notify & is.na(tag.active)),
            "checks/decision_notags.csv")
 
 ## response to suggestions
+## user has 30 minutes from notification to respond
 response <- read.data("Response.csv", list(user, responded.utime))
 response$notification.message <- normalize.text(response$notification.message)
 dup.response <- check.dup(response, "checks/dup_response.csv",
