@@ -139,10 +139,10 @@ char2calendar <- function(x, tz = "GMT", format = "%Y-%m-%d %H:%M:%OS",
 ## convert hour (0-23) to (approximate) time slot
 ## nb: (after) dinner and EMA slot definitions are dependent
 hour2slot <- function(x)
-  s <- c("ema",       # dinner + 1 hour - 23:59
-         "morning",   # 05:00 - 09:30
-         "lunch",     # 11:00 - 13:00
-         "afternoon", # 14:30 - 15:00
-         "evening",   # 16:30 - 18:00
-         "dinner",    # 19:30 - 20:30
-         "ema")[findInterval(x, c(0, 4, 11, 14, 16, 19, 21, 23))]
+  s <- c("ema",       # defined as dinner + 1 hour - 23:59  ~  21:00 - 04:00
+         "morning",   # 05:00 - 09:30  ~  05:00 - 10:59
+         "lunch",     # 11:00 - 13:00  ~  11:00 - 13:50
+         "afternoon", # 14:30 - 15:00  ~  14:00 - 15:59
+         "evening",   # 16:30 - 18:00  ~  16:00 - 18:59
+         "dinner",    # 19:30 - 20:30  ~  19:00 - 20:59
+         "ema")[findInterval(x, c(0, 5, 11, 14, 16, 19, 21, 23))]

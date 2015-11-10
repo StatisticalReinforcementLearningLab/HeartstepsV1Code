@@ -9,6 +9,7 @@ setwd(sys.var$mbox)
 ## FIXME: finalize interview spreadsheet format
 
 ## user list
+## even - study phone, odd - personal phone
 user <- read.data("HeartSteps Participant Directory.csv", list(user))
 user$intake.date <- char2date(user$intake.interview.date, "%m/%d/%Y")
 user$exit.date <- char2date(user$exit.interview.date, "%m/%d/%Y")
@@ -90,6 +91,7 @@ engage <- engage[!dup.engage$is.dup, ]
 
 ## EMA responses
 ## nb: time zone data are unavailable
+## 1 hour to complete
 ema <- read.data("EMA_Response.csv", list(user, message.date, order, time.stamp))
 ema$response <- normalize.text(ema$response)
 ema$message <- normalize.text(ema$message)
@@ -179,6 +181,7 @@ write.data(subset(temp, order == 1, select = c(contextid, link)),
 
 ## suggestion messages
 ## FIXME: typo variants are added to source file
+##        for messages that have no tags - apply all tags
 ## FIXME: clarify meaning of tags; for example,
 ##        suggestions tagged neither active nor sedentary - what does this mean?
 messages <- read.data("Reviewed_Heartsteps_Messages.csv", NULL, skip = 1)
@@ -192,6 +195,7 @@ messages <- data.frame(message = messages$message,
                                  any(grepl(tag, x))))))
 names(messages)[-1] <- paste("tag", tags, sep = ".")
 ## combine recurrent messages
+## nb: recurrences distinguish context
 ## FIXME: check that this makes sense
 messages <- aggregate(. ~ message, data = messages, any)
 
@@ -206,17 +210,20 @@ decision$notify <- decision$notify == "True"
 decision <- subset(decision,
                    !is.prefetch | !duplicated(cbind(user, date.stamp, tz,
                                                     time.slot)))
+decision <- decision[with(decision, order(user, utime.stamp)), ]
 ## missing day of week
-## FIXME: would this affect the message selection?
+## FIXME: would this affect the message selection? - Andy looking into it
 write.data(subset(decision, day.of.week == ""), "checks/decision_nowkday.csv")
 dup.decision <- check.dup(decision, "checks/dup_decision.csv",
                           user, date.stamp, tz, time.slot)
+## time slot mismatch
+write.data(subset(decision, time.slot != time.stamp.slot),
+           "checks/decision_outsideslot.csv")
 ## add message tags
 decision <- merge(decision, messages,
                   by.x = "returned.message", by.y = "message",
                   all.x = TRUE, sort = FALSE)
-decision <- decision[with(decision, order(user, date.stamp, time.slot,
-                                          utime.stamp)), ]
+decision <- decision[with(decision, order(user, utime.stamp)), ]
 ## missing tags
 write.data(subset(decision, notify & is.na(tag.active)),
            "checks/decision_notags.csv")
@@ -231,7 +238,7 @@ dup.response <- check.dup(response, "checks/dup_response.csv",
 temp <- merge(response, decision, by = "decisionid", all.x = TRUE,
               suffixes = c("", ".decision"))
 ## criteria for a valid link
-## FIXME: check time lag tolerance
+## FIXME: check time lag tolerance (notify to response is 30 min)
 temp$link <- with(temp, user == user.decision & notified.date == date.stamp
                   & notify & returned.message == notification.message
                   & notified.utime > utime.stamp
@@ -242,8 +249,11 @@ write.data(subset(temp, select = c(decisionid, link)),
 
 ## FIXME: address duplicates, conflicting randomization status
 ##        in decision and response
+## dups in either - changes to timeslots, resulting in multiple messages
+## dups in decision - take one linkable to response, if both unlinked, take later
+## dups in response 
 
-## --- physcal activity
+## --- physical activity
 
 ## Jawbone
 ## nb: step counts provided in one minute windows for now;
@@ -318,7 +328,7 @@ timezone <- rbind(with(notify,
                                   time = responded.time,
                                   hour = responded.time.hour,
                                   time.slot = responded.time.slot)))
-timezone <- subset(timezone, !duplicated(cbind(user, date, tz, hour, time.slot)))
+timezone <- subset(timezone, !duplicated(cbind(user, date, tz, time.slot)))
 ## combine with user-maintained timeslots
 timezone <- merge.last(timezone,
                        subset(timeslot,

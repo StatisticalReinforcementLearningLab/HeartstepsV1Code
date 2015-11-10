@@ -45,6 +45,8 @@ daily <- merge(daily,
                all.x = TRUE)
 
 ## planning status
+## FIXME: check actual distribution - intended is 50% none, 25% structured
+## out of sequence reading: day 1 - default is no planning, o/w yesterday's status
 daily <- merge(daily,
                with(plan, aggregate(planning, list(user, date.started),
                                     function(x) x[1])),
