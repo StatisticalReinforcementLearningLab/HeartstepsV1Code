@@ -118,8 +118,11 @@ char2date <- function(x, format = "%Y-%m-%d")
 ## convert character string to POSIXct in GMT/UTC,
 ## under the given offset and format
 char2utime <- function(x, offset = 0, format = "%Y-%m-%d %H:%M:%OS") {
+  ## character to POSIXlt
   l <- mapply(strptime, x = x, format = format, tz = "GMT", SIMPLIFY = FALSE)
+  ## POSIXlt to POSIXct, which carries no time zone
   l <- do.call("c", lapply(l, as.POSIXct, tz = "GMT"))
+  ## correct POSIXct value under the given UTC offset
   l - offset
 }
 
@@ -127,9 +130,12 @@ char2utime <- function(x, offset = 0, format = "%Y-%m-%d %H:%M:%OS") {
 ## under the given time zone and format
 char2calendar <- function(x, tz = "GMT", format = "%Y-%m-%d %H:%M:%OS",
                           prefix = NULL) {
+  ## character to local POSIXlt
   l <- mapply(strptime, x = x, format = format, tz = tz, SIMPLIFY = FALSE)
+  ## indices of which POSIXlt list elements to keep
   w <- which(names(unclass(l[[1]])) %in%
              c("year", "mon", "yday", "mday", "wday", "hour", "min", "sec"))
+  ## select POSIXlt list elements to numeric data frame
   l <- data.frame(do.call("rbind", lapply(l, function(y) unlist(unclass(y)[w]))),
                   row.names = NULL)
   if (!is.null(prefix))

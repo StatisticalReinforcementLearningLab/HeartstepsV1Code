@@ -84,7 +84,7 @@ notify <- notify[!dup.notify$is.dup, ]
 ## context in which the user engaged with the EMA
 engage <- read.data("EMA_Context_Engaged.csv",
                     list(user, engaged.utime, recognized.activity == "N/A"))
-## keep unique or classified activity engagements
+## keep unique or classified-activity engagements
 dup.engage <- check.dup(engage, "checks/dup_ema_engaged.csv",
                         user, engaged.utime)
 engage <- engage[!dup.engage$is.dup, ]
@@ -97,16 +97,14 @@ ema$response <- normalize.text(ema$response)
 ema$message <- normalize.text(ema$message)
 ## infer time zone
 ## nb: this presumes that 'contextid' can distinguish between different-day EMAs
-## Take all EMA tables, match on contextID and time zone information
-temp <-
-  Reduce(function(x, y) merge(x, y, all = TRUE,
-                              by = c("contextid", "timezone", "tz", "gmtoff")),
-         list(subset(notify, select = c(contextid, timezone, tz, gmtoff)),
+## assemble all time zone information from other EMA tables
+temp <- rbind(subset(notify, select = c(contextid, timezone, tz, gmtoff)),
               subset(plan, select = c(contextid, timezone, tz, gmtoff)),
               subset(engage, select = c(contextid, timezone, tz, gmtoff)),
-              subset(complete, select = c(contextid, timezone, tz, gmtoff))))
-## Find if there are multiple time-zones for a given contextID
-with(temp, table(duplicated(contextid), duplicated(cbind(contextid, tz))))
+              subset(complete, select = c(contextid, timezone, tz, gmtoff)))
+temp <- subset(temp, !duplicated(cbind(contextid, tz)))
+## any contextid
+with(temp, any(duplicated(cbind(contextid, tz))))
 ## No repeated time-zones per contextID
 ema <- merge(ema, temp, by = "contextid", all.x = TRUE)
 ## calculate date-time elements
