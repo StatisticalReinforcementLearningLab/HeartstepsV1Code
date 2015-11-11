@@ -72,18 +72,13 @@ read.data <- function(file, order.by = NULL, ...) {
       d <- cbind(d, u, y)
     }
     ## ... using the time zone, calculate POSIXlt elements
-    ##     and approximate time slot
     ## (e.g. day of year (0-366), month (0-11), weekday (0-6), etc.
     if (ptime) {
       p <- do.call("data.frame",
                    mapply(char2calendar, x = d[, l, drop = FALSE],
                           tz = d[, names(d) == "tz", drop = FALSE],
                           SIMPLIFY = FALSE))
-      s <- do.call("data.frame",
-                   lapply(p[, grep("\\.hour$", names(p)), drop = FALSE],
-                          hour2slot))
-      names(s) <- gsub("\\.hour$", ".slot", names(s))
-      d <- cbind(d, p, s)
+      d <- cbind(d, p)
     }
   }
   ## sort by given list of variables

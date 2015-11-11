@@ -209,6 +209,11 @@ decision$notify <- decision$notify == "True"
 decision$is.randomized <- decision$is.randomized == "true"
 decision$valid <- decision$valid == "valid"
 decision$snooze.status <- decision$snooze.status == "true"
+## approximate time slot
+decision$time.stamp.slot <-
+  c("ema", "morning", "lunch", "afternoon",
+    "evening", "dinner", "ema")[findInterval(decision$time.stamp.hour,
+                                             c(0, 5, 11, 14, 16, 19, 21))]
 ## dispense with extraneous prefetch data
 decision <- subset(decision, !(is.prefetch &
                                duplicated(cbind(user, date.stamp, tz,
@@ -242,12 +247,12 @@ response <- read.data("Response.csv", list(user, notified.utime))
 response$notification.message <- normalize.text(response$notification.message)
 response <- merge(response,
                   subset(decision, select = c(user, date.stamp, time.stamp.hour,
-                                              time.slot)),
+                                              time.stamp.slot, time.slot)),
                   by.x = c("user", "notified.date", "notified.time.hour"),
                   by.y = c("user", "date.stamp", "time.stamp.hour"),
                   all.x = TRUE)
 check.dup(response, "checks/dup_response.csv",
-          user, notified.date, tz, time.slot, notified.time.slot)
+          user, notified.date, tz, time.slot, time.stamp.slot)
 
 ## assess link via 'decisionid'
 temp <- merge(response, decision, by = "decisionid", all.x = TRUE,
@@ -303,47 +308,48 @@ timezone <- rbind(with(notify,
                        data.frame(user, utime = notified.utime,
                                   timezone, tz, gmtoff, date = notified.date,
                                   time = notified.time,
-                                  hour = notified.time.hour,
-                                  time.slot = "ema")),
+                                  hour = notified.time.hour)),
                   with(engage,
                        data.frame(user, utime = engaged.utime,
                                   timezone, tz, gmtoff, date = engaged.date,
                                   time = engaged.time,
-                                  hour = engaged.time.hour, time.slot = "ema")),
+                                  hour = engaged.time.hour)),
                   with(plan,
                        data.frame(user, utime = utime.finished,
                                   timezone, tz, gmtoff, date = date.finished,
                                   time = time.finished,
-                                  hour = time.finished.hour, time.slot = "ema")),
+                                  hour = time.finished.hour)),
                   with(ema,
                        data.frame(user, utime = utime.stamp,
                                   timezone, tz, gmtoff, date = date.stamp,
-                                  time = time.stamp, hour = time.stamp.hour,
-                                  time.slot = "ema")),
+                                  time = time.stamp, hour = time.stamp.hour)),
                   with(complete,
                        data.frame(user, utime = utime.stamp,
                                   timezone, tz, gmtoff, date = date.stamp,
-                                  time = time.stamp, hour = time.stamp.hour,
-                                  time.slot = "ema")),
+                                  time = time.stamp, hour = time.stamp.hour)),
                   with(decision,
                        data.frame(user, utime = utime.stamp,
                                   timezone, tz, gmtoff, date = date.stamp,
-                                  time = time.stamp, hour = time.stamp.hour,
-                                  time.slot)),
+                                  time = time.stamp, hour = time.stamp.hour)),
                   with(response,
                        data.frame(user, utime = responded.utime,
                                   timezone, tz, gmtoff, date = responded.date,
                                   time = responded.time,
-                                  hour = responded.time.hour,
-                                  time.slot = responded.time.slot)))
-timezone <- subset(timezone, !duplicated(cbind(user, date, tz, time.slot)))
+                                  hour = responded.time.hour)))
+timezone <- subset(timezone, !duplicated(cbind(user, date, tz, hour)))
 ## combine with user-maintained timeslots
 timezone <- merge.last(timezone,
                        subset(timeslot,
                               select = c(user, utime.updated, morning, lunch,
                                          afternoon, evening, dinner, ema)),
                        id = "user", var.x = "utime", var.y = "utime.updated")
+timezone$timeslot <-
+  apply(do.call("cbind", subset(timezone, select = hour:ema)), 1,
+        function(x) paste0(names(x[-1])[grep(paste0("^", x[1], ":"), x[-1])],
+                           ""))
 timezone <- timezone[with(timezone, order(user, utime)), ]
+timezone$timeslot[timezone$timeslot == ""] <- NA
+
 row.names(timezone) <- NULL
 
 rm(temp)

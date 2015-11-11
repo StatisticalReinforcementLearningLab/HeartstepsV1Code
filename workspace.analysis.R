@@ -31,14 +31,18 @@ users$exclude <- with(users, intake.date >= max.date | days < 7 |
 users$own.phone <- users$user %% 2 != 0
 
 ## expand to user-day level
-daily <- do.call("rbind", sapply(1:nrow(users), function(r)
-  with(users[r, , drop = FALSE],
-       data.frame(user = user, intake.date = intake.date, tz.intake = tz.intake,
-                  gmtoff.intake = gmtoff.intake,
-                  study.date = seq(intake.date, last.date, by = "days"))),
-  simplify = FALSE))
+daily <- do.call("rbind",
+                 sapply(1:nrow(users),
+                        function(r)
+                          with(users[r, , drop = FALSE],
+                               data.frame(user = user, intake.date = intake.date,
+                                          tz.intake = tz.intake,
+                                          gmtoff.intake = gmtoff.intake,
+                                          study.date = seq(intake.date, last.date,
+                                                           by = "days"))),
+                        simplify = FALSE))
 daily$study.day <- with(daily, as.numeric(difftime(study.date, intake.date,
-                                                   "days")))
+                                                   units = "days")))
 
 ## EMA (partial) completion status
 daily <- merge(daily,
