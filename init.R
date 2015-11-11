@@ -32,3 +32,6 @@ Sys.setlocale("LC_TIME", sys.var$locale)
 
 ## arithmetic on POSIXct objects uses system time zone, so set this to UTC
 Sys.setenv(TZ = "GMT")
+
+## intervention time slot labels
+slots <- c("morning", "lunch", "afternoon", "evening", "dinner", "ema")
