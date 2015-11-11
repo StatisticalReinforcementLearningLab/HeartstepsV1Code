@@ -97,6 +97,7 @@ ema$response <- normalize.text(ema$response)
 ema$message <- normalize.text(ema$message)
 ## infer time zone
 ## nb: this presumes that 'contextid' can distinguish between different-day EMAs
+## Take all EMA tables, match on contextID and time zone information
 temp <-
   Reduce(function(x, y) merge(x, y, all = TRUE,
                               by = c("contextid", "timezone", "tz", "gmtoff")),
@@ -104,7 +105,9 @@ temp <-
               subset(plan, select = c(contextid, timezone, tz, gmtoff)),
               subset(engage, select = c(contextid, timezone, tz, gmtoff)),
               subset(complete, select = c(contextid, timezone, tz, gmtoff))))
+## Find if there are multiple time-zones for a given contextID
 with(temp, table(duplicated(contextid), duplicated(cbind(contextid, tz))))
+## No repeated time-zones per contextID
 ema <- merge(ema, temp, by = "contextid", all.x = TRUE)
 ## calculate date-time elements
 ema$message.utime <- with(ema, char2utime(message.time, gmtoff))
@@ -202,7 +205,7 @@ messages <- aggregate(. ~ message, data = messages, any)
 ## momentary decision (send suggestion or not)
 decision <- read.data("Momentary_Decision.csv",
                       list(user, date.stamp, tz, time.slot,
-                           is.prefetch == "true", valid == "valid", utime.stamp))
+                           is.prefetch == "true", valid != "valid", utime.stamp))
 decision$returned.message <- normalize.text(decision$returned.message)
 decision$is.prefetch <- decision$is.prefetch == "true"
 decision$notify <- decision$notify == "True"
