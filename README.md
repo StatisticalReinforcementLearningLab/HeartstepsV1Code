@@ -79,7 +79,7 @@ These R scripts will create or update two R workspace files, `csv.RData` and `an
 ## Content overview
 
 File | Description
-- | -
+--- | ---
 [ema.options.R](ema.options.R) | Response options for each EMA question
 [functions.R](functions.R) | Helper functions, mainly for data formatting
 [init.R](init.R) | Set common variables—run this at the beginning of ever R session
