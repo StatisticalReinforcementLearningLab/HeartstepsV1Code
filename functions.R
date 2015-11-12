@@ -12,7 +12,7 @@ normalize.text <- function(x) {
   x <- gsub("^[[:space:]]+", "", x)
   x <- gsub("[[:space:]]+$", "", x)
   ## normalize remaining whitespace
-  x <- gsub("[[:space:]]", " ", x)
+  x <- gsub("[[:space:]]+", " ", x)
   ## strip non-ASCII characters
   iconv(x, "UTF-8", "ASCII", "")
 }
@@ -132,11 +132,9 @@ char2calendar <- function(x, tz = "GMT", format = "%Y-%m-%d %H:%M:%OS",
                           prefix = NULL) {
   ## character to local POSIXlt
   l <- mapply(strptime, x = x, format = format, tz = tz, SIMPLIFY = FALSE)
-  ## indices of which POSIXlt list elements to keep
-  w <- which(names(unclass(l[[1]])) %in%
-             c("year", "mon", "yday", "mday", "wday", "hour", "min", "sec"))
   ## select POSIXlt list elements to numeric data frame
-  l <- data.frame(do.call("rbind", lapply(l, function(y) unlist(unclass(y)[w]))),
+  l <- data.frame(do.call("rbind",
+                          lapply(l, function(y) unlist(unclass(y)[ltime]))),
                   row.names = NULL)
   if (!is.null(prefix))
     names(l) <- paste(prefix, names(l), sep = ".")

@@ -95,17 +95,38 @@ engage <- engage[!dup.engage$is.dup, ]
 ema <- read.data("EMA_Response.csv", list(contextid))
 ema$response <- normalize.text(ema$response)
 ema$message <- normalize.text(ema$message)
-## infer time zone
-## nb: this presumes that 'contextid' can distinguish between different-day EMAs
-## assemble all time zone information from other EMA tables
+## likert-scale responses
+ema$hectic <- with(ema, as.numeric(ifelse(question == "1", response, NA)))
+ema$stress <- with(ema, as.numeric(ifelse(question == "2", response, NA)))
+ema$typical <- with(ema, as.numeric(ifelse(question == "3", response, NA)))
+ema$energy <- with(ema, as.numeric(ifelse(question == "research3",
+                                          response, NA)))
+ema$urge <- with(ema, as.numeric(ifelse(question == "research4", response, NA)))
+ema$follow <- with(ema, ifelse(question == "5", response, NA))
+## parse @-delimited responses 
+ema <- cbind(ema,
+             match.option(ema4, ema$response,
+                          ema$question == "4", "active", FALSE),
+             match.option(ema6, ema$response, ema$question == "6", "down"),
+             match.option(ema7, ema$response, ema$question == "7", "up"),
+             match.option(research1, ema$response,
+                          ema$question == "research1", "barrier"),
+             match.option(research2, ema$response,
+                          ema$question == "research2", "enabler"))
+## message displayed for questions 6 (why thumbs-down) and 7 (why thumbs-up)
+ema$msg.down <- with(ema, ifelse(question == "6", message, NA))
+ema$msg.up <- with(ema, ifelse(question == "7", message, NA))
+## assemble time zone information from other EMA tables
 temp <- rbind(subset(notify, select = c(contextid, timezone, tz, gmtoff)),
               subset(plan, select = c(contextid, timezone, tz, gmtoff)),
               subset(engage, select = c(contextid, timezone, tz, gmtoff)),
               subset(complete, select = c(contextid, timezone, tz, gmtoff)))
 temp <- subset(temp, !duplicated(cbind(contextid, tz)))
-## any contextid
-with(temp, any(duplicated(cbind(contextid, tz))))
-## No repeated time-zones per contextID
+## any contextIDs associated with more than one time zone?
+any(duplicated(temp$contextid))
+## infer time zone of EMA response
+## nb: this presumes that contextID can distinguish between different-day EMAs
+##     and each contextID is associated with at most one time zone
 ema <- merge(ema, temp, by = "contextid", all.x = TRUE)
 ## calculate date-time elements
 ema$message.utime <- with(ema, char2utime(message.time, gmtoff))
@@ -157,7 +178,7 @@ dup.ema <- check.dup(ema, "checks/dup_ema_response_multiset.csv",
                      user, message.date, tz, order)
 ema <- ema[!dup.ema$is.dup, -ncol(ema)]
 
-## assess link between 'plan' and 'notify' via 'contextid'
+## assess link between planning and EMA notification via contextID
 temp <- merge(plan, notify, by = "contextid", all.x = TRUE,
               suffixes = c("", ".notify"))
 ## linked to the same user, date and planning status?
@@ -168,7 +189,7 @@ table(temp$link)
 write.data(subset(temp, select = c(contextid, link)),
            "checks/link_contextid_plan_notify.csv")
 
-## assess link between 'ema' and 'notify' via 'contextid'
+## assess link between EMA response and notification via contextID
 temp <- merge(subset(ema, order == 1), notify, by = "contextid",
               all.x = TRUE, suffixes = c("", ".notify"))
 ## linked to the same user, date and leading question?
@@ -213,10 +234,10 @@ decision$snooze.status <- decision$snooze.status == "true"
 decision$slot <- match(decision$time.slot, slots)
 ## approximate time slot
 decision$time.stamp.slot <-
-  c(rev(slots)[1],
-    slots, rev(slots)[1])[findInterval(decision$time.stamp.hour,
-                                       c(0, 5, 11, 14, 16, 19, 21))]
+  c(rev(names(slots))[1], names(slots),
+    rev(names(slots))[1])[findInterval(decision$time.stamp.hour, c(0, slots))]
 ## dispense with extraneous prefetch data
+## FIXME: check this
 decision <- subset(decision, !(is.prefetch &
                                duplicated(cbind(user, date.stamp, tz, slot))))
 ## keep unique, "send" or within-slot decisions
@@ -255,7 +276,7 @@ response <- merge(response,
 check.dup(response, "checks/dup_response.csv",
           user, notified.date, tz, time.slot, time.stamp.slot)
 
-## assess link via 'decisionid'
+## assess link via decisionID
 temp <- merge(response, decision, by = "decisionid", all.x = TRUE,
               suffixes = c("", ".decision"))
 ## linked to the same user, day, message and roughly the same time?

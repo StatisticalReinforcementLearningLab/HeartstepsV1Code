@@ -26,9 +26,9 @@
 
 <<read_data, echo = FALSE, include = FALSE>>=
 source("init.R")
+source("summary.R")
 setwd(sys.var$mbox)
 load("analysis.RData")
-library(tikzDevice)
 @
 
 \section{Data irregularities}

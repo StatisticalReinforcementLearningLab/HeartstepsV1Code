@@ -4,6 +4,7 @@
 - [Exporting data](#exporting-data)
 - [Preparing data for analysis](#preparing-data-for-analysis)
 - [Running data summaries](#running-data-summaries)
+- [Content overview](#content-overview)
 
 ## Mounting M+Box
 
@@ -74,3 +75,17 @@ R CMD BATCH --vanilla workspace.analysis.R
 These R scripts will create or update two R workspace files, `csv.RData` and `analysis.RData` on M+Box. Previous versions of the files can be restored using the M+Box web interface.
 
 ## Running data summaries
+
+## Content overview
+
+File | Description
+- | -
+[ema.options.R](ema.options.R) | Response options for each EMA question
+[functions.R](functions.R) | Helper functions, mainly for data formatting
+[init.R](init.R) | Set common variables—run this at the beginning of ever R session
+[read.data.R](read.data.R) | Read and tidy up CSV-formatted data
+[summary.R](summary.R) | Extra code for the data summary
+[summary.Rnw](summary.Rnw) | [knitr](http://yihui.name/knitr/) document for the data summary
+[workspace.analysis.R](workspace.analysis.R) | Create a workspace file containing data frames for analysis
+[workspace.csv.R](workspace.csv.R) | Create a workspace file containing data frames for the source data files
+[xzoo.R](xzoo.R) | Extensions for the time series R package zoo

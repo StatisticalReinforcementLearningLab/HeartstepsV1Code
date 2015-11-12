@@ -1,5 +1,6 @@
 ## run this first
 
+library(tikzDevice)
 library(xtable)
 library(zoo)
 
@@ -33,5 +34,13 @@ Sys.setlocale("LC_TIME", sys.var$locale)
 ## arithmetic on POSIXct objects uses system time zone, so set this to UTC
 Sys.setenv(TZ = "GMT")
 
-## intervention time slot labels
-slots <- c("morning", "lunch", "afternoon", "evening", "dinner", "ema")
+## select POSIXlt elements
+ltime <- c("year", "mon", "yday", "mday", "wday", "hour", "min", "sec")
+
+## intervention time slots are user-designated, under some constraints
+slots <- c(morning = 5,    # morning  05:00 - 09:30
+           lunch = 11,     # lunch  11:00 - 13:00
+           afternoon = 14, # afternoon  14:30 - 15:00
+           evening = 16,   # evening  16:30 - 18:00
+           dinner = 19,    # dinner  19:30 - 20:30
+           ema = 21)       # planning/EMA  dinner + 1 hour - 23:59

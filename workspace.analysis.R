@@ -5,7 +5,7 @@ source("init.R")
 setwd(sys.var$mbox)
 load("csv.RData")
 
-max.date <- as.Date("2015-11-08")
+max.date <- as.Date("2015-11-11")
 
 ## --- daily data
 
@@ -30,9 +30,9 @@ users$exclude <- with(users, intake.date >= max.date | days < 7 |
 ## odd user id implies that HeartSteps is installed on own phone
 users$own.phone <- users$user %% 2 != 0
 
-## expand to user-day level
+## expand to user data to user-day level
 daily <- do.call("rbind",
-                 sapply(1:nrow(users),
+                 sapply(which(!users$exclude),
                         function(r)
                           with(users[r, , drop = FALSE],
                                data.frame(user = user, intake.date = intake.date,
@@ -44,31 +44,49 @@ daily <- do.call("rbind",
 daily$study.day <- with(daily, as.numeric(difftime(study.date, intake.date,
                                                    units = "days")))
 
-## EMA (partial) completion status
+## planning/EMA notification context
+any(with(notify, duplicated(cbind(user, notified.date))))
 daily <- merge(daily,
-               aggregate(ema.set.length ~ user + message.date, data = ema, max),
-               by.x = c("user", "study.date"), by.y = c("user", "message.date"),
+               subset(notify,
+                      select = c(user, tz, gmtoff, notified.date, notified.utime,
+                                 notified.time.year:notified.time.sec,
+                                 planning.today, ema.set.today, ema.set.length,
+                                 home, work, calendar, recognized.activity,
+                                 front.end.application, gps.coordinate,
+                                 city, location.exact, location.category,
+                                 weather.condition, temperature, windspeed,
+                                 precipitation.chance, snow)),
+               by.x = c("user", "study.date"), by.y = c("user", "notified.date"),
                all.x = TRUE)
 
 ## planning status
-## nb: if status is written and read from device in reverse order,
-##     the previous planning decision is read (on day 1, this is 'no planning')
-## FIXME: check actual distribution - intended is 50% no planning, 25% structured
+## nb: if status is updated and read from device in reverse order, the previous
+##     planning status is administered (on day 1, this is 'no planning');
+##     the intended distribution was 50% no planning, 25% structured/unstructured
+any(with(plan, duplicated(cbind(user, date.started))))
 daily <- merge(daily,
                with(plan, aggregate(planning, list(user, date.started),
                                     function(x) x[1])),
                by.x = c("user", "study.date"), by.y = c("Group.1", "Group.2"),
                all.x = TRUE)
-daily$plan <- with(daily, ifelse(is.na(ema.set.length),
-                                 NA, ifelse(is.na(x), "none", x)))
+daily$planning <- with(daily, ifelse(is.na(ema.set.length),
+                                     NA, ifelse(is.na(x), "none", x)))
 daily$x <- NULL
+
+## EMA response
+any(with(ema, duplicated(cbind(user, message.date, order))))
+daily <- merge(daily,
+               aggregate(subset(ema, select = hectic:msg.up),
+                         by = with(ema, list(user, message.date)), na.omit),
+               by.x = c("user", "study.date"),
+               by.y = paste("Group", 1:2, sep = "."), all.x = TRUE)
 
 ## step counts
 ## FIXME: align days with EMA slot in home time zone
 jawbone <- merge(jawbone, users, by = "user", suffixes = c("", ".user"))
 jawbone$end.date <- do.call("c",
                             with(jawbone,
-                                 mapply(as.Date, x = end.utime, tz = tz.user,
+                                 mapply(as.Date, x = end.utime, tz = tz.intake,
                                         SIMPLIFY = FALSE)))
 daily <- merge(daily,
                aggregate(steps ~ user + end.date, data = jawbone, sum),
@@ -81,7 +99,7 @@ daily$lag1.na.jbsteps <- with(daily, delay(user, study.day, na.jbsteps))
 googlefit <- merge(googlefit, users, by = "user", suffixes = c("", ".user"))
 googlefit$end.date <- do.call("c",
                             with(googlefit,
-                                 mapply(as.Date, x = end.utime, tz = tz.user,
+                                 mapply(as.Date, x = end.utime, tz = tz.intake,
                                         SIMPLIFY = FALSE)))
 daily <- merge(daily,
                aggregate(steps ~ user + end.date, data = googlefit, sum),
@@ -91,24 +109,4 @@ names(daily)[ncol(daily)] <- "gfsteps"
 daily$na.gfsteps <- is.na(daily$gfsteps)
 daily$lag1.na.gfsteps <- with(daily, delay(user, study.day, na.gfsteps))
 
-## plot a given user's daily step counts
-daily.plot <- function(u) {
-  d <- subset(daily, user == u)
-  maxs <- max(1, d$jbsteps, d$gfsteps, na.rm = TRUE)
-  maxd <- max(d$study.day)
-  plot(NULL, xlim = c(0, maxd), ylim = c(0, maxs),
-       xlab = "", ylab = "", main = "", axes = FALSE, frame.plot = FALSE)
-  mtext(paste(u), 2, line = 3, cex = 0.75)
-  sapply(subset(d, is.na(ema.set.length))$study.day,
-         function(j) abline(v = j, col = grey(0, 0.3)))
-  meanjb <- mean(d$jbsteps, na.rm = TRUE)
-  abline(h = meanjb, col = grey(0, 0.3))
-  with(d, points(study.day, jbsteps, type = "l"))
-  with(d, points(study.day, gfsteps, type = "l", lty = "dotted"))
-  at <- c(0, with(d, study.day[(na.jbsteps & !lag1.na.jbsteps)
-                               | (!na.jbsteps & lag1.na.jbsteps)][-1]), maxd)
-  axis(1, at = at)
-  axis(2, at = sort(round(c(0, meanjb, maxs))))
-}
-
-save(intake, users, daily, daily.plot, file = "analysis.RData")
+save(intake, users, daily, file = "analysis.RData")

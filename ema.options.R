@@ -1,4 +1,13 @@
-## options for "check all that apply" EMA and research questions
+## options for EMA and research questions
+
+## How hectic was your day today? 
+ema1 <- c("Not all hectic" = 1, 2, 3, 4, "Very hectic" = 5)
+
+## How stressful was your day today? 
+ema2 <- c("Not at all stressful" = 1, 2, 3, 4, "Very stressful" = 5)
+
+## How typical was today for a [Monday or Tuesday or Wednesday ... ]? 
+ema3 <- c("Not at all typical" = 1, 2, 3, 4, "Completely typical" = 5)
 
 ## Did you do any of the following today? (choose all that apply)
 ema4 <- c("cardio" = "Cardio exercise (running, swimming...)",
@@ -52,3 +61,9 @@ research2 <- c("joined" = "Others joined me",
                "facilities" = "Facilities/exercise equipment",
                "location" = "Location/scenery",
                "none" = "None of the above")
+
+## How energetic did you feel today? 
+research3 <- c("Not at all" = 1, 2, 3, 4, "Very energetic" = 5)
+
+## At least once today I felt an urge to get up and take a walk
+research4 <- c("Strongly disagree" = 1, 2, 3, 4, "Strongly agree" = 5)
