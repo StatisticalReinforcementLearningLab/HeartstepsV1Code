@@ -43,6 +43,13 @@ timeslot <- read.data("User_Decision_Times.csv", list(user, utime.updated))
 ## drop redundant timeslot updates
 timeslot <- subset(timeslot, !duplicated(cbind(user, date.updated, tz, morning,
                                                lunch, dinner, evening, ema)))
+## hour and minutes for user-designated times
+temp <- do.call("cbind", lapply(lapply(timeslot[, match(slots, names(timeslot))],
+                                       strsplit, split = ":"),
+                                do.call, what = "rbind"))
+colnames(temp) <- paste(rep(slots, each = 2), c("hour", "min"), sep = ".")
+mode(temp) <- "numeric"
+timeslot <- cbind(timeslot, temp)
 
 ## daily weather by city
 weather <- read.data("Weather_History.csv", list(date))
@@ -232,26 +239,30 @@ decision$is.randomized <- decision$is.randomized == "true"
 decision$valid <- decision$valid == "valid"
 decision$snooze.status <- decision$snooze.status == "true"
 decision$slot <- match(decision$time.slot, slots)
-## approximate time slot
-decision$time.stamp.slot <-
-  c(rev(names(slots))[1], names(slots),
-    rev(names(slots))[1])[findInterval(decision$time.stamp.hour, c(0, slots))]
 ## dispense with extraneous prefetch data
-## FIXME: check this
 decision <- subset(decision, !(is.prefetch &
                                duplicated(cbind(user, date.stamp, tz, slot))))
+## user-designated time slot
+decision <- merge.last(decision,
+                       subset(timeslot, select = c(user, utime.updated,
+                                                   morning.hour:ema.min)),
+                       "user", var.x = "utime.stamp", var.y = "utime.updated")
+decision$time.stamp.slot <- ltime2slot(time.stamp.hour,
+                                       time.stamp.min + 30 * is.prefetch,
+                                       decision)
+with(decision, table(slot != time.stamp.slot, user))
 ## keep unique, "send" or within-slot decisions
 decision <- decision[with(decision,
                           order(user, date.stamp, tz, slot, !valid,
-                                !notify, time.slot != time.stamp.slot,
+                                !notify, slot != time.stamp.slot,
                                 utime.stamp)), ]
 dup.decision <- check.dup(decision, "checks/dup_decision.csv",
-                          user, date.stamp, tz, time.slot)
+                          user, date.stamp, tz, slot)
 decision <- decision[!dup.decision$is.dup, ]
 ## missing day of week
 write.data(subset(decision, day.of.week == ""), "checks/decision_nowkday.csv")
-## obvious time slot mismatch
-write.data(subset(decision, time.slot != time.stamp.slot & !is.prefetch),
+## time slot mismatch
+write.data(subset(decision, slot != time.stamp.slot),
            "checks/decision_outsideslot.csv")
 ## add message tags
 decision <- merge(decision, messages,
@@ -269,12 +280,12 @@ response <- read.data("Response.csv", list(user, notified.utime))
 response$notification.message <- normalize.text(response$notification.message)
 response <- merge(response,
                   subset(decision, select = c(user, date.stamp, time.stamp.hour,
-                                              time.stamp.slot, time.slot)),
+                                              time.slot, slot, time.stamp.slot)),
                   by.x = c("user", "notified.date", "notified.time.hour"),
                   by.y = c("user", "date.stamp", "time.stamp.hour"),
                   all.x = TRUE)
-check.dup(response, "checks/dup_response.csv",
-          user, notified.date, tz, time.slot, time.stamp.slot)
+dup.response <- check.dup(response, "checks/dup_response.csv",
+                          user, notified.date, tz, slot, time.stamp.slot)
 
 ## assess link via decisionID
 temp <- merge(response, decision, by = "decisionid", all.x = TRUE,
