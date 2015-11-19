@@ -5,7 +5,7 @@ source("init.R")
 setwd(sys.var$mbox)
 load("csv.RData")
 
-max.date <- as.Date("2015-11-11")
+max.date <- as.Date("2015-11-18")
 
 ## --- daily data
 
