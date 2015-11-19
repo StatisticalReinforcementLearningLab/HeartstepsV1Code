@@ -1,18 +1,20 @@
-# Content overview
+# HeartSteps pilot data analysis
+
+## Overview
 
 File | Description
 --- | ---
-[ema.options.R](ema.options.R) | Response options for each EMA question
-[functions.R](functions.R) | Helper functions, mainly for data formatting
-[init.R](init.R) | Set common variables—run this at the beginning of every R session
-[read.data.R](read.data.R) | Read and tidy up CSV-formatted data
-[summary.R](summary.R) | Extra code for the data summary
+[ema.options.R](ema.options.R) | Response options for each EMA question. Loaded by [init.R](init.R).
+[functions.R](functions.R) | Helper functions, mainly for data formatting. Loaded by [init.R](init.R).
+[init.R](init.R) | Initialize common variables. You should run this at the beginning of every R session.
+[read.data.R](read.data.R) | Read and tidy up CSV-formatted data. Called by [workspace.csv.R](workspace.csv.R).
+[summary.R](summary.R) | Extra code for the data summary. Loaded by [summary.Rnw](summary.Rnw).
 [summary.Rnw](summary.Rnw) | [knitr](http://yihui.name/knitr/) document for the data summary
-[workspace.analysis.R](workspace.analysis.R) | Create a workspace file containing data frames for analysis
+[workspace.analysis.R](workspace.analysis.R) | Create a workspace file containing data frames for analysis. Requires csv.RData, the workspace file created by [workspace.csv.R](workspace.csv.R).
 [workspace.csv.R](workspace.csv.R) | Create a workspace file containing data frames for the source data files
-[xzoo.R](xzoo.R) | Extensions for the time series R package zoo
+[xzoo.R](xzoo.R) | Extensions for the time series R package zoo. Loaded by [init.R](init.R).
 
-# Getting started
+## Getting started
 
 - [Mounting M+Box](#mouting-mbox)
 - [Exporting data](#exporting-data)
@@ -20,14 +22,14 @@ File | Description
 - [Running data summaries](#running-data-summaries)
 - [Content overview](#content-overview)
 
-## Mounting M+Box
+### Mounting M+Box
 
 Connect to M+Box via [WebDAV](http://community.box.com/t5/Managing-Your-Content/Does-Box-support-WebDAV/ta-p/310) using the following steps. This allows you to access your M+Box folders as though they were part of your local filesystem.
 
 1. From your [M+Box account settings](https://umich.app.box.com/settings/account), set up an external password. You will use this password and your primary M+Box email address (also found in settings) as the credentials to mount M+Box content.
 2. Follow the system-specific instructions below.
 
-### Mac
+#### Mac
 
 - Go to **Finder**, **Go**, **Connect to Server**.
 - Enter the server address `https://dav.box.com/dav`.
@@ -36,7 +38,7 @@ Connect to M+Box via [WebDAV](http://community.box.com/t5/Managing-Your-Content/
 
 The mount point for your M+Box account's root folder should be `/Volumes/dav`.
 
-### Windows
+#### Windows
 
 - Access the Map Network Drive menu, using the instructions for your Windows version.
   - Windows 8+: Open File Explorer, from either the Start Menu (Windows 10) or the Taskbar. Click **This PC** (this will likely be listed in **Frequent Folders**, but if not, find it in the sidebar). Click **Map Network Drive** in the ribbon at the top of the window. If you do not see this, click the **Computer** tab next to the blue File button.
@@ -48,7 +50,7 @@ The mount point for your M+Box account's root folder should be `/Volumes/dav`.
 
 You may need to close and reopen File Explorer for the new drive to appear.
 
-### Ubuntu
+#### Ubuntu
 
 - Install the WebDAV client [davfs2](http://savannah.nongnu.org/projects/davfs2) and create a mount point called `mbox` in your home directory with the following terminal commands. Here `USER` should be replaced with your own system login name.
 ```shell
@@ -62,15 +64,15 @@ chmod 600 /home/USER/.davfs2/secrets
 - Logout and log back in.
 - M+Box can now be mounted with the command `mount ~/mbox` and unmounted with `umount ~/mbox`. When prompted, enter the credentials you set up in step 1.
 
-## Exporting data
+### Exporting data
 
 Application data are exported either manually through a web browser interface or via the export scripts in this repository. Data recorded by hand, such as message tags and intake/exit interviews, are exported manually by saving the corresponding file in CSV format. For this task, be sure to set your Excel locale to US English.
 
-### Jawbone and Google Fit
+#### Jawbone and Google Fit
 
 Download using the browser interface at <http://jitai-api.appspot.com>. Server errors tend to occur when downloading large files, so the data should be downloaded month by month.
 
-### HeartSteps
+#### HeartSteps
 
 Ensure your system has [M+Box mounted](#mounting-mbox) and the following software installed.
 
@@ -79,7 +81,7 @@ Ensure your system has [M+Box mounted](#mounting-mbox) and the following softwar
 
 From the command line, navigate to the `heartstepsdata/exporter` folder in your local copy of this repository. Run the export script specific to your system. When prompted, enter the HeartSteps GAE account credentials.
 
-## Preparing data for analysis
+### Preparing data for analysis
 
 Ensure your system has [M+Box mounted](#mounting-mbox). From the command line, navigate to your local copy of this repository. Run the following:
 ```shell
@@ -88,4 +90,4 @@ R CMD BATCH --vanilla workspace.analysis.R
 ```
 These R scripts will create or update two R workspace files, `csv.RData` and `analysis.RData` on M+Box. Previous versions of the files can be restored using the M+Box web interface.
 
-## Running data summaries
+### Running data summaries
