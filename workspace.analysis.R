@@ -76,7 +76,7 @@ daily$x <- NULL
 ## EMA response
 any(with(ema, duplicated(cbind(user, message.date, order))))
 daily <- merge(daily,
-               aggregate(subset(ema, select = hectic:msg.up),
+               aggregate(subset(ema, select = hectic:up),
                          by = with(ema, list(user, message.date)), na.omit),
                by.x = c("user", "study.date"),
                by.y = paste("Group", 1:2, sep = "."), all.x = TRUE)
