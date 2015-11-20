@@ -14,7 +14,8 @@ user$intake.date <- char2date(user$intake.interview.date, "%m/%d/%Y")
 user$exit.date <- char2date(user$exit.interview.date, "%m/%d/%Y")
 
 ## intake interviews
-intake <- read.data("Survey_Intake.csv", list(user), skip = 3, na.strings = "X")
+intake <- read.data("Survey_Intake.csv", list(user), skip = 3,
+                    na.strings = "X")
 intake$startdate <- char2date(intake$startdate, "%m/%d/%Y")
 
 ## exit interviews
@@ -26,13 +27,16 @@ surveys <- merge(intake, exit, by = c("user", "userid"), all = T,
                  suffixes = c(".intake", ".exit"))
 user <- merge(user, surveys, by = "user", all.x = T)
 rm(surveys, intake, exit)
+user <- user[, !(names(user) %in% 
+                   c("intake.interview.date", "exit.interview.date",
+                     "userid'"))]
 
 ## --- HeartSteps application data
 
 ## application usage
 usage <- read.data("Heartsteps_Usage_History.csv", list(user, end.utime))
 
-## snooze enabled or disabled
+## snooze enabled or disabled       1
 snooze <- read.data("Snoozed_FromInApp.csv", list(user, utime.stamp))
 
 ## home and work locations
