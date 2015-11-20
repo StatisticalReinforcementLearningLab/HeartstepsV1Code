@@ -28,8 +28,8 @@ read.data <- function(file, order.by = NULL, ...) {
   names(d)[grep("^(user|id)$", names(d))[1]] <- "userid"
   names(d)[names(d) == "test.id"] <- "user"
   ## omit extraneous variables
-  d <- d[, which(!grepl("^(key|variable\\.name|x|x\\.[0-9]+)$", names(d))),
-         drop = FALSE]
+  d <- d[, which(!grepl("^(key|(first|last|variable)\\.name|x|x\\.[0-9]+)$",
+                        names(d))), drop = FALSE]
   ## keep only pilot users
   if ("userid" %in% names(d)) {
     d <- subset(d, grepl("heartsteps.test[0-9]+", userid))

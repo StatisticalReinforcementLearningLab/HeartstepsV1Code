@@ -22,21 +22,12 @@ intake$startdate <- char2date(intake$startdate, "%m/%d/%Y")
 exit <- read.data("Survey_Exit.csv", list(user), skip = 3, na.strings = "X")
 exit$exitdate <- char2date(exit$exitdate, "%m/%d/%Y")
 
-## merge all user data
-surveys <- merge(intake, exit, by = c("user", "userid"), all = T, 
-                 suffixes = c(".intake", ".exit"))
-user <- merge(user, surveys, by = "user", all.x = T)
-rm(surveys, intake, exit)
-user <- user[, !(names(user) %in% 
-                   c("intake.interview.date", "exit.interview.date",
-                     "userid'"))]
-
 ## --- HeartSteps application data
 
 ## application usage
 usage <- read.data("Heartsteps_Usage_History.csv", list(user, end.utime))
 
-## snooze enabled or disabled       1
+## snooze enabled or disabled
 snooze <- read.data("Snoozed_FromInApp.csv", list(user, utime.stamp))
 
 ## home and work locations
@@ -361,4 +352,5 @@ googlefit$days.since[googlefit$days.since == 0] <- NA
 write.data(subset(googlefit, days.since > 1), "checks/inactivity_gfit_gt1.csv")
 
 rm(temp)
+rm(wd)
 save.image("csv.RData", safe = FALSE)
