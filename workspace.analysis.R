@@ -46,18 +46,19 @@ daily$study.day <- with(daily, as.numeric(difftime(study.date, intake.date,
 
 ## planning/EMA notification context
 any(with(notify, duplicated(cbind(user, notified.date))))
-daily <- merge(daily,
-               subset(notify,
-                      select = c(user, tz, gmtoff, notified.date, notified.utime,
-                                 notified.time.year:notified.time.sec,
-                                 planning.today, ema.set.today, ema.set.length,
-                                 home, work, calendar, recognized.activity,
-                                 front.end.application, gps.coordinate,
-                                 city, location.exact, location.category,
-                                 weather.condition, temperature, windspeed,
-                                 precipitation.chance, snow)),
-               by.x = c("user", "study.date"), by.y = c("user", "notified.date"),
-               all.x = TRUE)
+daily <-
+  merge(daily,
+        subset(notify,
+               select = c(user, tz, gmtoff, notified.date, notified.utime,
+                          notified.time, notified.time.year:notified.time.sec,
+                          planning.today, ema.set.today, ema.set.length,
+                          home, work, calendar, recognized.activity,
+                          front.end.application, gps.coordinate,
+                          city, location.exact, location.category,
+                          weather.condition, temperature, windspeed,
+                          precipitation.chance, snow)),
+        by.x = c("user", "study.date"), by.y = c("user", "notified.date"),
+        all.x = TRUE)
 
 ## planning status
 ## nb: if status is updated and read from device in reverse order, the previous
@@ -76,7 +77,7 @@ daily$x <- NULL
 ## EMA response
 any(with(ema, duplicated(cbind(user, message.date, order))))
 daily <- merge(daily,
-               aggregate(subset(ema, select = hectic:msg.up),
+               aggregate(subset(ema, select = hectic:urge),
                          by = with(ema, list(user, message.date)), na.omit),
                by.x = c("user", "study.date"),
                by.y = paste("Group", 1:2, sep = "."), all.x = TRUE)
