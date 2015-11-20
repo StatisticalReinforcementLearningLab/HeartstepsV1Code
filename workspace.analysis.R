@@ -5,7 +5,7 @@ source("init.R")
 setwd(sys.var$mbox)
 load("csv.RData")
 
-max.date <- as.Date("2015-11-11")
+max.date <- as.Date("2015-11-18")
 
 ## --- daily data
 
@@ -70,7 +70,7 @@ daily <- merge(daily,
                by.x = c("user", "study.date"), by.y = c("Group.1", "Group.2"),
                all.x = TRUE)
 daily$planning <- with(daily, ifelse(is.na(ema.set.length),
-                                     NA, ifelse(is.na(x), "none", x)))
+                                     NA, ifelse(is.na(x), "no_planning", x)))
 daily$x <- NULL
 
 ## EMA response

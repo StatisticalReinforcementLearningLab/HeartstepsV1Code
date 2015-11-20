@@ -86,10 +86,13 @@ dup.plan <- check.dup(plan, "checks/dup_planning.csv", user, date.started, tz)
 plan <- plan[!dup.plan$is.dup, ]
 
 ## context in which the EMA notification was sent
+## nb: we look to EMA response for the EMA question set instead
 notify <- read.data("EMA_Context_Notified.csv",
-                    list(user, notified.udate, -as.numeric(notified.utime)))
+                    list(user, notified.date, tz, -as.numeric(notified.utime)))
 notify$ema.set.today <- gsub(",ema_finish", "", notify$ema.set.today)
-## keep unique or latest notifications/question sets
+notify$ema.set.today.length <- unlist(lapply(strsplit(notify$ema.set.today, ","),
+                                             length))
+## keep unique or latest notification-EMA sets
 dup.notify <- check.dup(notify, "checks/dup_ema_notify.csv",
                         user, notified.date, tz, ema.set.today)
 notify <- notify[!dup.notify$is.dup, ]
@@ -108,27 +111,28 @@ engage <- engage[!dup.engage$is.dup, ]
 ema <- read.data("EMA_Response.csv", list(contextid))
 ema$response <- normalize.text(ema$response)
 ema$message <- normalize.text(ema$message)
-## likert-scale responses
+## EMA questions 1-7, research 1-4
+ema$question[ema$question == "6"] <- "5"
+ema$question[ema$question == "7"] <- "6"
+ema$question[ema$question == "8"] <- "7"
+## convert numeric responses, parse @-delimited responses 
 ema$hectic <- with(ema, as.numeric(ifelse(question == "1", response, NA)))
-ema$stress <- with(ema, as.numeric(ifelse(question == "2", response, NA)))
+ema$stressful <- with(ema, as.numeric(ifelse(question == "2", response, NA)))
 ema$typical <- with(ema, as.numeric(ifelse(question == "3", response, NA)))
-ema$energy <- with(ema, as.numeric(ifelse(question == "research3",
-                                          response, NA)))
-ema$urge <- with(ema, as.numeric(ifelse(question == "research4", response, NA)))
+ema <- cbind(ema, match.option(ema4, ema$response,
+                               ema$question == "4", "active", FALSE))
 ema$follow <- with(ema, ifelse(question == "5", response, NA))
-## parse @-delimited responses 
-ema <- cbind(ema,
-             match.option(ema4, ema$response,
-                          ema$question == "4", "active", FALSE),
-             match.option(ema6, ema$response, ema$question == "6", "down"),
-             match.option(ema7, ema$response, ema$question == "7", "up"),
-             match.option(research1, ema$response,
-                          ema$question == "research1", "barrier"),
+ema <- cbind(ema, match.option(ema6, ema$response, ema$question == "6", "down"))
+ema$down.msg <- with(ema, ifelse(question == "6", message, NA))
+ema <- cbind(ema, match.option(ema7, ema$response, ema$question == "7", "up"))
+ema$up.msg <- with(ema, ifelse(question == "7", message, NA))
+ema <- cbind(ema, match.option(research1, ema$response,
+                               ema$question == "research1", "barrier"),
              match.option(research2, ema$response,
                           ema$question == "research2", "enabler"))
-## message displayed for questions 6 (why thumbs-down) and 7 (why thumbs-up)
-ema$msg.down <- with(ema, ifelse(question == "6", message, NA))
-ema$msg.up <- with(ema, ifelse(question == "7", message, NA))
+ema$energetic <- with(ema, as.numeric(ifelse(question == "research3",
+                                             response, NA)))
+ema$urge <- with(ema, as.numeric(ifelse(question == "research4", response, NA)))
 ## assemble time zone information from other EMA tables
 temp <- rbind(subset(notify, select = c(contextid, timezone, tz, gmtoff)),
               subset(plan, select = c(contextid, timezone, tz, gmtoff)),
@@ -163,54 +167,64 @@ dup.ema <- check.dup(ema, "checks/dup_ema_response.csv",
                      user, message.date, tz, order, question, ema.set)
 ema <- ema[!dup.ema$is.dup, ]
 
-## EMA notification duplicates by user-day, but different question sets
-## keep notifications that either link to EMA response or occur later
+## EMA notification duplicates by user-day, but different EMA question set
+## keep EMA notifications that either link to EMA response or occur later
 notify <- merge(notify,
                 subset(ema, order == 1,
-                       select = c(user, message.date, ema.set, ema.set.length,
-                                  message.time)),
-                by.x = c("user", "notified.date", "ema.set.today"),
-                by.y = c("user", "message.date", "ema.set"), all.x = TRUE)
-notify <- notify[with(notify, order(user, notified.date, -ema.set.length,
-                                    is.na(message.time), notified.utime)), ]
+                       select = c(user, message.date, tz, message.time.hour,
+                                  message.time.min, message.time, ema.set,
+                                  ema.set.length)),
+                by.x = c("user", "notified.date", "tz", "notified.time.hour",
+                         "notified.time.min"),
+                by.y = c("user", "message.date", "tz", "message.time.hour",
+                         "message.time.min"),
+                all.x = TRUE)
+notify <- notify[with(notify, order(user, notified.date, is.na(ema.set),
+                                    -as.numeric(notified.utime))), ]
 dup.notify <- check.dup(notify, "checks/dup_ema_notify_multiset.csv",
                         user, notified.date, tz)
-notify <- notify[!dup.notify$is.dup, -ncol(notify)]
+notify <- notify[!dup.notify$is.dup, ]
 
 ## EMA response duplicates by user-day, but different EMA question set
-## keep EMAs that link to EMA notification
+## keep EMAs that either link to EMA notification or were completed later
 ema <- merge(ema,
-             subset(notify, select = c(user, notified.date, tz, ema.set.today,
-                                       notified.utime)),
-             by.x = c("user", "message.date", "tz", "ema.set"),
-             by.y = c("user", "notified.date", "tz", "ema.set.today"),
+             subset(notify,
+                    select = c(user, notified.date, tz, notified.time.hour,
+                               notified.time.min, notified.time)),
+             by.x = c("user", "message.date", "tz", "message.time.hour",
+                      "message.time.min"),
+             by.y = c("user", "notified.date", "tz", "notified.time.hour",
+                      "notified.time.min"),
              all.x = TRUE)
-ema <- ema[with(ema, order(user, message.date, order, -ema.set.length,
-                           is.na(notified.utime))), ]
+ema <- ema[with(ema, order(user, message.date, order, is.na(notified.time),
+                           -as.numeric(message.utime))), ]
 dup.ema <- check.dup(ema, "checks/dup_ema_response_multiset.csv",
                      user, message.date, tz, order)
-ema <- ema[!dup.ema$is.dup, -ncol(ema)]
+ema <- ema[!dup.ema$is.dup, ]
 
 ## assess link between planning and EMA notification via contextID
 temp <- merge(plan, notify, by = "contextid", all.x = TRUE,
               suffixes = c("", ".notify"))
 ## linked to the same user, date and planning status?
-temp$link <- with(temp, !is.na(user.notify) & user == user.notify
-                  & date.started == notified.date
-                  & tz == tz.notify & planning == planning.today)
-table(temp$link)
-write.data(subset(temp, select = c(contextid, link)),
+temp$link.date <- with(temp, !is.na(user.notify) & user == user.notify
+                       & date.started == notified.date
+                       & tz == tz.notify)
+temp$link.plan <- with(temp, link.date & planning == planning.today)
+with(temp, table(link.date, link.plan))
+write.data(subset(temp, select = c(contextid, link.date, link.plan)),
            "checks/link_contextid_plan_notify.csv")
 
 ## assess link between EMA response and notification via contextID
 temp <- merge(subset(ema, order == 1), notify, by = "contextid",
               all.x = TRUE, suffixes = c("", ".notify"))
 ## linked to the same user, date and leading question?
-temp$link <- with(temp, user == user.notify & message.date == notified.date
-                  & question == unlist(lapply(strsplit(ema.set.today, ","),
-                                              function(x) x[1])))
-table(with(temp, link[order == 1]))
-write.data(subset(temp, order == 1, select = c(contextid, link)),
+temp$link.date <- with(temp, user == user.notify & message.date == notified.date
+                       & tz == tz.notify)
+temp$link.set <- with(temp, link.date
+                      & question == unlist(lapply(strsplit(ema.set.today, ","),
+                                                  function(x) x[1])))
+with(temp, table(link.date, link.set))
+write.data(subset(temp, order == 1, select = c(contextid, link.date, link.set)),
            "checks/link_contextid_ema_notify.csv")
 
 ## --- activity suggestion interventions
@@ -292,6 +306,7 @@ response <- merge(response,
                   all.x = TRUE)
 dup.response <- check.dup(response, "checks/dup_response.csv",
                           user, notified.date, tz, slot, time.stamp.slot)
+response <- response[!dup.response$is.dup, ]
 
 ## assess link via decisionID
 temp <- merge(response, decision, by = "decisionid", all.x = TRUE,

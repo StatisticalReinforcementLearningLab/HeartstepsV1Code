@@ -19,3 +19,5 @@ daily.plot <- function(u) {
   axis(1, at = at)
   axis(2, at = sort(round(c(0, meanjb, maxs))))
 }
+
+## FIXME: add xtable function

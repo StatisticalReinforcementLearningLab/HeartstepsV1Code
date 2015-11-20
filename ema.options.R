@@ -16,6 +16,13 @@ ema4 <- c("cardio" = "Cardio exercise (running, swimming...)",
           "housework" = "Heavy housework (scrubbing bathtub...)",
           "none" = "None of the above")
 
+## Last night you made the following plan to be active today:
+## [plan from last night]. How did you do with it today?
+ema5 <-
+  c("I followed my plan completely", "I followed my plan in part",
+    "I intentionally did another physical activity instead of the one I planned",
+    "I did not follow my plan or intentionally did a substitute activity")
+
 ## At [time], you received the suggestion [suggestion text] and rated it
 ## thumbs-down. Why did you rate it this way? (check all that apply)
 ## nb: there is an 'other' option
