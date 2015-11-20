@@ -14,12 +14,18 @@ user$intake.date <- char2date(user$intake.interview.date, "%m/%d/%Y")
 user$exit.date <- char2date(user$exit.interview.date, "%m/%d/%Y")
 
 ## intake interviews
-intake <- read.data("Survey_Intake.csv", list(user), skip = 3)
-intake$date1 <- char2date(intake$date1, "%m/%d/%Y")
+intake <- read.data("Survey_Intake.csv", list(user), skip = 3, na.strings = "X")
+intake$startdate <- char2date(intake$startdate, "%m/%d/%Y")
 
 ## exit interviews
-exit <- read.data("Survey_Exit.csv", list(user), skip = 3)
-exit$date2 <- char2date(exit$date2, "%m/%d/%Y")
+exit <- read.data("Survey_Exit.csv", list(user), skip = 3, na.strings = "X")
+exit$exitdate <- char2date(exit$exitdate, "%m/%d/%Y")
+
+## merge all user data
+surveys <- merge(intake, exit, by = c("user", "userid"), all = T, 
+                 suffixes = c(".intake", ".exit"))
+user <- merge(user, surveys, by = "user", all.x = T)
+rm(surveys, intake, exit)
 
 ## --- HeartSteps application data
 
