@@ -8,14 +8,13 @@ setwd(sys.var$mbox)
 ## FIXME: check with Shawna about time "off-study"
 ## FIXME: finalize interview spreadsheet format
 
-## user list
-user <- read.data("HeartSteps Participant Directory.csv", list(user))
-user$intake.date <- char2date(user$intake.interview.date, "%m/%d/%Y")
-user$exit.date <- char2date(user$exit.interview.date, "%m/%d/%Y")
+## participant/user list
+participants <- read.data("HeartSteps Participant Directory.csv", list(user))
+participants$intake.date <- char2date(user$intake.interview.date, "%m/%d/%Y")
+participants$exit.date <- char2date(user$exit.interview.date, "%m/%d/%Y")
 
 ## intake interviews
-intake <- read.data("Survey_Intake.csv", list(user), skip = 3,
-                    na.strings = "X")
+intake <- read.data("Survey_Intake.csv", list(user), skip = 3, na.strings = "X")
 intake$startdate <- char2date(intake$startdate, "%m/%d/%Y")
 
 ## exit interviews

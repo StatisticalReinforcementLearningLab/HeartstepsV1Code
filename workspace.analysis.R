@@ -11,15 +11,14 @@ max.date <- as.Date("2015-11-18")
 ## FIXME: sort files by user, day
 
 ## users
-## intake from first point at which the user selected time slots
-## last "contact" from last momentry decision date
+## infer intake from first selection of notification time slots
 users <- merge(subset(timeslot, !duplicated(user),
                       select = c(user, date.updated, tz, gmtoff)),
                aggregate(date.stamp ~ user, data = decision, max),
                by = "user", all = TRUE)
-users <- merge(users,
-               subset(decision, !duplicated(cbind(user, date.stamp)),
-                      select = c(user, date.stamp, tz, gmtoff)),
+## infer last "contact" from last momentry decision date
+users <- merge(users, subset(decision, !duplicated(cbind(user, date.stamp)),
+                             select = c(user, date.stamp, tz, gmtoff)),
                by = c("user", "date.stamp"), all.x = TRUE,
                suffixes = c(".intake", ".last"))
 names(users)[2:3] <- c("last.date", "intake.date")
@@ -30,6 +29,10 @@ users$exclude <- with(users, intake.date >= max.date | days < 7 |
                              (intake.date + 42 < max.date & days < 10))
 ## odd user id implies that HeartSteps is installed on own phone
 users$own.phone <- users$user %% 2 != 0
+## add intake and exit interview data
+users <- merge(users, merge(intake, exit, by = c("user", "userid"), all = TRUE,
+                            suffixes = c(".intake", ".exit")),
+               by = "user", all.x = TRUE)
 
 ## expand to user data to user-day level
 daily <- do.call("rbind",
