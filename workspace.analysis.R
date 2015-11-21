@@ -45,44 +45,54 @@ daily <- do.call("rbind",
 daily$study.day <- with(daily, as.numeric(difftime(study.date, intake.date,
                                                    units = "days")))
 
-## planning/EMA notification context
-## FIXME: use context of earliest engagement
+## context at EMA notification or (if unavailable) at earliest engagement context
 any(with(notify, duplicated(cbind(user, notified.date))))
-daily <-
-  merge(daily,
-        subset(notify,
-               select = c(user, tz, gmtoff, notified.date, notified.time,
-                          notified.utime, notified.time.year:notified.time.sec,
-                          planning.today, ema.set.today, ema.set.length,
-                          home, work, calendar, recognized.activity,
-                          front.end.application, gps.coordinate, city,
-                          location.exact, location.category, weather.condition,
-                          temperature, windspeed, precipitation.chance, snow)),
-               by.x = c("user", "study.date"), by.y = c("user", "notified.date"),
+names(notify) <- gsub("^notified\\.", "context.", names(notify))
+names(engage) <- gsub("^engaged\\.", "context.", names(engage))
+notify$notify <- 1
+temp <- merge(notify, engage, all = TRUE)
+temp <- temp[with(temp,
+                  order(user, is.na(notify), context.date, context.utime)), ]
+temp <- subset(temp, !duplicated(cbind(user, context.date)))
+daily <- merge(daily,
+               subset(temp,
+                      select = c(user, tz, gmtoff, context.date, context.utime,
+                                 context.time.year:context.time.sec,
+                                 planning.today, home, work, calendar,
+                                 recognized.activity, front.end.application,
+                                 gps.coordinate, city, location.exact,
+                                 location.category, weather.condition,
+                                 temperature, windspeed, precipitation.chance,
+                                 snow)),
+               by.x = c("user", "study.date"), by.y = c("user", "context.date"),
                all.x = TRUE)
 
 ## planning status
-## nb: if status is updated and read from device in reverse order, the previous
-##     planning status is administered (on day 1, this is 'no planning');
-##     the intended distribution was 50% no planning, 25% structured/unstructured
 any(with(plan, duplicated(cbind(user, date.started))))
 daily <- merge(daily,
                with(plan, aggregate(planning, list(user, date.started),
                                     function(x) x[1])),
                by.x = c("user", "study.date"), by.y = c("Group.1", "Group.2"),
                all.x = TRUE)
-daily$planning <- with(daily, ifelse(is.na(ema.set.length),
-                                     NA, ifelse(is.na(x), "no_planning", x)))
-daily$x <- NULL
 
 ## EMA response
 any(with(ema, duplicated(cbind(user, message.date, order))))
 daily <- merge(daily,
-               aggregate(subset(ema, select = hectic:urge),
+               aggregate(subset(ema, select = c(ema.set.length, hectic:urge)),
                          by = with(ema, list(user, message.date)),
                          function(x) na.omit(x)[1]),
                by.x = c("user", "study.date"),
                by.y = paste("Group", 1:2, sep = "."), all.x = TRUE)
+## any EMAs erroneously represented as missing?
+sapply(with(users, user[!exclude]),
+       function(u) any(subset(daily,
+                              user == u & is.na(ema.set.length))$study.date
+                       %in% subset(ema, user == u)$message.date))
+
+## administered (versus intended) planning status
+daily$planning <- with(daily, ifelse(is.na(ema.set.length),
+                                     NA, ifelse(is.na(x), "no_planning", x)))
+daily$x <- NULL
 
 ## step counts
 ## FIXME: align step counts with timing of EMA?

@@ -222,6 +222,7 @@ messages[temp, -1] <- TRUE
 messages <- aggregate(. ~ message, data = messages, any)
 
 ## momentary decision (send suggestion or not)
+## nb: we look to the response for the provided suggestion
 decision <- read.data("Momentary_Decision.csv",
                       list(user, date.stamp, tz, time.slot,
                            is.prefetch == "true", valid != "valid", utime.stamp))
@@ -277,29 +278,19 @@ write.data(subset(decision, notify & is.na(tag.active)),
 response <- read.data("Response.csv", list(user, notified.utime))
 response$notification.message <- normalize.text(response$notification.message)
 response <- merge(response,
-                  subset(decision, select = c(user, date.stamp, time.stamp.hour,
-                                              time.slot, slot, time.stamp.slot)),
-                  by.x = c("user", "notified.date", "notified.time.hour"),
-                  by.y = c("user", "date.stamp", "time.stamp.hour"),
+                  subset(decision,
+                         select = c(user, date.stamp, time.stamp.hour, tz,
+                                    time.slot, slot, time.stamp.slot, time.stamp)),
+                  by.x = c("user", "notified.date", "notified.time.hour", "tz"),
+                  by.y = c("user", "date.stamp", "time.stamp.hour", "tz"),
                   all.x = TRUE)
 ## assess decisionID, which should be associated with
-##
-
+## a unique combination of user and response date-time
+with(response, table(duplicated(decisionid),
+                     duplicated(cbind(user, responded.time, tz))))
 dup.response <- check.dup(response, "checks/dup_response.csv",
                           user, notified.date, tz, slot, time.stamp.slot)
 response <- response[!dup.response$is.dup, ]
-
-## assess link via decisionID
-temp <- merge(response, decision, by = "decisionid", all.x = TRUE,
-              suffixes = c("", ".decision"))
-## linked to the same user, day, message and roughly the same time?
-temp$link <- with(temp, user == user.decision & notified.date == date.stamp
-                  & notify & returned.message == notification.message
-                  & notified.utime > utime.stamp
-                  & (notified.utime - utime.stamp) < 60^2)
-table(temp$link)
-write.data(subset(temp, select = c(decisionid, link)),
-           "checks/link_decisionid.csv")
 
 ## --- physical activity
 
