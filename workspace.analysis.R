@@ -8,6 +8,7 @@ load("csv.RData")
 max.date <- as.Date("2015-11-18")
 
 ## --- daily data
+## FIXME: sort files by user, day
 
 ## users
 ## intake from first point at which the user selected time slots
@@ -45,20 +46,20 @@ daily$study.day <- with(daily, as.numeric(difftime(study.date, intake.date,
                                                    units = "days")))
 
 ## planning/EMA notification context
+## FIXME: use context of earliest engagement
 any(with(notify, duplicated(cbind(user, notified.date))))
 daily <-
   merge(daily,
         subset(notify,
-               select = c(user, tz, gmtoff, notified.date, notified.utime,
-                          notified.time, notified.time.year:notified.time.sec,
+               select = c(user, tz, gmtoff, notified.date, notified.time,
+                          notified.utime, notified.time.year:notified.time.sec,
                           planning.today, ema.set.today, ema.set.length,
                           home, work, calendar, recognized.activity,
-                          front.end.application, gps.coordinate,
-                          city, location.exact, location.category,
-                          weather.condition, temperature, windspeed,
-                          precipitation.chance, snow)),
-        by.x = c("user", "study.date"), by.y = c("user", "notified.date"),
-        all.x = TRUE)
+                          front.end.application, gps.coordinate, city,
+                          location.exact, location.category, weather.condition,
+                          temperature, windspeed, precipitation.chance, snow)),
+               by.x = c("user", "study.date"), by.y = c("user", "notified.date"),
+               all.x = TRUE)
 
 ## planning status
 ## nb: if status is updated and read from device in reverse order, the previous
@@ -78,12 +79,13 @@ daily$x <- NULL
 any(with(ema, duplicated(cbind(user, message.date, order))))
 daily <- merge(daily,
                aggregate(subset(ema, select = hectic:urge),
-                         by = with(ema, list(user, message.date)), na.omit),
+                         by = with(ema, list(user, message.date)),
+                         function(x) na.omit(x)[1]),
                by.x = c("user", "study.date"),
                by.y = paste("Group", 1:2, sep = "."), all.x = TRUE)
 
 ## step counts
-## FIXME: align days with EMA slot in home time zone
+## FIXME: align step counts with timing of EMA?
 jawbone <- merge(jawbone, users, by = "user", suffixes = c("", ".user"))
 jawbone$end.date <- do.call("c",
                             with(jawbone,
@@ -109,5 +111,7 @@ daily <- merge(daily,
 names(daily)[ncol(daily)] <- "gfsteps"
 daily$na.gfsteps <- is.na(daily$gfsteps)
 daily$lag1.na.gfsteps <- with(daily, delay(user, study.day, na.gfsteps))
+
+daily <- daily[with(daily, order(user, study.day)), ]
 
 save(intake, users, daily, file = "analysis.RData")

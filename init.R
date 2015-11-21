@@ -9,8 +9,6 @@ source("functions.R")
 source("read.data.R")
 source("ema.options.R")
 
-wd <- getwd()
-
 options(stringsAsFactors = FALSE)
 
 ## largest number of digits used to represent fractional seconds
@@ -27,6 +25,7 @@ sys.var <- switch(Sys.info()["sysname"],
                                   locale = "en_US"),
                   "Linux" = list(mbox = "~/mbox/HeartSteps/Data/",
                                  locale = "en_US.UTF-8"))
+sys.var$repo <- getwd()
 
 ## time zone identifiers are localized, so set the locale
 Sys.setlocale("LC_TIME", sys.var$locale)

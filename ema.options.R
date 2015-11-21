@@ -1,4 +1,5 @@
 ## options for EMA and research questions
+## nb: only questions ema1 - ema4 are asked each time
 
 ## How hectic was your day today? 
 ema1 <- c("Not all hectic" = 1, 2, 3, 4, "Very hectic" = 5)

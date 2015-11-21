@@ -29,6 +29,7 @@ source("init.R")
 source("summary.R")
 setwd(sys.var$mbox)
 load("analysis.RData")
+users <- subset(users, !exclude)
 @
 
 \section{Data irregularities}
@@ -78,30 +79,6 @@ load("analysis.RData")
 \end{itemize}
 
 \section{User demographics and selected baseline activity levels}
-
-\begin{table}[h]
-  \centering
-  \begin{tabular}{l|cc}
-    & N & \% \\ \hline \hline
-    Gender & & \\
-    \quad \footnotesize{Female} & \Sexpr{sum(intake$gender == 1)} & \Sexpr{round(sum(intake$gender == 1) / length(intake$gender), 3)*100}\% \\
-    \quad \footnotesize{Male} & \Sexpr{sum(intake$gender == 0)} & \Sexpr{round(sum(intake$gender == 0) / length(intake$gender), 3)*100}\% \\ \hline
-    Age (years) & & \\
-    \quad \footnotesize{Mean (sd)} & \multicolumn{2}{c}{\Sexpr{round(mean(intake$age, na.rm = T), 1)} (\Sexpr{round(sd(intake$age, na.rm = T), 1)})} \\
-    \quad \footnotesize{Median (range)} & \multicolumn{2}{c}{\Sexpr{median(intake$age, na.rm = T)} (\Sexpr{min(intake$age)} - \Sexpr{max(intake$age)})} \\ \hline
-    Highest level of education & & \\
-    \quad \footnotesize{Some college} & \Sexpr{sum(intake$edu == 4)} & \Sexpr{round(sum(intake$edu == 4) / length(intake$edu), 3) *100}\% \\
-    \quad \footnotesize{College graduate} & \Sexpr{sum(intake$edu == 5)} & \Sexpr{round(sum(intake$edu == 5) / length(intake$edu), 3) *100}\% \\
-    \quad \footnotesize{Some grad school} & \Sexpr{sum(intake$edu == 7)} & \Sexpr{round(sum(intake$edu == 7) / length(intake$edu), 3) *100}\% \\
-    \quad \footnotesize{Graduate degree} & \Sexpr{sum(intake$edu == 8)} & \Sexpr{round(sum(intake$edu == 8) / length(intake$edu), 3) *100}\% \\ \hline
-    Used health app before & \Sexpr{sum(intake$fitapp == 1)} & \Sexpr{round(sum(intake$fitapp == 1) / length(intake$fitapp), 3) *100}\% \\ \hline
-    Used activity tracker before & \Sexpr{sum(intake$tracker == 1)} & \Sexpr{round(sum(intake$tracker == 1) / length(intake$tracker), 3) *100}\% \\ \hline
-    Duration of vigorous activity before study (min) & & \\
-    \quad \footnotesize{Mean (sd)} & \multicolumn{2}{c}{\Sexpr{round(mean(intake$vigacthr1*60 + intake$vigactmin1), 1)} (\Sexpr{round(sd(intake$vigacthr1*60 + intake$vigactmin1), 1)})} \\
-    \quad \footnotesize{Median (range)} & \multicolumn{2}{c}{\Sexpr{median(intake$vigacthr*60 + intake$vigactmin1, na.rm = T)} (\Sexpr{min(intake$vigacthr*60 + intake$vigactmin1)} - \Sexpr{max(intake$vigacthr*60 + intake$vigactmin1)})}
-   \end{tabular}
-\end{table}
-
 
 % Toy example for using xtable
 %<<xtable, echo = FALSE, results = "asis">>=

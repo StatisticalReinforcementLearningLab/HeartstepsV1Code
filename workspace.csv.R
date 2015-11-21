@@ -14,11 +14,12 @@ user$intake.date <- char2date(user$intake.interview.date, "%m/%d/%Y")
 user$exit.date <- char2date(user$exit.interview.date, "%m/%d/%Y")
 
 ## intake interviews
-intake <- read.data("Survey_Intake.csv", list(user), skip = 3)
+intake <- read.data("Survey_Intake.csv", list(user), skip = 3,
+                    na.strings = "X")
 intake$startdate <- char2date(intake$startdate, "%m/%d/%Y")
 
 ## exit interviews
-exit <- read.data("Survey_Exit.csv", list(user), skip = 3)
+exit <- read.data("Survey_Exit.csv", list(user), skip = 3, na.strings = "X")
 exit$exitdate <- char2date(exit$exitdate, "%m/%d/%Y")
 
 ## --- HeartSteps application data
@@ -63,8 +64,7 @@ complete <- read.data("EMA_Completed.csv",
                       list(user, date.stamp, completed != "true",
                            -as.numeric(utime.stamp)))
 complete$completed <- complete$completed == "true"
-dup.complete <- check.dup(complete, "checks/dup_complete.csv",
-                          user, date.stamp, tz)
+check.dup(complete, "checks/dup_complete.csv", user, date.stamp, tz)
 
 ## planning
 plan <- read.data(c("Structured_Planning_Response.csv",
@@ -80,20 +80,24 @@ dup.plan <- check.dup(plan, "checks/dup_planning.csv", user, date.started, tz)
 plan <- plan[!dup.plan$is.dup, ]
 
 ## context in which the EMA notification was sent
-## nb: we look to EMA response for the EMA question set instead
+## nb: planning and EMA questions administered must be inferred from responses
 notify <- read.data("EMA_Context_Notified.csv",
                     list(user, notified.date, tz, -as.numeric(notified.utime)))
 notify$ema.set.today <- gsub(",ema_finish", "", notify$ema.set.today)
 notify$ema.set.today.length <- unlist(lapply(strsplit(notify$ema.set.today, ","),
                                              length))
-## keep unique or latest notification-EMA sets
-dup.notify <- check.dup(notify, "checks/dup_ema_notify.csv",
-                        user, notified.date, tz, ema.set.today)
-notify <- notify[!dup.notify$is.dup, ]
+## assess contextID, which should be associated with
+## a unique combination of person and notification date
+with(notify, table(duplicated(contextid),
+                   duplicated(cbind(user, notified.date, tz)), useNA = "ifany"))
+check.dup(notify, "checks/dup_ema_notify.csv", user, notified.utime)
 
 ## context in which the user engaged with the EMA
 engage <- read.data("EMA_Context_Engaged.csv",
-                    list(user, engaged.utime, recognized.activity == "N/A"))
+                    list(user, engaged.utime, valid == "false"))
+## assess contextID, which should link back to a notification
+write.data(subset(engage, !(contextid %in% notify$contextid)),
+           "checks/engaged_not_notified")
 ## keep unique or classified-activity engagements
 dup.engage <- check.dup(engage, "checks/dup_ema_engaged.csv",
                         user, engaged.utime)
@@ -196,31 +200,6 @@ dup.ema <- check.dup(ema, "checks/dup_ema_response_multiset.csv",
                      user, message.date, tz, order)
 ema <- ema[!dup.ema$is.dup, ]
 
-## assess link between planning and EMA notification via contextID
-temp <- merge(plan, notify, by = "contextid", all.x = TRUE,
-              suffixes = c("", ".notify"))
-## linked to the same user, date and planning status?
-temp$link.date <- with(temp, !is.na(user.notify) & user == user.notify
-                       & date.started == notified.date
-                       & tz == tz.notify)
-temp$link.plan <- with(temp, link.date & planning == planning.today)
-with(temp, table(link.date, link.plan))
-write.data(subset(temp, select = c(contextid, link.date, link.plan)),
-           "checks/link_contextid_plan_notify.csv")
-
-## assess link between EMA response and notification via contextID
-temp <- merge(subset(ema, order == 1), notify, by = "contextid",
-              all.x = TRUE, suffixes = c("", ".notify"))
-## linked to the same user, date and leading question?
-temp$link.date <- with(temp, user == user.notify & message.date == notified.date
-                       & tz == tz.notify)
-temp$link.set <- with(temp, link.date
-                      & question == unlist(lapply(strsplit(ema.set.today, ","),
-                                                  function(x) x[1])))
-with(temp, table(link.date, link.set))
-write.data(subset(temp, order == 1, select = c(contextid, link.date, link.set)),
-           "checks/link_contextid_ema_notify.csv")
-
 ## --- activity suggestion interventions
 
 ## suggestion message tags
@@ -256,6 +235,11 @@ decision$slot <- match(decision$time.slot, slots)
 ## dispense with extraneous prefetch data
 decision <- subset(decision, !(is.prefetch &
                                duplicated(cbind(user, date.stamp, tz, slot))))
+## assess decisionID, which should be associated with
+## a unique combination of user and decision date-time
+with(decision, table(duplicated(decisionid),
+                     duplicated(cbind(user, time.stamp, tz))))
+check.dup(decision, "checks/recur_decisionid.csv", decisionid)
 ## user-designated time slot
 decision <- merge.last(decision,
                        subset(timeslot, select = c(user, utime.updated,
@@ -298,6 +282,9 @@ response <- merge(response,
                   by.x = c("user", "notified.date", "notified.time.hour"),
                   by.y = c("user", "date.stamp", "time.stamp.hour"),
                   all.x = TRUE)
+## assess decisionID, which should be associated with
+##
+
 dup.response <- check.dup(response, "checks/dup_response.csv",
                           user, notified.date, tz, slot, time.stamp.slot)
 response <- response[!dup.response$is.dup, ]
@@ -351,4 +338,5 @@ googlefit$days.since[googlefit$days.since == 0] <- NA
 write.data(subset(googlefit, days.since > 1), "checks/inactivity_gfit_gt1.csv")
 
 rm(temp)
+rm(sys.var)
 save.image("csv.RData", safe = FALSE)
