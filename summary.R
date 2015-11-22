@@ -4,7 +4,7 @@
 daily.plot <- function(u) {
   d <- subset(daily, user == u)
   maxs <- max(1, d$jbsteps, d$gfsteps, na.rm = TRUE)
-  maxd <- max(d$study.day)
+  maxd <- max(d$study.day, 42)
   plot(NULL, xlim = c(0, maxd), ylim = c(0, maxs),
        xlab = "", ylab = "", main = "", axes = FALSE, frame.plot = FALSE)
   mtext(paste(u), 2, line = 3, cex = 0.75)

@@ -1,18 +1,26 @@
 \documentclass[landscape]{article}
 
-\usepackage[margin=1in]{geometry}
-\usepackage{microtype}
+\usepackage[margin=0.5in]{geometry}
+\usepackage{microtype,booktabs,multicol}
 \usepackage{amsfonts,amssymb,amsbsy,amsmath,amsthm,mathtools}
-\usepackage[onehalfspacing]{setspace}
+\usepackage{setspace,ragged2e,array}
+\usepackage[compact]{titlesec}
 \usepackage[section]{placeins}
-\usepackage{times}
-\IfFileExists{mtpro2.sty}
-  {\let\Bbbk\relax\usepackage[mtphrb]{mtpro2}}
-  {\usepackage{mathptmx}}
-
-\title{HeartSteps data summary}
-\author{}
 \usepackage{graphicx}
+\usepackage{times}
+\IfFileExists{mtpro2.sty}{%
+  \let\Bbbk\relax\usepackage[mtphrb]{mtpro2}}{\usepackage{mathptmx}}
+
+\newcolumntype{L}[1]{>{\RaggedRight\hspace{0pt}}p{#1}}
+\newcolumntype{R}[1]{>{\RaggedLeft\hspace{0pt}}p{#1}}
+
+\linespread{1.2}
+\raggedbottom
+\allowdisplaybreaks
+
+\title{\vspace{-3\bigskipamount}\bfseries
+  HeartSteps data summary \vspace{-2\bigskipamount}}
+\author{}
 
 \begin{document}
 \maketitle
@@ -33,41 +41,47 @@ load("analysis.RData")
 users <- subset(users, !exclude)
 @
 
+\begin{multicols}{2}
+
 \section{Data irregularities}
 
-% irregularities
+\subsection{Linking between HeartSteps data tables}
 
-% EMA completion status - duplicates, typically with conflicting status
-% read.csv("checks/dup_complete.csv")
-% Unknown
-% Use EMA response and notification tables to establish completion
+The \texttt{contextID} variable was intended to uniquely identify each EMA and link between the EMA-related tables. However the \texttt{contextID} of the EMA notification table do not represent all of the values encountered in the remaining tables. Moreover different \texttt{contextID} values are associated with what we would consider the same EMA.
 
-% Response to planning - duplicates, possibly with different responses
-% read.csv("checks/dup_planning.csv")
-% Mainly revisions to response
-% Use latest same-day response
+The \texttt{decisionID} variable was intended to uniquely identify each momentary decision (whether or not to provide a suggestion) table and link to the suggestion response table. However in both of the suggestion-related tables, some \texttt{decisionID} values are associated with what we would consider as different decision points.
 
-% Context of engagements with EMA questionnaire - duplicates
-% read.csv("checks/dup_ema_engaged.csv")
-% Server-side handling of unlabelled activity classification,
-% re-engagement with questionnaire before the last activity has been recognized
-% Dispense with duplicate engagements having unknown activity status
+These issues arise for a limited number of cases, but prevent us from consistently linking between the tables using \texttt{contextID} and \texttt{decisionID}. To resolve this we construct identifiers with \texttt{userID} and date-time variables.
 
-% EMA response - multiple responses to the same question set
-% read.csv("checks/dup_ema_response.csv")
-% Answer revisions?
-% Take latest same-day response
+\subsection{Duplication}
 
-% Context/availability for planning
-% Invalid linkage, conflict between randomized and actual planning status
-% read.csv("checks/badlink_plan_notify.csv")
-% Planning status read from device storage before being updated
-% Use actual planning status and randomly generate any unknown planning allocation
+Some of the HeartSteps application tables contain duplicate entries according to identifiers we can construct from the data. The overall number of duplicates is small, but prevented us from linking between tables systematically without some type of revision. We resolve this by discarding duplicates, following the rules described below.
 
-% other issues
+\begin{center}\singlespacing\hyphenpenalty=10000
+\begin{tabular}{L{0.2\columnwidth}L{0.3\columnwidth}L{0.35\columnwidth}}
+\toprule
+Table & Source of duplication & Resolution \\
+\midrule
+\texttt{EMA context engaged} & Multiple activity recognition attempts & Dispense with duplicates having invalid activity recognition \\
+\midrule
+\texttt{Structured planning}, \texttt{Unstructured planning} & Multiple response submissions & Dispense with earlier or next-day plans \\
+\midrule
+\texttt{EMA response} & Multiple response submissions & Dispense with earlier responses \\
+\midrule
+\texttt{Momentary decision} & Unknown & Dispense with decisions that do not correctly reflect either the notification time slot or the decision administered \\
+\bottomrule
+\end{tabular}
+\end{center}
 
-% Inconsistencies in message strings, needed for suggestion tagging and validation
-% Strip escape codes, punctuation, non-ASCII characters, normalize white space
+\subsection{Suggestion message tags and strings}
+
+The activity suggestion messages were not stored with the bucket tags used for contextualization. To address this we apply all relevant tags post-hoc, using the curated list of suggestions. Note that all relevant tags are not necessarily the tags that actually influence the message selection. Moreover the list gives the message strings as-displayed with non-ASCII characters. Internally HeartSteps strips ASCII characters, but with is not performed consistently. To enable consistent linkage, we stripped the message strings of escape codes, punctuation, non-ASCII characters and extraneous white space.
+
+\subsection{Notifications outside the designated time slot}
+
+\subsection{Discrepancy between intended and administered planning status}
+
+
 
 \begin{itemize}
 \item Planning and EMA response duplicates/resubmissions
@@ -97,15 +111,12 @@ users <- subset(users, !exclude)
 %plot(1, 1, main = 'Hello \\TeX !')
 %@ 
 
+
 \section{Daily step count}
 
 The following plots give the daily step count for each user; solid lines correspond to Jawbone and the dotted to Google Fit. Breaks in the series indicate no available minute-by-minute step counts were recorded that day. Horizontal lines give the user average Jawbone step count. Vertical lines correspond to days on which the EMA that evening was not completed (either wholly or in part).
 
-<<emasummary1, echo=FALSE, dev="tikz", fig.width=9, fig.height=6.5, fig.align="center">>=
-par(mfrow = c(2, 4), mar = c(0.5, 4, 0.5, .5), mgp = c(0.5, 0.1, 0),
-    oma = c(1, 2, 0, 0), tcl = 0.25, las = 1)
-invisible(sapply(users$user[1:8], ema.scale.plot))
-@
+\end{multicols}
 
 <<dailysteps1, echo=FALSE, dev="tikz", fig.width=9, fig.height=6.5, fig.align="center">>=
 par(mfrow = c(7, 1), mar = c(0.5, 4, 0.5, 0), mgp = c(0.5, 0.1, 0),

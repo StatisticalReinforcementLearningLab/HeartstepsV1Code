@@ -87,10 +87,11 @@ daily <- merge(daily,
                by.x = c("user", "study.date"),
                by.y = paste("Group", 1:2, sep = "."), all.x = TRUE)
 ## any EMAs erroneously represented as missing?
-sapply(with(users, user[!exclude]),
-       function(u) any(subset(daily,
-                              user == u & is.na(ema.set.length))$study.date
-                       %in% subset(ema, user == u)$message.date))
+setNames(sapply(with(users, user[!exclude]),
+                function(u) any(subset(daily, user == u
+                                       & is.na(ema.set.length))$study.date
+                                %in% subset(ema, user == u)$message.date)),
+         with(users, user[!exclude]))
 
 ## administered (versus intended) planning status
 daily$planning <- with(daily, ifelse(is.na(ema.set.length),
@@ -127,4 +128,4 @@ daily$lag1.na.gfsteps <- with(daily, delay(user, study.day, na.gfsteps))
 
 daily <- daily[with(daily, order(user, study.day)), ]
 
-save(intake, users, daily, file = "analysis.RData")
+save(max.date, users, daily, file = "analysis.RData")
