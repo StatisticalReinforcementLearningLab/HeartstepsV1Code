@@ -10,8 +10,9 @@ setwd(sys.var$mbox)
 
 ## participant/user list
 participants <- read.data("HeartSteps Participant Directory.csv", list(user))
-participants$intake.date <- char2date(user$intake.interview.date, "%m/%d/%Y")
-participants$exit.date <- char2date(user$exit.interview.date, "%m/%d/%Y")
+participants$intake.date <- char2date(participants$intake.interview.date,
+                                      "%m/%d/%Y")
+participants$exit.date <- char2date(participants$exit.interview.date, "%m/%d/%Y")
 
 ## intake interviews
 intake <- read.data("Survey_Intake.csv", list(user), skip = 3, na.strings = "X")
@@ -57,13 +58,22 @@ weather$date <- char2date(weather$date, "%Y:%m:%d")
 
 ## --- evening questionnaire (EMA) and planning intervention
 
-## EMA completion status
-## nb: we look to EMA response for completion status instead
-complete <- read.data("EMA_Completed.csv",
-                      list(user, date.stamp, completed != "true",
-                           -as.numeric(utime.stamp)))
-complete$completed <- complete$completed == "true"
-check.dup(complete, "checks/dup_complete.csv", user, date.stamp, tz)
+## context in which the EMA notification was sent
+## nb: planning and EMA questions administered must be inferred from responses
+notify <- read.data("EMA_Context_Notified.csv",
+                    list(user, notified.date, tz, -as.numeric(notified.utime)))
+notify$ema.set.today <- gsub(",ema_finish", "", notify$ema.set.today)
+notify$ema.set.today.length <- unlist(lapply(strsplit(notify$ema.set.today, ","),
+                                             length))
+check.dup(notify, "checks/dup_ema_notify.csv", user, notified.utime)
+
+## context in which the user engaged with the EMA
+engage <- read.data("EMA_Context_Engaged.csv",
+                    list(user, engaged.utime, valid == "false"))
+## keep unique or classified-activity engagements
+dup.engage <- check.dup(engage, "checks/dup_ema_engaged.csv",
+                        user, engaged.utime)
+engage <- engage[!dup.engage$is.dup, ]
 
 ## planning
 plan <- read.data(c("Structured_Planning_Response.csv",
@@ -77,30 +87,6 @@ plan$planning <- c("structured", "unstructured")[1 + is.na(plan$list.of.options)
 ## keep unique or latest same-day plans
 dup.plan <- check.dup(plan, "checks/dup_planning.csv", user, date.started, tz)
 plan <- plan[!dup.plan$is.dup, ]
-
-## context in which the EMA notification was sent
-## nb: planning and EMA questions administered must be inferred from responses
-notify <- read.data("EMA_Context_Notified.csv",
-                    list(user, notified.date, tz, -as.numeric(notified.utime)))
-notify$ema.set.today <- gsub(",ema_finish", "", notify$ema.set.today)
-notify$ema.set.today.length <- unlist(lapply(strsplit(notify$ema.set.today, ","),
-                                             length))
-## assess contextID, which should be associated with
-## a unique combination of person and notification date
-with(notify, table(duplicated(contextid),
-                   duplicated(cbind(user, notified.date, tz)), useNA = "ifany"))
-check.dup(notify, "checks/dup_ema_notify.csv", user, notified.utime)
-
-## context in which the user engaged with the EMA
-engage <- read.data("EMA_Context_Engaged.csv",
-                    list(user, engaged.utime, valid == "false"))
-## assess contextID, which should link back to a notification
-write.data(subset(engage, !(contextid %in% notify$contextid)),
-           "checks/engaged_not_notified")
-## keep unique or classified-activity engagements
-dup.engage <- check.dup(engage, "checks/dup_ema_engaged.csv",
-                        user, engaged.utime)
-engage <- engage[!dup.engage$is.dup, ]
 
 ## EMA response
 ## user has 1 hour from initial notification to complete questionnaire
@@ -130,7 +116,28 @@ ema <- cbind(ema, match.option(research1, ema$response,
 ema$energetic <- with(ema, as.numeric(ifelse(question == "research3",
                                              response, NA)))
 ema$urge <- with(ema, as.numeric(ifelse(question == "research4", response, NA)))
-## assemble time zone information from other EMA tables
+## form list of completed EMA question sets, akin to 'ema.set.today' in 'notify'
+## nb: this presumes that 'contextid' can separate same-day EMAs
+ema <- ema[with(ema, order(user, message.date, contextid, order)), ]
+ema <- merge(ema,
+             with(ema, aggregate(question,
+                                 by = list(user, message.date, contextid),
+                                 function(x) paste(unique(x), collapse = ","))),
+             by.x = c("user", "message.date", "contextid"),
+             by.y = paste("Group", 1:3, sep = "."))
+names(ema)[ncol(ema)] <- "ema.set"
+ema$ema.set.length <- unlist(lapply(strsplit(ema$ema.set, ","), length))
+
+## EMA completion status
+## nb: we look to EMA response for completion status instead
+complete <- read.data("EMA_Completed.csv",
+                      list(user, date.stamp, completed != "true",
+                           -as.numeric(utime.stamp)))
+complete$completed <- complete$completed == "true"
+check.dup(complete, "checks/dup_complete.csv",
+          user, date.stamp, time.stamp.hour, tz)
+
+## resolve missing time zone in EMA response from other EMA tables
 temp <- rbind(subset(notify, select = c(contextid, timezone, tz, gmtoff)),
               subset(plan, select = c(contextid, timezone, tz, gmtoff)),
               subset(engage, select = c(contextid, timezone, tz, gmtoff)),
@@ -148,17 +155,6 @@ ema$utime.stamp <- with(ema, char2utime(time.stamp, gmtoff))
 ema <- cbind(ema,
              with(ema, char2calendar(message.time, tz, prefix = "message.time")),
              with(ema, char2calendar(time.stamp, tz, prefix = "time.stamp")))
-## form list of completed EMA question sets, akin to 'ema.set.today' in 'notify'
-## nb: this presumes that 'contextid' can separate same-day EMAs
-ema <- ema[with(ema, order(user, message.date, contextid, order)), ]
-ema <- merge(ema,
-             with(ema, aggregate(question,
-                                 by = list(user, message.date, contextid),
-                                 function(x) paste(unique(x), collapse = ","))),
-             by.x = c("user", "message.date", "contextid"),
-             by.y = paste("Group", 1:3, sep = "."))
-names(ema)[ncol(ema)] <- "ema.set"
-ema$ema.set.length <- unlist(lapply(strsplit(ema$ema.set, ","), length))
 ## keep unique or latest same-day EMA sets
 dup.ema <- check.dup(ema, "checks/dup_ema_response.csv",
                      user, message.date, tz, order, question, ema.set)
@@ -198,6 +194,12 @@ ema <- ema[with(ema, order(user, message.date, order, is.na(notified.time),
 dup.ema <- check.dup(ema, "checks/dup_ema_response_multiset.csv",
                      user, message.date, tz, order)
 ema <- ema[!dup.ema$is.dup, ]
+ema <- ema[with(ema, order(user, message.utime)), ]
+## number of missing intermediate EMAs
+with(subset(ema, order == 1),
+     setNames(sapply(unique(user),
+                     function(u) sum(diff(message.date[user == u]) - 1)),
+              paste(unique(user))))
 
 ## --- activity suggestion interventions
 
@@ -235,11 +237,6 @@ decision$slot <- match(decision$time.slot, slots)
 ## dispense with extraneous prefetch data
 decision <- subset(decision, !(is.prefetch &
                                duplicated(cbind(user, date.stamp, tz, slot))))
-## assess decisionID, which should be associated with
-## a unique combination of user and decision date-time
-with(decision, table(duplicated(decisionid),
-                     duplicated(cbind(user, time.stamp, tz))))
-check.dup(decision, "checks/recur_decisionid.csv", decisionid)
 ## user-designated time slot
 decision <- merge.last(decision,
                        subset(timeslot, select = c(user, utime.updated,
@@ -283,13 +280,8 @@ response <- merge(response,
                   by.x = c("user", "notified.date", "notified.time.hour", "tz"),
                   by.y = c("user", "date.stamp", "time.stamp.hour", "tz"),
                   all.x = TRUE)
-## assess decisionID, which should be associated with
-## a unique combination of user and response date-time
-with(response, table(duplicated(decisionid),
-                     duplicated(cbind(user, responded.time, tz))))
-dup.response <- check.dup(response, "checks/dup_response.csv",
-                          user, notified.date, tz, slot, time.stamp.slot)
-response <- response[!dup.response$is.dup, ]
+check.dup(response, "checks/dup_response.csv",
+          user, notified.date, tz, slot, time.stamp.slot)
 
 ## --- physical activity
 
