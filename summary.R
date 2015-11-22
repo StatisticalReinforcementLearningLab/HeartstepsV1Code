@@ -20,4 +20,14 @@ daily.plot <- function(u) {
   axis(2, at = sort(round(c(0, meanjb, maxs))))
 }
 
+ema.scale.plot <- function(u) {
+  d <- subset(daily, user == u)
+  
+  t <- rbind(table(d$hectic, useNA = "ifany"), 
+             table(d$stressful, useNA = "ifany"), 
+             table(d$typical, useNA = "ifany"))
+  barplot(t, beside = T)
+  mtext(paste(u), 2, line = 3, cex = 0.75)
+}
+
 ## FIXME: add xtable function
