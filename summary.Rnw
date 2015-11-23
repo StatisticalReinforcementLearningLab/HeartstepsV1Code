@@ -95,7 +95,7 @@ Momentary{\_}Decision & See \cref{sec:slot} & Discard decisions with wrong time 
 
 \subsection{EMA completion status}
 
-The EMA{\_}Completed table was intended to provide the EMA completion status, but it is not always in agreement with the data available in EMA{\_}Response. To address this, we simply dispense with the information in EMA{\_}Completed. Below we tabulate completion status by the number of EMA answers available for each contextID encountered in either table.
+The EMA{\_}Completed table was intended to provide the EMA completion status, but it is not always in agreement with the data available in EMA{\_}Response. The reason for this is unclear, but we address the discrepancy by dispensing with the information in EMA{\_}Completed. Below we tabulate completion status by the number of EMA answers available for each contextID encountered in either table.
 
 <<xtable, results="asis">>=
 d <- merge(aggregate(completed ~ contextid, any, data = complete),
