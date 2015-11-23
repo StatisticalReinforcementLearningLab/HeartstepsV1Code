@@ -23,9 +23,11 @@ daily.plot <- function(u) {
 ema.scale.plot <- function(u) {
   d <- subset(daily, user == u)
   
-  t <- rbind(table(d$hectic, useNA = "ifany"), 
-             table(d$stressful, useNA = "ifany"), 
-             table(d$typical, useNA = "ifany"))
+  t <- sapply(c("Hectic", "Stressful", "Typical"), 
+              function(var) sapply(c(1:5), 
+                                   function(x) sum(d[[tolower(var)]] == x, na.rm = T)))
+  
+  ymax <- max(t)
   barplot(t, beside = T)
   mtext(paste(u), 2, line = 3, cex = 0.75)
 }

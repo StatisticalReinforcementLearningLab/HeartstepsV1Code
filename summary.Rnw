@@ -118,6 +118,12 @@ The following plots give the daily step count for each user; solid lines corresp
 
 \end{multicols}
 
+<<emasummary1, echo=FALSE, dev="tikz", fig.width=9, fig.height=6.5, fig.align="center">>=
+  par(mfrow = c(2, 3), mar = c(0.5, 4, 0.5, .5), mgp = c(0.5, 0.1, 0),
+      oma = c(1, 2, 0, 0), tcl = 0.25, las = 1)
+invisible(sapply(users$user, ema.scale.plot))
+@
+
 <<dailysteps1, echo=FALSE, dev="tikz", fig.width=9, fig.height=6.5, fig.align="center">>=
 par(mfrow = c(7, 1), mar = c(0.5, 4, 0.5, 0), mgp = c(0.5, 0.1, 0),
     oma = c(1, 2, 0, 0), tcl = 0.25, las = 1)
