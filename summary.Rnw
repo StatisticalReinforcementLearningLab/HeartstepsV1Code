@@ -97,7 +97,7 @@ Momentary{\_}Decision & See \cref{sec:slot} & Discard decisions with wrong time 
 
 The EMA{\_}Completed table was intended to provide the EMA completion status, but it is not always in agreement with the data available in EMA{\_}Response. The reason for this is unclear, but we address the discrepancy by dispensing with the information in EMA{\_}Completed. Below we tabulate completion status by the number of EMA answers available for each contextID encountered in either table.
 
-<<xtable, results="asis">>=
+<<complete, results="asis">>=
 d <- merge(aggregate(completed ~ contextid, any, data = complete),
            subset(ema, order == 1), by = "contextid", all = TRUE)
 d$ema.set.length[is.na(d$ema.set.length)] <- 0
@@ -165,6 +165,26 @@ The Momentary{\_}Decision and Response tables are largely in agreement, with onl
 The activity suggestion messages were not stored with the bucket tags used for contextualization. To address this we apply all relevant tags post-hoc, using the curated list of suggestions. Note that all relevant tags are not necessarily the tags that influenced the message selection. Moreover the list gives the message strings as-displayed with non-ASCII characters. Internally HeartSteps strips ASCII characters, but this is not performed consistently. To enable consistent linkage, we strip the message strings of escape codes, punctuation, non-ASCII characters and extraneous white space.
 
 \section{User characteristics}
+
+The intake and exit interview data are updated less frequently than the application data. Here is a summary of the intake information available for \Sexpr{nrow(intake)} users.
+
+<<users, results="asis">>=
+d <- with(users,
+          cbind("Male" = gender == "male",
+                "Age under 25" = age < 25,
+                "White" = ethnicity == "white/caucasian",
+                "Graduate school" = edu %in% c("grad degree", "grad school"),
+                "Married or common-law" = marital %in%
+                              c("married", "domestic partnership"),
+                "Any children" = children > 0,
+                "Used fitness app" = fitapp == "yes",
+                "Used activity tracker" = tracker == "yes"))
+d <- cbind(apply(d, 2, sum, na.rm = TRUE),
+           apply(d, 2, sum, na.rm = TRUE)
+           / sum(!apply(d, 1, function(x) any(is.na(x)))) * 100)
+colnames(d) <- c("Number", "Percent")
+print(xtable(d, digits = c(0, 0, 1)), floating = FALSE, booktabs = TRUE)
+@
 
 \section{EMAs}
 
