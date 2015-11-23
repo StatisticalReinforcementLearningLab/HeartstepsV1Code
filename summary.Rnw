@@ -1,30 +1,35 @@
-\documentclass[landscape]{article}
-
-\usepackage[margin=0.5in]{geometry}
-\usepackage{microtype,booktabs,multicol}
+\documentclass{article}
+\usepackage[T1]{fontenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{microtype,booktabs,enumitem}
 \usepackage{amsfonts,amssymb,amsbsy,amsmath,amsthm,mathtools}
-\usepackage{setspace,ragged2e,array}
-\usepackage[compact]{titlesec}
-\usepackage[section]{placeins}
+\usepackage{setspace,ragged2e,array,etoolbox,hyperref}
+\usepackage[capitalize]{cleveref}
+\usepackage{titlesec}
 \usepackage{graphicx}
 \usepackage{times}
 \IfFileExists{mtpro2.sty}{%
   \let\Bbbk\relax\usepackage[mtphrb]{mtpro2}}{\usepackage{mathptmx}}
 
+% correct Acrobat distortion with opacity
+\pdfpageattr{/Group <</S /Transparency /I true /CS /DeviceRGB>>}
+
+\hypersetup{breaklinks,colorlinks,allcolors=blue,pdfpagemode=UseNone}
+
+\BeforeBeginEnvironment{tabular}{\begin{center}}
+\AfterEndEnvironment{tabular}{\end{center}}
+\AtBeginEnvironment{tabular}{\small\hyphenpenalty=10000}
+\AtBeginEnvironment{tikzpicture}{\small\hyphenpenalty=10000}
 \newcolumntype{L}[1]{>{\RaggedRight\hspace{0pt}}p{#1}}
 \newcolumntype{R}[1]{>{\RaggedLeft\hspace{0pt}}p{#1}}
 
-\linespread{1.2}
+\DeclareMathOperator{\uniform}{Uniform}
+
+\linespread{1.15}
 \raggedbottom
 \allowdisplaybreaks
+\columnsep=1em
 
-\title{\vspace{-3\bigskipamount}\bfseries
-  HeartSteps data summary \vspace{-2\bigskipamount}}
-\author{}
-
-\begin{document}
-\maketitle
-  
 % R code "chunk" format:
 % <<chunk options>>= R code @
 % see http://yihui.name/knitr/options/#chunk_options for chunk options
@@ -33,112 +38,168 @@
 % Rscript -e "library(knitr); knit('summary.Rnw')"
 % pdflatex summary
 
-<<read_data, echo = FALSE, include = FALSE>>=
+\title{\bfseries HeartSteps data summary}
+\author{}
+\date{\vskip -2em\normalsize\today}
+
+\begin{document}
+\maketitle
+\thispagestyle{empty}
+
+<<setup, include=FALSE, cache=FALSE>>=
+library("knitr")
+opts_chunk$set(fig.align="center", dev="tikz", dev.args=list(pointsize=9), cex=0.95, echo=FALSE, fig.width=6.5, fig.show="hold", par=TRUE)
+knit_hooks$set(par=function(before, options, envir){
+  if (before && options$fig.show!="none")
+    par(mar=c(3, 5, 1, 0) + 0.5, mgp=c(2, 0.5, 0), oma=rep(0, 4), las=1, tcl=0.25)})
+@
+
+<<read_data, echo=FALSE, include=FALSE>>=
 source("init.R")
 source("summary.R")
 setwd(sys.var$mbox)
+load("csv.RData")
 load("analysis.RData")
-users <- subset(users, !exclude)
 @
-
-\begin{multicols}{2}
 
 \section{Data irregularities}
 
-\subsection{Linking between HeartSteps data tables}
+\subsection{EMA and momentary decision identifiers}
 
-The \texttt{contextID} variable was intended to uniquely identify each EMA and link between the EMA-related tables. However the \texttt{contextID} of the EMA notification table do not represent all of the values encountered in the remaining tables. Moreover different \texttt{contextID} values are associated with what we would consider the same EMA.
+The contextID variable was intended to identify each EMA notification and link between the EMA-related tables. However the contextID in EMA{\_}Context{\_}Notified does not represent all of the identifier values encountered in the remaining tables. Moreover different contextID values are associated with responses to what we would consider the same EMA. These issues might be due in part to the phone being turned off at the EMA time slot, but more investigation is needed.
 
-The \texttt{decisionID} variable was intended to uniquely identify each momentary decision (whether or not to provide a suggestion) table and link to the suggestion response table. However in both of the suggestion-related tables, some \texttt{decisionID} values are associated with what we would consider as different decision points.
+Similarly decisionID was intended to identify each momentary decision (to provide a suggestion) table and link to the suggestion response table. However in both of the suggestion-related tables, some decisionID values are associated with what we would consider as different decision points. This is due to a previous decisionID value being read from the device storage before being updated.
 
-These issues arise for a limited number of cases, but prevent us from consistently linking between the tables using \texttt{contextID} and \texttt{decisionID}. To resolve this we construct identifiers with \texttt{userID} and date-time variables.
+Although infrequent, these issues prevent consistent linkage between tables. We instead construct identifiers with userID and date-time variables, accounting for time lags due for activity recognition or user response.
 
 \subsection{Duplication}
+\label{sec:dup}
 
-Some of the HeartSteps application tables contain duplicate entries according to identifiers we can construct from the data. The overall number of duplicates is small, but prevented us from linking between tables systematically without some type of revision. We resolve this by discarding duplicates, following the rules described below.
+Duplicate entries arise according to contextID, decisionID or identifiers we can construct from the data. The overall number of duplicates is small, but prevents systematic linkage between tables. We resolve this according to the rules below.
 
-\begin{center}\singlespacing\hyphenpenalty=10000
-\begin{tabular}{L{0.2\columnwidth}L{0.3\columnwidth}L{0.35\columnwidth}}
+\begin{tabular}{L{0.25\textwidth}L{0.3\textwidth}L{0.3\textwidth}}
 \toprule
 Table & Source of duplication & Resolution \\
 \midrule
-\texttt{EMA context engaged} & Multiple activity recognition attempts & Dispense with duplicates having invalid activity recognition \\
+EMA{\_}Context{\_}Engaged & Multiple activity recognition attempts & Discard duplicates with invalid activity recognition \\
 \midrule
-\texttt{Structured planning}, \texttt{Unstructured planning} & Multiple response submissions & Dispense with earlier or next-day plans \\
+Structured{\_}Planning, Unstructured{\_}Planning & User revised response & Discard earlier or next-day plans \\
 \midrule
-\texttt{EMA response} & Multiple response submissions & Dispense with earlier responses \\
+EMA{\_}Response & User revised response & Discard earlier responses \\
 \midrule
-\texttt{Momentary decision} & Unknown & Dispense with decisions that do not correctly reflect either the notification time slot or the decision administered \\
+EMA{\_}Completed & Unknown & Take the maximum completion status among duplicates \\
+\midrule
+Momentary{\_}Decision & See \cref{sec:slot} & Discard decisions with wrong time slot or ``do not notify'' result \\
 \bottomrule
 \end{tabular}
-\end{center}
+
+\subsection{EMA completion status}
+
+The EMA{\_}Completed table was intended to provide the EMA completion status, but it is not always in agreement with the data available in EMA{\_}Response. To address this, we simply dispense with the information in EMA{\_}Completed. Below we tabulate completion status by the number of EMA answers available for each contextID encountered in either table.
+
+<<xtable, results="asis">>=
+d <- merge(aggregate(completed ~ contextid, any, data = complete),
+           subset(ema, order == 1), by = "contextid", all = TRUE)
+d$ema.set.length[is.na(d$ema.set.length)] <- 0
+d <- with(d, table(completed, ema.set.length, useNA = "ifany"))
+d <- rbind(as.numeric(colnames(d)), d)
+rownames(d) <- c("Number of answers", "Incomplete", "Complete")
+print(xtable(d, digits = 0),
+      floating = FALSE, booktabs = TRUE, include.colnames = FALSE,
+      hline.after = c(-1, 1, nrow(d)))
+@
+
+\subsection{Missing EMA context}
+\label{sec:context}
+
+A total \Sexpr{with(daily, sum(is.na(context.utime) & !is.na(ema.set.length)))} of EMA responses have no contextual data available from notification or engagement. This was due to server-side dispensing of records for which the activity could not be recognized---a bug that was identified and patched before study closure.
+
+\subsection{Randomized versus administered planning status}
+
+The EMA{\_}Context{\_}Notified table provides the randomized planning status, but this does not always correspond to the planning status administered to the user when we link to the Structured{\_}Planning and Unstructured{\_}Planning tables by any reasonable identifier. This is due to the initial or previous planning status being read from the device storage before it is update. It is conjectured that this race condition arises randomly.
+
+Among the user-days on which there was an EMA response and an available notification context, we can determine whether the randomized planning status did not agree with the planning carried out by the user. Instances of disagreement over time are depicted in the plot below, where a darker point coincides with disagreement, lighter with agreement, and no point to either no EMA response or missing notification context.
+<<plan, fig.height=3>>=
+with(daily, plot(study.day, user, pch = 16,
+                 col = rev(grey.colors(2))[1 + (planning.today != planning)],
+                 frame.plot = FALSE, xlab = "Study day", ylab = "User"))
+d <- with(daily, sapply(unique(user),
+                        function(u) with(subset(daily, user == u),
+                                         table(planning.today != planning))))
+d <- d[2, ] / apply(d, 2, sum)
+@
+The average rate of disagreement among the users is \Sexpr{round(mean(d), 2)} and ranged between \Sexpr{round(min(d), 2)} and \Sexpr{round(max(d), 2)}. For a given study day $t$, let $A_t$ denote the intended randomized level of planning and $B_t$ denote the administered level. If the race condition is indeed completely random, then $B_t$ follows the same marginal distribution as $A_t$. However we do not observe $B_t$ among users that do not respond to the EMA. To recover $\bar{B}_T$, we could fill-in the missing values sequentially by generating the race condition status $J_t \in \{0, 1\}$ according to some fixed probability. If $J_t = 0$ then we set $B_t = A_t$; otherwise, $B_t = A_{t-1}$ with $A_0$ indicating ``no planning''. (From \cref{sec:context}, we are also missing a few values for $A_t$, but these can easily be regenerated.)
+
+\subsection{EMA question set}
+
+The EMA{\_}Completed table provides a variable EMA{\_}Set{\_}Today, which should provide the order set of EMA questions sent to the user. In \Sexpr{with(notify, sum(ema.set.today != ema.set, na.rm = TRUE))} cases, it does not agree with the sequence of questions that the user answered. This is due to an initial or previous value of EMA{\_}Set{\_}Today being read from the device storage before being updated. To resolve this, we infer the administered question set from EMA{\_}Response; the question set for incomplete EMAs cannot be recovered.
+
+\subsection{Notifications under changing time zone}
+\label{sec:slot}
+
+Prior to November notifications were sent according to the time zone at which the phone was last restarted, irrespective of the actual time zone. From November onward, notifications are sent under the actual time zone, irrespective of the notification history. So users who travel outside EST potentially receive notifications outside their designated time slots or repeated notifications in the same time slot.
+
+Instances where the momentary decision took place outside the designated time slot are depicted below, where darker points coincide with larger differences between the intended and actual time slots. Here we ignore any discrepancies due to the time lag that arises when the decision is based on pre-fetched data.
+<<slot, fig.height=3>>=
+decision <- decision[with(decision, order(user, date.stamp, slot)), ]
+decision$index <- do.call("c", sapply(table(decision$user) - 1, seq, from = 0,
+                                      by = 1, simplify = FALSE))
+with(subset(decision, user %in% daily$user & slot != time.stamp.slot),
+     plot(index, user, pch = 16, cex = 0.75, frame.plot = FALSE,
+          col = rev(grey.colors(5))[abs(slot - time.stamp.slot)],
+          xlab = "Momentary decision index", ylab = "User"))
+d <- with(decision, sapply(unique(user),
+                           function(u) with(subset(decision, user == u),
+                                            table(slot != time.stamp.slot)),
+                           simplify = FALSE))
+d <- do.call("c", lapply(d, function(x) x[1] / sum(x)))
+@
+The proportion of within-slot decisions among the users has an average of \Sexpr{round(mean(d), 2)} and range \Sexpr{round(min(d), 2)}--\Sexpr{round(max(d), 2)}. Because the discrepancy from the designated time slots tends to be small and infrequent, we propose simply indexing decisions as they arise; any variables representing calendar time (e.g. time of day) could be evaluated under the correct time zone. The \Sexpr{sum(dup.decision$data$dup)} duplicates among these decisions are resolved by discarding decisions that take place in the wrong time slot or have the ``do not notify'' result (\cref{sec:dup}).
+
+\subsection{Randomized versus administered suggestion status}
+
+The Momentary{\_}Decision and Response tables are largely in agreement, with only \Sexpr{with(suggest, sum(notification.message != returned.message, na.rm = TRUE))} decisions conflicting with the suggestion actually administered in terms of either the result (notify or not) or the notification message. The source of this issue is unknown. For analysis, we consider the ad.
 
 \subsection{Suggestion message tags and strings}
 
-The activity suggestion messages were not stored with the bucket tags used for contextualization. To address this we apply all relevant tags post-hoc, using the curated list of suggestions. Note that all relevant tags are not necessarily the tags that actually influence the message selection. Moreover the list gives the message strings as-displayed with non-ASCII characters. Internally HeartSteps strips ASCII characters, but with is not performed consistently. To enable consistent linkage, we stripped the message strings of escape codes, punctuation, non-ASCII characters and extraneous white space.
+The activity suggestion messages were not stored with the bucket tags used for contextualization. To address this we apply all relevant tags post-hoc, using the curated list of suggestions. Note that all relevant tags are not necessarily the tags that influenced the message selection. Moreover the list gives the message strings as-displayed with non-ASCII characters. Internally HeartSteps strips ASCII characters, but this is not performed consistently. To enable consistent linkage, we strip the message strings of escape codes, punctuation, non-ASCII characters and extraneous white space.
 
-\subsection{Notifications outside the designated time slot}
+\section{User characteristics}
 
-\subsection{Discrepancy between intended and administered planning status}
+\section{EMAs}
 
+\subsection{Hecticness}
 
+At each EMA, the user was asked ``How hectic was your day today?'' A \Sexpr{length(ema1)}-point scale was provided, with 1 labelled as ``\Sexpr{names(ema1[1])}'' and 5 labelled as ``\Sexpr{names(rev(ema1)[1])}''.  Here we depict the responses over time, where darker points correspond to more hectic days. No point is plotted if no response is available, due to either non- or pending response.
+<<ema1, fig.height=3>>=
+with(daily, plot(study.day, user, pch = 16,
+                 col = rev(grey.colors(length(ema1)))[hectic],
+                 frame.plot = FALSE, xlab = "Study day", ylab = "User"))
+@
 
-\begin{itemize}
-\item Planning and EMA response duplicates/resubmissions
-\item No available contextual data for planning
-\item Momentary decision (to provide an activity suggestion or not) identifier persisting to the next time slot
-\item Notifications sent outside time slots after time zone change and (post fix) multiple notifications potentially sent in the same time slot when moving between time zones.
-\item Lack of time zone information with EMA response and changes to application settings (home/work locations and calendars)
-\item Calendar data (apart from busyness status for momentary decision) unavailable
-\item Lack of agreement between randomization decisions (for both planning and activity suggestions) and intervention received.
-\end{itemize}
+\subsection{Stress}
 
-\section{User demographics and selected baseline activity levels}
+At each EMA, the user was asked ``How stressful was your day today?'' A \Sexpr{length(ema2)}-point scale was provided, with 1 labelled as ``\Sexpr{names(ema2[1])}'' and 5 labelled as ``\Sexpr{names(rev(ema2)[1])}''. Here we depict the responses over time, where darker points correspond to more stressful days. No point is plotted if no response is available, due to either non- or pending response.
+<<ema2, fig.height=3>>=
+with(daily, plot(study.day, user, pch = 16,
+                 col = rev(grey.colors(length(ema2)))[stressful],
+                 frame.plot = FALSE, xlab = "Study day", ylab = "User"))
+@
 
-% Toy example for using xtable
-%<<xtable, echo = FALSE, results = "asis">>=
-%n <- 100
-%x <- rnorm(n)
-%y <- 2*x + rnorm(n)
-%out <- lm(y ~ x)
-%library(xtable)
-%tab <- xtable(summary(out)$coef, digits = c(0, 2, 2, 1, 2))
-%print(tab)
-%@
+\subsection{Typicalness for the day of the week}
 
-% Toy example with TikzDevice
-%<<fig1, eval=TRUE, echo=FALSE, dev='tikz', fig.height=3.25, fig.width=3.25, %fig.align='center'>>= 
-%plot(1, 1, main = 'Hello \\TeX !')
-%@ 
+At each EMA, the user was asked ``How typical was today for a X?'', where ``X'' is the current day of the week. A \Sexpr{length(ema3)}-point scale was provided, with 1 labelled as ``\Sexpr{names(ema3[1])}'' and 5 labelled as ``\Sexpr{names(rev(ema3)[1])}''.  Here we depict the responses over time, where darker points correspond to more atypical days. No point is plotted if no response is available, due to either non- or pending response. 
+<<ema3, fig.height=3>>=
+with(daily, plot(study.day, user, pch = 16,
+                 col = grey.colors(length(ema3))[typical],
+                 frame.plot = FALSE, xlab = "Study day", ylab = "User"))
+@
 
 \section{Daily step count}
 
-The following plots give the daily step count for each user; solid lines correspond to Jawbone and the dotted to Google Fit. Breaks in the series indicate no available minute-by-minute step counts were recorded that day. Horizontal lines give the user average Jawbone step count. Vertical lines correspond to days on which the EMA that evening was not completed (either wholly or in part).
-
-\end{multicols}
-
-<<dailysteps1, echo=FALSE, dev="tikz", fig.width=9, fig.height=6.5, fig.align="center">>=
-par(mfrow = c(7, 1), mar = c(0.5, 4, 0.5, 0), mgp = c(0.5, 0.1, 0),
-    oma = c(1, 2, 0, 0), tcl = 0.25, las = 1)
-invisible(sapply(users$user[1:7], daily.plot))
-@
-
-<<dailysteps2, echo=FALSE, dev="tikz", fig.width=9, fig.height=6.5, fig.align="center">>=
-par(mfrow = c(7, 1), mar = c(0.5, 4, 0.5, 0), mgp = c(0.5, 0.1, 0),
-    oma = c(1, 2, 0, 0), tcl = 0.25, las = 1)
-invisible(sapply(users$user[8:14], daily.plot))
-@
-
-<<dailysteps3, echo=FALSE, dev="tikz", fig.width=9, fig.height=6.5, fig.align="center">>=
-par(mfrow = c(7, 1), mar = c(0.5, 4, 0.5, 0), mgp = c(0.5, 0.1, 0),
-    oma = c(1, 2, 0, 0), tcl = 0.25, las = 1)
-invisible(sapply(users$user[15:21], daily.plot))
-@
-
-<<dailysteps4, echo=FALSE, dev="tikz", fig.width=9, fig.height=6.5, fig.align="center">>=
-par(mfrow = c(7, 1), mar = c(0.5, 4, 0.5, 0), mgp = c(0.5, 0.1, 0),
-    oma = c(1, 2, 0, 0), tcl = 0.25, las = 1)
-invisible(sapply(users$user[22:28], daily.plot))
+The following plots give the daily step count for each user; the solid series corresponds to Jawbone and dotted to Google Fit. Breaks in the series indicate no step counts were recorded that day. The horizontal line gives the user average daily Jawbone step count; this extends up to the known or projected exit date. Vertical lines correspond to days on which no part of the EMA response is available.
+<<dailysteps,fig.height=1.75>>=
+invisible(sapply(unique(daily$user), plot.daily.steps))
 @
 
 \end{document}

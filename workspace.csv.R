@@ -51,6 +51,9 @@ temp <- do.call("cbind", lapply(lapply(timeslot[, match(slots, names(timeslot))]
 colnames(temp) <- paste(rep(slots, each = 2), c("hour", "min"), sep = ".")
 mode(temp) <- "numeric"
 timeslot <- cbind(timeslot, temp)
+## if any users have late time slots, adjustments are needed for activity
+## recognition or user response time lag
+any(timeslot[, grepl("\\.hour$", names(timeslot))] > 23)
 
 ## daily weather by city
 weather <- read.data("Weather_History.csv", list(date))
@@ -252,7 +255,7 @@ decision <- decision[with(decision,
                                 !notify, slot != time.stamp.slot,
                                 utime.stamp)), ]
 dup.decision <- check.dup(decision, "checks/dup_decision.csv",
-                          user, date.stamp, tz, slot)
+                          user, date.stamp, slot)
 decision <- decision[!dup.decision$is.dup, ]
 ## missing day of week
 write.data(subset(decision, day.of.week == ""), "checks/decision_nowkday.csv")
@@ -280,8 +283,14 @@ response <- merge(response,
                   by.x = c("user", "notified.date", "notified.time.hour", "tz"),
                   by.y = c("user", "date.stamp", "time.stamp.hour", "tz"),
                   all.x = TRUE)
-check.dup(response, "checks/dup_response.csv",
-          user, notified.date, tz, slot, time.stamp.slot)
+check.dup(response, "checks/dup_response.csv", user, notified.date, slot)
+## add message tags
+response <- merge(response, messages,
+                  by.x = "notification.message", by.y = "message",
+                  all.x = TRUE, sort = FALSE)
+response <- response[with(response, order(user, notified.utime)), ]
+## missing tags
+write.data(subset(response, is.na(tag.active)), "checks/response_notags.csv")
 
 ## --- physical activity
 
@@ -295,12 +304,6 @@ jawbone <- read.data(c("jawbone_step_count_data_07-15.csv",
                        "jawbone_step_count_data_11-15.csv"),
                      list(user, end.utime))
 check.dup(jawbone, "checks/dup_jawbone.csv", user, end.utime)
-## periods of inactivity longer than one day
-jawbone$duration <- with(jawbone, end.utime - start.utime)
-jawbone$days.since <- with(jawbone, change(user, start.utime, end.utime)
-                           - duration) / (60^2 * 24)
-jawbone$days.since[jawbone$days.since == 0] <- NA
-write.data(subset(jawbone, days.since > 1), "checks/inactivity_jbone_gt1.csv")
 
 ## Google Fit
 ## nb: degree of fractional seconds varies over time
@@ -312,12 +315,6 @@ googlefit <- read.data(c("google_fit_data_07-15.csv",
                          "google_fit_data_11-15.csv"),
                        list(user, end.utime))
 check.dup(googlefit, "checks/dup_googlefit.csv", user, end.utime)
-## periods of inactivity longer than one day
-googlefit$duration <- with(googlefit, end.utime - start.utime)
-googlefit$days.since <- with(googlefit, change(user, start.utime, end.utime)
-                             - duration) / (60^2 * 24)
-googlefit$days.since[googlefit$days.since == 0] <- NA
-write.data(subset(googlefit, days.since > 1), "checks/inactivity_gfit_gt1.csv")
 
 rm(temp)
 rm(sys.var)

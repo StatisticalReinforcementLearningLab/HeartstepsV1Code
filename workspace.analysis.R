@@ -5,7 +5,7 @@ source("init.R")
 setwd(sys.var$mbox)
 load("csv.RData")
 
-max.date <- as.Date("2015-11-18")
+max.date <- as.Date("2015-11-21")
 
 ## --- daily data
 ## FIXME: sort files by user, day
@@ -35,16 +35,19 @@ users <- merge(users, merge(intake, exit, by = c("user", "userid"), all = TRUE,
                by = "user", all.x = TRUE)
 
 ## expand to user data to user-day level
-daily <- do.call("rbind",
-                 sapply(which(!users$exclude),
-                        function(r)
-                          with(users[r, , drop = FALSE],
-                               data.frame(user = user, intake.date = intake.date,
-                                          tz.intake = tz.intake,
-                                          gmtoff.intake = gmtoff.intake,
-                                          study.date = seq(intake.date, last.date,
-                                                           by = "days"))),
-                        simplify = FALSE))
+daily <-
+  do.call("rbind",
+          sapply(which(!users$exclude),
+                 function(r)
+                   with(users[r, , drop = FALSE],
+                        data.frame(user = user, intake.date = intake.date,
+                                   last.date = last.date, tz.intake = tz.intake,
+                                   gmtoff.intake = gmtoff.intake,
+                                   study.date = seq(intake.date,
+                                                    pmin(last.date, max.date),
+                                                    by = "days"))),
+                 simplify = FALSE))
+## index day on study, starting from zero
 daily$study.day <- with(daily, as.numeric(difftime(study.date, intake.date,
                                                    units = "days")))
 
@@ -70,7 +73,7 @@ daily <- merge(daily,
                by.x = c("user", "study.date"), by.y = c("user", "context.date"),
                all.x = TRUE)
 
-## planning status
+## add planning status
 any(with(plan, duplicated(cbind(user, date.started))))
 daily <- merge(daily,
                with(plan, aggregate(planning, list(user, date.started),
@@ -78,7 +81,7 @@ daily <- merge(daily,
                by.x = c("user", "study.date"), by.y = c("Group.1", "Group.2"),
                all.x = TRUE)
 
-## EMA response
+## add EMA response
 any(with(ema, duplicated(cbind(user, message.date, order))))
 daily <- merge(daily,
                aggregate(subset(ema, select = c(ema.set.length, hectic:urge)),
@@ -98,7 +101,7 @@ daily$planning <- with(daily, ifelse(is.na(ema.set.length),
                                      NA, ifelse(is.na(x), "no_planning", x)))
 daily$x <- NULL
 
-## step counts
+## add step counts
 ## FIXME: align step counts with timing of EMA?
 jawbone <- merge(jawbone, users, by = "user", suffixes = c("", ".user"))
 jawbone$end.date <- do.call("c",
@@ -128,4 +131,53 @@ daily$lag1.na.gfsteps <- with(daily, delay(user, study.day, na.gfsteps))
 
 daily <- daily[with(daily, order(user, study.day)), ]
 
-save(max.date, users, daily, file = "analysis.RData")
+## expand daily data to level of the momentary decision to provide a suggestion
+suggest <- do.call("rbind",
+                   sapply(1:nrow(daily),
+                          function(r)
+                            with(daily[r, , drop = FALSE],
+                                 data.frame(user = user,
+                                            intake.date = intake.date,
+                                            last.date = last.date,
+                                            tz.intake = tz.intake,
+                                            gmtoff.intake = gmtoff.intake,
+                                            study.date = study.date,
+                                            study.day = study.day, slot = 1:5)),
+                          simplify = FALSE))
+## index momentary decision, starting from zero
+suggest$decision <- do.call("c", sapply(table(suggest$user) - 1, seq, from = 0,
+                                        by = 1, simplify = FALSE))
+
+## add decision result by the *intended* time slot
+any(with(decision, duplicated(cbind(user, date.stamp, slot))))
+suggest <- merge(suggest,
+                 subset(decision,
+                        select = c(user, tz, gmtoff, date.stamp, utime.stamp,
+                                   time.stamp.year:time.stamp.sec, is.prefetch,
+                                   slot, time.slot, time.stamp.slot, notify,
+                                   returned.message, tag.active, snooze.status,
+                                   is.randomized, recognized.activity,
+                                   front.end.application)),
+                 by.x = c("user", "study.date", "slot"),
+                 by.y = c("user", "date.stamp", "slot"),
+                 all.x = TRUE)
+
+## add suggestion response and its context
+any(with(response, duplicated(cbind(user, notified.date, slot))))
+suggest <- merge(suggest,
+                 subset(response,
+                        select = c(user, notified.date, slot,
+                                   notified.utime, responded.utime,
+                                   notified.time.year:notified.time.sec,
+                                   responded.time.year:responded.time.sec,
+                                   interaction.count, notification.message,
+                                   tag.active, response, home, work, calendar,
+                                   recognized.activity, gps.coordinate, city,
+                                   location.exact, location.category,
+                                   weather.condition, temperature, windspeed,
+                                   precipitation.chance, snow)),
+                 by.x = c("user", "study.date", "slot"),
+                 by.y = c("user", "notified.date", "slot"),
+                 all.x = TRUE, suffixes = c("", ".response"))
+
+save(max.date, users, daily, suggest, file = "analysis.RData")

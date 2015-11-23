@@ -1,6 +1,7 @@
 *.aux
 *.log
 *.org
+*.out
 *.pyc
 *.RData
 *.Rout
@@ -12,4 +13,5 @@
 *bulkloader
 *tikzDictionary
 auto/*
+cache/*
 figure/*
