@@ -1,25 +1,40 @@
 \documentclass{article}
 \usepackage[T1]{fontenc}
 \usepackage[margin=1in]{geometry}
-\usepackage{microtype,booktabs,enumitem}
-\usepackage{amsfonts,amssymb,amsbsy,amsmath,amsthm,mathtools}
-\usepackage{setspace,ragged2e,array,etoolbox,hyperref}
+\usepackage{microtype}
+\usepackage{booktabs}
+\usepackage{setspace}
+\usepackage{ragged2e,array}
+\usepackage{hyperref}
 \usepackage[capitalize]{cleveref}
-\usepackage{titlesec}
 \usepackage{graphicx}
-\usepackage{times}
-\IfFileExists{mtpro2.sty}{%
-  \let\Bbbk\relax\usepackage[mtphrb]{mtpro2}}{\usepackage{mathptmx}}
+\IfFileExists{MinionPro.sty}
+  {\usepackage[mathlf,italicgreek,loosequotes]{MinionPro}
+   \DisableLigatures[T]{encoding={OT1,T1}}
+   \usepackage[toc,enum,bib,lineno,eqno]{tabfigures}}
+  {\usepackage{times}
+   \let\figureversion\@gobble
+   \IfFileExists{mtpro2.sty}
+     {\let\Bbbk\relax\usepackage[mtphrb]{mtpro2}}
+     {\usepackage{mathptmx}}}
+% environment hooks
+\usepackage{etoolbox}
+
+% make smallcaps/figures searchable
+\input{glyphtounicode}
+\pdfgentounicode=1
 
 % correct Acrobat distortion with opacity
 \pdfpageattr{/Group <</S /Transparency /I true /CS /DeviceRGB>>}
 
 \hypersetup{breaklinks,colorlinks,allcolors=blue,pdfpagemode=UseNone}
 
-\BeforeBeginEnvironment{tabular}{\begin{center}}
+\BeforeBeginEnvironment{tabular}{\begin{center}\figureversion{lf,tab}}
 \AfterEndEnvironment{tabular}{\end{center}}
 \AtBeginEnvironment{tabular}{\small\hyphenpenalty=10000}
-\AtBeginEnvironment{tikzpicture}{\small\hyphenpenalty=10000}
+\AtBeginEnvironment{tikzpicture}{%
+  \figureversion{lf,tab}\small\hyphenpenalty=10000}
+
 \newcolumntype{L}[1]{>{\RaggedRight\hspace{0pt}}p{#1}}
 \newcolumntype{R}[1]{>{\RaggedLeft\hspace{0pt}}p{#1}}
 
@@ -32,7 +47,7 @@
 
 % R code "chunk" format:
 % <<chunk options>>= R code @
-% see http://yihui.name/knitr/options/#chunk_options for chunk options
+% see http://yihui.name/knitr/options/#chunk{\_}options for chunk options
 
 % commands to compile this document:
 % Rscript -e "library(knitr); knit('summary.Rnw')"
@@ -47,14 +62,13 @@
 \thispagestyle{empty}
 
 <<setup, include=FALSE, cache=FALSE>>=
-library("knitr")
 opts_chunk$set(fig.align="center", dev="tikz", dev.args=list(pointsize=9), cex=0.95, echo=FALSE, fig.width=6.5, fig.show="hold", par=TRUE)
 knit_hooks$set(par=function(before, options, envir){
   if (before && options$fig.show!="none")
     par(mar=c(3, 5, 1, 0) + 0.5, mgp=c(2, 0.5, 0), oma=rep(0, 4), las=1, tcl=0.25)})
 @
 
-<<read_data, echo=FALSE, include=FALSE>>=
+<<data, echo=FALSE, include=FALSE>>=
 source("init.R")
 source("summary.R")
 setwd(sys.var$mbox)
@@ -66,16 +80,16 @@ load("analysis.RData")
 
 \subsection{EMA and momentary decision identifiers}
 
-The contextID variable was intended to identify each EMA notification and link between the EMA-related tables. However the contextID in EMA{\_}Context{\_}Notified does not represent all of the identifier values encountered in the remaining tables. Moreover different contextID values are associated with responses to what we would consider the same EMA. These issues might be due in part to the phone being turned off at the EMA time slot, but more investigation is needed.
+The contextID variable was intended to uniquely identify each EMA notification and link between the EMA-related tables. However the contextID in EMA{\_}Context{\_}Notified does not represent all of the identifier values encountered in the remaining tables. Moreover different contextID values are associated with responses within the same EMA. These issues might be due in part to the phone being turned off at the EMA time slot, but more investigation is needed.
 
-Similarly decisionID was intended to identify each momentary decision (to provide a suggestion) table and link to the suggestion response table. However in both of the suggestion-related tables, some decisionID values are associated with what we would consider as different decision points. This is due to a previous decisionID value being read from the device storage before being updated.
+The decisionID variable was intended to uniquely identify each momentary decision (to provide a suggestion or not) and link to the suggestion response table. However in both of the suggestion-related tables, the same decisionID value is associated different notification time slots. This is due to a race condition in which the decisionID value stored on the device is read before being updated. 
 
-Although infrequent, these issues prevent consistent linkage between tables. We instead construct identifiers with userID and date-time variables, accounting for time lags due for activity recognition or user response.
+Although infrequent, these issues prevent systematic linkage between tables. We instead construct identifiers with userID and date-time variables, accounting for time lags due for activity recognition or user response.
 
 \subsection{Duplication}
 \label{sec:dup}
 
-Duplicate entries arise according to contextID, decisionID or identifiers we can construct from the data. The overall number of duplicates is small, but prevents systematic linkage between tables. We resolve this according to the rules below.
+Duplicate entries arise according to various identifiers available from the data. The overall number of duplicates is small, but prevents consistent linkage between tables. We resolve this according to the rules below.
 
 \begin{tabular}{L{0.25\textwidth}L{0.3\textwidth}L{0.3\textwidth}}
 \toprule
@@ -93,9 +107,13 @@ Momentary{\_}Decision & See \cref{sec:slot} & Discard decisions with wrong time 
 \bottomrule
 \end{tabular}
 
+\subsection{Study hiatus}
+
+
+
 \subsection{EMA completion status}
 
-The EMA{\_}Completed table was intended to provide the EMA completion status, but it is not always in agreement with the data available in EMA{\_}Response. The reason for this is unclear, but we address the discrepancy by dispensing with the information in EMA{\_}Completed. Below we tabulate completion status by the number of EMA answers available for each contextID encountered in either table.
+The EMA{\_}Completed table was intended to provide the EMA completion status, but it is not always in agreement with the data available in EMA{\_}Response. The reason for this is unclear, but we address the discrepancy by inferring completion status from EMA{\_}Response. Below we tabulate completion status by the number of EMA answers available for each contextID encountered in either table.
 
 <<complete, results="asis">>=
 d <- merge(aggregate(completed ~ contextid, any, data = complete),
@@ -112,13 +130,13 @@ print(xtable(d, digits = 0),
 \subsection{Missing EMA context}
 \label{sec:context}
 
-A total \Sexpr{with(daily, sum(is.na(context.utime) & !is.na(ema.set.length)))} of EMA responses have no contextual data available from notification or engagement. This was due to server-side dispensing of records for which the activity could not be recognized---a bug that was identified and patched before study closure.
+A total \Sexpr{with(daily, sum(is.na(context.utime) & !is.na(ema.set.length)))} of EMA responses have no contextual data available from notification or engagement. This was due to server-side dispensing of records for which the activity could not be recognized---a bug that was identified and patched in September.
 
 \subsection{Randomized versus administered planning status}
 
-The EMA{\_}Context{\_}Notified table provides the randomized planning status, but this does not always correspond to the planning status administered to the user when we link to the Structured{\_}Planning and Unstructured{\_}Planning tables by any reasonable identifier. This is due to the initial or previous planning status being read from the device storage before it is update. It is conjectured that this race condition arises randomly.
+The EMA{\_}Context{\_}Notified table provides the randomized planning status, but this often does not correspond to the planning status administered to the user when we link to the Structured{\_}Planning and Unstructured{\_}Planning tables by any reasonable identifier. This is due to a race condition in which the planning status stored on the device is read before being updated. So the administered planning status might correspond to the previous or initial status. We conjecture that this scenario arises randomly.
 
-Among the user-days on which there was an EMA response and an available notification context, we can determine whether the randomized planning status did not agree with the planning carried out by the user. Instances of disagreement over time are depicted in the plot below, where a darker point coincides with disagreement, lighter with agreement, and no point to either no EMA response or missing notification context.
+Among the user-days on which there is an EMA response and notification context, we can determine whether or not the randomized planning status agrees with the planning carried out by the user. Instances of disagreement over time are depicted in the plot below, where a darker point coincides with disagreement, lighter with agreement, and no point to either no EMA response or missing notification context.
 <<plan, fig.height=3>>=
 with(daily, plot(study.day, user, pch = 16,
                  col = rev(grey.colors(2))[1 + (planning.today != planning)],
@@ -128,18 +146,18 @@ d <- with(daily, sapply(unique(user),
                                          table(planning.today != planning))))
 d <- d[2, ] / apply(d, 2, sum)
 @
-The average rate of disagreement among the users is \Sexpr{round(mean(d), 2)} and ranged between \Sexpr{round(min(d), 2)} and \Sexpr{round(max(d), 2)}. For a given study day $t$, let $A_t$ denote the intended randomized level of planning and $B_t$ denote the administered level. If the race condition is indeed completely random, then $B_t$ follows the same marginal distribution as $A_t$. However we do not observe $B_t$ among users that do not respond to the EMA. To recover $\bar{B}_T$, we could fill-in the missing values sequentially by generating the race condition status $J_t \in \{0, 1\}$ according to some fixed probability. If $J_t = 0$ then we set $B_t = A_t$; otherwise, $B_t = A_{t-1}$ with $A_0$ indicating ``no planning''. (From \cref{sec:context}, we are also missing a few values for $A_t$, but these can easily be regenerated.)
+The average rate of disagreement among the users is \Sexpr{round(mean(d), 2)} and ranged between \Sexpr{round(min(d), 2)} and \Sexpr{round(max(d), 2)}. For a given study day $t$, let $A{\_}t$ denote the intended randomized level of planning and $B{\_}t$ denote the administered level. If the race condition is indeed completely random, then $B{\_}t$ follows the same marginal distribution as $A{\_}t$. However we do not observe $B{\_}t$ among users that do not respond to the EMA. To recover $\bar{B}{\_}T$, we could fill-in the missing values sequentially by generating the race condition status $J{\_}t \in \{0, 1\}$ according to some fixed probability. If $J{\_}t = 0$ then we set $B{\_}t = A{\_}t$; otherwise, $B{\_}t = A{\_}{t-1}$ with $A{\_}0$ indicating ``no planning''. (From \cref{sec:context}, we are also missing a few values for $A{\_}t$, but these can easily be regenerated.)
 
 \subsection{EMA question set}
 
-The EMA{\_}Completed table provides a variable EMA{\_}Set{\_}Today, which should provide the order set of EMA questions sent to the user. In \Sexpr{with(notify, sum(ema.set.today != ema.set, na.rm = TRUE))} cases, it does not agree with the sequence of questions that the user answered. This is due to an initial or previous value of EMA{\_}Set{\_}Today being read from the device storage before being updated. To resolve this, we infer the administered question set from EMA{\_}Response; the question set for incomplete EMAs cannot be recovered.
+The EMA{\_}Completed table provides a variable EMA{\_}Set{\_}Today, which should provide the ordered set of EMA questions sent to the user. In \Sexpr{with(notify, sum(ema.set.today != ema.set, na.rm = TRUE))} cases, EMA{\_}Set{\_}Today does not agree with the sequence of questions that the user answered. This is due to a race condition in which the question set stored on the device is read before being updated. To resolve this, we infer the administered question set from EMA{\_}Response; the question set for incomplete EMAs is not entirely recoverable, particularly if the user engaged with the EMA.
 
 \subsection{Notifications under changing time zone}
 \label{sec:slot}
 
-Prior to November notifications were sent according to the time zone at which the phone was last restarted, irrespective of the actual time zone. From November onward, notifications are sent under the actual time zone, irrespective of the notification history. So users who travel outside EST potentially receive notifications outside their designated time slots or repeated notifications in the same time slot.
+Prior to November notifications were sent according to the time zone at which the phone was last restarted, irrespective of the actual time zone. From November onward, notifications are sent under the actual time zone, irrespective of the notification history. So users who travel potentially receive notifications outside their designated time slots or repeated notifications in the same time slot. 
 
-Instances where the momentary decision took place outside the designated time slot are depicted below, where darker points coincide with larger differences between the intended and actual time slots. Here we ignore any discrepancies due to the time lag that arises when the decision is based on pre-fetched data.
+Instances where the momentary decision took place outside the designated time slot are depicted below, where darker points coincide with larger differences between the intended and actual time slots. In comparing the decision time stamp and the time slow, we account for any discrepancies due to the time lag that arises when the decision is based on pre-fetched data.
 <<slot, fig.height=3>>=
 decision <- decision[with(decision, order(user, date.stamp, slot)), ]
 decision$index <- do.call("c", sapply(table(decision$user) - 1, seq, from = 0,
@@ -158,11 +176,11 @@ The proportion of within-slot decisions among the users has an average of \Sexpr
 
 \subsection{Randomized versus administered suggestion status}
 
-The Momentary{\_}Decision and Response tables are largely in agreement, with only \Sexpr{with(suggest, sum(notification.message != returned.message, na.rm = TRUE))} decisions conflicting with the suggestion actually administered in terms of either the result (notify or not) or the notification message. The source of this issue is unknown. For analysis, we consider the ad.
+The Momentary{\_}Decision and Response tables are largely in agreement, with only \Sexpr{with(suggest, sum(notification.message != returned.message, na.rm = TRUE))} decisions conflicting with the suggestion actually administered in terms of either the result (notify or not) or the notification message. The source of this issue is unknown. For analysis, we propose simply taking the suggestion status as-administered.
 
 \subsection{Suggestion message tags and strings}
 
-The activity suggestion messages were not stored with the bucket tags used for contextualization. To address this we apply all relevant tags post-hoc, using the curated list of suggestions. Note that all relevant tags are not necessarily the tags that influenced the message selection. Moreover the list gives the message strings as-displayed with non-ASCII characters. Internally HeartSteps strips ASCII characters, but this is not performed consistently. To enable consistent linkage, we strip the message strings of escape codes, punctuation, non-ASCII characters and extraneous white space.
+The activity suggestion messages were not stored with the bucket tags used for contextualization. To address this we apply all relevant tags post-hoc, using the curated list of suggestions. Note that all relevant tags are not necessarily the tags that influenced the message selection. Moreover the list gives the message strings as-displayed with non-ASCII characters. Internally HeartSteps strips ASCII characters from messages before saving them to the datastore, but this operation is not performed consistently. To enable correct linkage, we strip all message strings of escape codes, punctuation, non-ASCII characters and normalize white space.
 
 \section{User characteristics}
 

@@ -7,32 +7,43 @@ load("csv.RData")
 
 max.date <- as.Date("2015-11-21")
 
-## --- daily data
-## FIXME: sort files by user, day
+## --- user data
 
-## users
-## infer intake from first selection of notification time slots
-users <- merge(subset(timeslot, !duplicated(user),
-                      select = c(user, date.updated, tz, gmtoff)),
-               aggregate(date.stamp ~ user, data = decision, max),
-               by = "user", all = TRUE)
-## infer last "contact" from last momentry decision date
-users <- merge(users, subset(decision, !duplicated(cbind(user, date.stamp)),
-                             select = c(user, date.stamp, tz, gmtoff)),
-               by = c("user", "date.stamp"), all.x = TRUE,
-               suffixes = c(".intake", ".last"))
-names(users)[2:3] <- c("last.date", "intake.date")
-## days from intake to last momentary decision date
-users$days <- with(users, as.numeric(difftime(last.date, intake.date, "days")))
+## infer intake date-time from first selection of notification time slots
+users <-
+  with(subset(timeslot[with(timeslot, order(user, utime.updated)), ],
+              !duplicated(user)),
+       data.frame(user, intake.date = date.updated, intake.utime = utime.updated,
+                  intake.tz = tz, intake.gmtoff = gmtoff,
+                  intake.hour = time.updated.hour))
+
+## infer exit date-time from last notification
+temp <-
+  rbind(with(decision,
+             data.frame(user, last.date = date.stamp, last.utime = utime.stamp,
+                        last.tz = tz, last.gmtoff = gmtoff,
+                        last.hour = time.stamp.hour)),
+        with(notify,
+             data.frame(user, last.date = notified.date,
+                        last.utime = notified.utime, last.tz = tz,
+                        last.gmtoff = gmtoff, last.hour = notified.time.hour)))
+temp <- temp[with(temp, order(user, -as.numeric(last.utime))), ]
+users <- merge(users, subset(temp, !duplicated(user)), by = "user", all = TRUE)
+
 ## indicate users that just enrolled or dropped out
+users$days <- with(users, as.numeric(difftime(last.date, intake.date, "days")))
 users$exclude <- with(users, intake.date >= max.date | days < 7 |
                              (intake.date + 42 < max.date & days < 10))
+
 ## odd user id implies that HeartSteps is installed on own phone
 users$own.phone <- users$user %% 2 != 0
+
 ## add intake and exit interview data
 users <- merge(users, merge(intake, exit, by = c("user", "userid"), all = TRUE,
                             suffixes = c(".intake", ".exit")),
                by = "user", all.x = TRUE)
+
+## --- daily data
 
 ## expand to user data to user-day level
 daily <-
@@ -40,9 +51,8 @@ daily <-
           sapply(which(!users$exclude),
                  function(r)
                    with(users[r, , drop = FALSE],
-                        data.frame(user = user, intake.date = intake.date,
-                                   last.date = last.date, tz.intake = tz.intake,
-                                   gmtoff.intake = gmtoff.intake,
+                        data.frame(user, intake.date, last.date, intake.tz,
+                                   intake.gmtoff, last.tz, last.gmtoff,
                                    study.date = seq(intake.date,
                                                     pmin(last.date, max.date),
                                                     by = "days"))),
@@ -53,8 +63,8 @@ daily$study.day <- with(daily, as.numeric(difftime(study.date, intake.date,
 
 ## context at EMA notification or (if unavailable) at earliest engagement context
 any(with(notify, duplicated(cbind(user, notified.date))))
-names(notify) <- gsub("^notified\\.", "context.", names(notify))
-names(engage) <- gsub("^engaged\\.", "context.", names(engage))
+names(notify) <- gsub("^notified\\.(|time.)", "context.", names(notify))
+names(engage) <- gsub("^engaged\\.(|time.)", "context.", names(engage))
 notify$notify <- 1
 temp <- merge(notify, engage, all = TRUE)
 temp <- temp[with(temp,
@@ -63,13 +73,12 @@ temp <- subset(temp, !duplicated(cbind(user, context.date)))
 daily <- merge(daily,
                subset(temp,
                       select = c(user, tz, gmtoff, context.date, context.utime,
-                                 context.time.year:context.time.sec,
-                                 planning.today, home, work, calendar,
-                                 recognized.activity, front.end.application,
-                                 gps.coordinate, city, location.exact,
-                                 location.category, weather.condition,
-                                 temperature, windspeed, precipitation.chance,
-                                 snow)),
+                                 context.year:context.sec, planning.today, home,
+                                 work, calendar, recognized.activity,
+                                 front.end.application, gps.coordinate, city,
+                                 location.exact, location.category,
+                                 weather.condition, temperature, windspeed,
+                                 precipitation.chance, snow)),
                by.x = c("user", "study.date"), by.y = c("user", "context.date"),
                all.x = TRUE)
 
@@ -131,7 +140,9 @@ daily$lag1.na.gfsteps <- with(daily, delay(user, study.day, na.gfsteps))
 
 daily <- daily[with(daily, order(user, study.day)), ]
 
-## expand daily data to level of the momentary decision to provide a suggestion
+## --- decision point data
+
+## expand daily data to level of the momentary decision occasions
 suggest <- do.call("rbind",
                    sapply(1:nrow(daily),
                           function(r)
