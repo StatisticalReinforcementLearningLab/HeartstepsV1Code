@@ -146,7 +146,9 @@ d <- with(daily, sapply(unique(user),
                                          table(planning.today != planning))))
 d <- d[2, ] / apply(d, 2, sum)
 @
-The average rate of disagreement among the users is \Sexpr{round(mean(d), 2)} and ranged between \Sexpr{round(min(d), 2)} and \Sexpr{round(max(d), 2)}. For a given study day $t$, let $A{\_}t$ denote the intended randomized level of planning and $B{\_}t$ denote the administered level. If the race condition is indeed completely random, then $B{\_}t$ follows the same marginal distribution as $A{\_}t$. However we do not observe $B{\_}t$ among users that do not respond to the EMA. To recover $\bar{B}{\_}T$, we could fill-in the missing values sequentially by generating the race condition status $J{\_}t \in \{0, 1\}$ according to some fixed probability. If $J{\_}t = 0$ then we set $B{\_}t = A{\_}t$; otherwise, $B{\_}t = A{\_}{t-1}$ with $A{\_}0$ indicating ``no planning''. (From \cref{sec:context}, we are also missing a few values for $A{\_}t$, but these can easily be regenerated.)
+The average rate of disagreement among the users is \Sexpr{round(mean(d), 2)} and ranged between \Sexpr{round(min(d), 2)} and \Sexpr{round(max(d), 2)}. For a given study day $t$, let $A_t$ denote the intended randomized level of planning and $B_t$ denote the administered level. If the race condition is indeed completely random, then $B_t$ follows the same marginal distribution as $A_t$. However we do not observe $B_t$ among users that do not respond to the EMA. To recover $\bar{B}_T$, we could fill-in the missing values sequentially by generating the race condition status $J_t \in \{0, 1\}$ according to some fixed probability. If $J_t = 0$ then we set $B_t = A_t$; otherwise, $B_t = A_{t-1}$ with $A_0$ indicating ``no planning''. (From \cref{sec:context}, we are also missing a few values for $A_t$, but these can easily be regenerated.)
+
+% FIXME: Race condition probability is very much device-specific
 
 \subsection{EMA question set}
 
