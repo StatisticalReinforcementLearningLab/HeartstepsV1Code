@@ -9,6 +9,8 @@ max.date <- as.Date("2015-11-21")
 
 ## --- user data
 
+## slot of update time, last notification
+
 ## infer intake date-time from first selection of notification time slots
 users <- subset(timeslot[with(timeslot, order(user, utime.updated)), ],
                 !duplicated(user),

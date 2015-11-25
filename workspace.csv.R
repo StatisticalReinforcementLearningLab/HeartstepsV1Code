@@ -48,24 +48,29 @@ temp <- do.call("cbind",
                        function(x) as.difftime(x, "%H:%M", units = "hours")))
 colnames(temp) <- paste(slots, "hours", sep = ".")
 timeslot <- cbind(timeslot, temp)
-## if any users have late time slots, adjustments are needed for activity
-## recognition or user response time lag
-any(timeslot[, grepl("\\.hours$", names(timeslot))] > 23)
+## discard obviously invalid slot selections
+timeslot <- timeslot[valid.slots(timeslot), ]
 
 ## daily weather by city
 weather <- read.data("Weather_History.csv", list(date))
 weather$date <- char2date(weather$date, "%Y:%m:%d")
 
-## --- evening questionnaire (EMA) and planning intervention
+## --- planning intervention and evening questionnaire (EMA)
 
 ## context in which the EMA notification was sent
 ## nb: planning and EMA questions administered must be inferred from responses
-notify <- read.data("EMA_Context_Notified.csv",
-                    list(user, notified.date, tz, -as.numeric(notified.utime)))
+notify <- read.data("EMA_Context_Notified.csv", list(user, notified.utime))
 notify$ema.set.today <- gsub(",ema_finish", "", notify$ema.set.today)
-notify$ema.set.today.length <- unlist(lapply(strsplit(notify$ema.set.today, ","),
-                                             length))
-check.dup(notify, "checks/dup_ema_notify.csv", user, notified.utime)
+notify$ema.set.today.length <-
+  unlist(lapply(strsplit(notify$ema.set.today, ","), length))
+notify$days.since <-
+  with(notify, change(user, notified.utime, notified.utime)) / (24 * 60^2)
+notify <- merge.last(notify,
+                     subset(timeslot, select = c(user, utime.updated,
+                                                 morning.hours:ema.hours)),
+                       "user", var.x = "notified.utime", var.y = "utime.updated")
+notify$notified.time.slot <-
+  ltime2slot(notified.time.hour, notified.time.min, notify)
 
 ## context in which the user engaged with the EMA
 engage <- read.data("EMA_Context_Engaged.csv",
@@ -88,55 +93,19 @@ plan$planning <- c("structured", "unstructured")[1 + is.na(plan$list.of.options)
 dup.plan <- check.dup(plan, "checks/dup_planning.csv", user, date.started, tz)
 plan <- plan[!dup.plan$is.dup, ]
 
-## EMA response
-## user has 1 hour from initial notification to complete questionnaire
-## nb: time zone data are unavailable
-ema <- read.data("EMA_Response.csv", list(contextid))
-ema$response <- normalize.text(ema$response)
-ema$message <- normalize.text(ema$message)
-## EMA questions 1-7, research 1-4
-ema$question[ema$question == "6"] <- "5"
-ema$question[ema$question == "7"] <- "6"
-ema$question[ema$question == "8"] <- "7"
-## convert numeric responses, parse @-delimited responses 
-ema$hectic <- with(ema, as.numeric(ifelse(question == "1", response, NA)))
-ema$stressful <- with(ema, as.numeric(ifelse(question == "2", response, NA)))
-ema$typical <- with(ema, as.numeric(ifelse(question == "3", response, NA)))
-ema <- cbind(ema, match.option(ema4, ema$response,
-                               ema$question == "4", "active", FALSE))
-ema$follow <- with(ema, ifelse(question == "5", response, NA))
-ema <- cbind(ema, match.option(ema6, ema$response, ema$question == "6", "down"))
-ema$down.msg <- with(ema, ifelse(question == "6", message, NA))
-ema <- cbind(ema, match.option(ema7, ema$response, ema$question == "7", "up"))
-ema$up.msg <- with(ema, ifelse(question == "7", message, NA))
-ema <- cbind(ema, match.option(research1, ema$response,
-                               ema$question == "research1", "barrier"),
-             match.option(research2, ema$response,
-                          ema$question == "research2", "enabler"))
-ema$energetic <- with(ema, as.numeric(ifelse(question == "research3",
-                                             response, NA)))
-ema$urge <- with(ema, as.numeric(ifelse(question == "research4", response, NA)))
-## form list of completed EMA question sets, akin to 'ema.set.today' in 'notify'
-## nb: this presumes that 'contextid' can separate same-day EMAs
-ema <- ema[with(ema, order(user, message.date, contextid, order)), ]
-ema <- merge(ema,
-             with(ema, aggregate(question,
-                                 by = list(user, message.date, contextid),
-                                 function(x) paste(unique(x), collapse = ","))),
-             by.x = c("user", "message.date", "contextid"),
-             by.y = paste("Group", 1:3, sep = "."))
-names(ema)[ncol(ema)] <- "ema.set"
-ema$ema.set.length <- unlist(lapply(strsplit(ema$ema.set, ","), length))
-
 ## EMA completion status
 ## nb: we look to EMA response for completion status instead
 complete <- read.data("EMA_Completed.csv",
                       list(user, date.stamp, completed != "true",
                            -as.numeric(utime.stamp)))
 complete$completed <- complete$completed == "true"
-check.dup(complete, "checks/dup_complete.csv",
-          user, date.stamp, time.stamp.hour, tz)
 
+## EMA response
+## user has 1 hour from initial notification to complete questionnaire
+## nb: time zone data are unavailable
+ema <- read.data("EMA_Response.csv", list(contextid))
+ema$response <- normalize.text(ema$response)
+ema$message <- normalize.text(ema$message)
 ## resolve missing time zone in EMA response from other EMA tables
 temp <- rbind(subset(notify, select = c(contextid, timezone, tz, gmtoff)),
               subset(plan, select = c(contextid, timezone, tz, gmtoff)),
@@ -149,19 +118,29 @@ any(duplicated(temp$contextid))
 ## nb: this presumes that contextID can distinguish between different-day EMAs
 ##     and each contextID is associated with at most one time zone
 ema <- merge(ema, temp, by = "contextid", all.x = TRUE)
+## unless question is 6 or 7, message.time is the notification time
+temp <- subset(ema, !(question %in% paste(6:7)))
+ema <- merge(ema, with(temp, !duplicated(contextid, 
+             with(subset(ema, !(question %in% paste(6:7))),
+                  data.frame(contextid, notified.time = message.time)),
+             by = "contextid", all.x = TRUE)
 ## calculate date-time elements
+ema$notified.utime <- with(ema, char2utime(notified.time, gmtoff))
 ema$message.utime <- with(ema, char2utime(message.time, gmtoff))
 ema$utime.stamp <- with(ema, char2utime(time.stamp, gmtoff))
-ema <- cbind(ema,
-             with(ema, char2calendar(message.time, tz, prefix = "message.time")),
-             with(ema, char2calendar(time.stamp, tz, prefix = "time.stamp")))
+ema <-
+  cbind(ema,
+        with(ema, char2calendar(notified.time, tz, prefix = "notified.time")),
+        with(ema, char2calendar(message.time, tz, prefix = "message.time")),
+        with(ema, char2calendar(time.stamp, tz, prefix = "time.stamp")))
+
 ## keep unique or latest same-day EMA sets
-dup.ema <- check.dup(ema, "checks/dup_ema_response.csv",
-                     user, message.date, tz, order, question, ema.set)
+dup.ema <- check.dup(ema, "checks/dup_ema_response.csv", user, date.stamp)
 ema <- ema[!dup.ema$is.dup, ]
 
-## EMA notification duplicates by user-day, but different EMA question set
-## keep EMA notifications that either link to EMA response or occur later
+## circle back to resolve remaining duplicates
+
+dup.notify <- check.dup(notify, "checks/dup_ema_notify.csv", user, notified.date)
 notify <- merge(notify,
                 subset(ema, order == 1,
                        select = c(user, message.date, tz, message.time.hour,
@@ -201,6 +180,40 @@ with(subset(ema, order == 1),
      setNames(sapply(unique(user),
                      function(u) sum(diff(message.date[user == u]) - 1)),
               paste(unique(user))))
+
+## EMA questions 1-7, research 1-4
+ema$question[ema$question == "6"] <- "5"
+ema$question[ema$question == "7"] <- "6"
+ema$question[ema$question == "8"] <- "7"
+## convert numeric responses, parse @-delimited responses 
+ema$hectic <- with(ema, as.numeric(ifelse(question == "1", response, NA)))
+ema$stressful <- with(ema, as.numeric(ifelse(question == "2", response, NA)))
+ema$typical <- with(ema, as.numeric(ifelse(question == "3", response, NA)))
+ema <- cbind(ema, match.option(ema4, ema$response,
+                               ema$question == "4", "active", FALSE))
+ema$follow <- with(ema, ifelse(question == "5", response, NA))
+ema <- cbind(ema, match.option(ema6, ema$response, ema$question == "6", "down"))
+ema$down.msg <- with(ema, ifelse(question == "6", message, NA))
+ema <- cbind(ema, match.option(ema7, ema$response, ema$question == "7", "up"))
+ema$up.msg <- with(ema, ifelse(question == "7", message, NA))
+ema <- cbind(ema, match.option(research1, ema$response,
+                               ema$question == "research1", "barrier"),
+             match.option(research2, ema$response,
+                          ema$question == "research2", "enabler"))
+ema$energetic <- with(ema, as.numeric(ifelse(question == "research3",
+                                             response, NA)))
+ema$urge <- with(ema, as.numeric(ifelse(question == "research4", response, NA)))
+## form list of completed EMA question sets, akin to 'ema.set.today' in 'notify'
+## nb: this presumes that 'contextid' can separate same-day EMAs
+ema <- ema[with(ema, order(user, message.date, contextid, order)), ]
+ema <- merge(ema,
+             with(ema, aggregate(question,
+                                 by = list(user, message.date, contextid),
+                                 function(x) paste(unique(x), collapse = ","))),
+             by.x = c("user", "message.date", "contextid"),
+             by.y = paste("Group", 1:3, sep = "."))
+names(ema)[ncol(ema)] <- "ema.set"
+ema$ema.set.length <- unlist(lapply(strsplit(ema$ema.set, ","), length))
 
 ## --- activity suggestion interventions
 

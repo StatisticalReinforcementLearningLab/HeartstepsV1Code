@@ -107,7 +107,7 @@ Momentary{\_}Decision & See \cref{sec:slot} & Discard decisions with wrong time 
 \bottomrule
 \end{tabular}
 
-\subsection{Device disconnection}
+\subsection{Inactive connection with device}
 
 
 
@@ -145,15 +145,7 @@ The EMA{\_}Completed table provides a variable EMA{\_}Set{\_}Today, which should
 \subsection{Notifications under changing time zone}
 \label{sec:slot}
 
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
 Prior to November notifications were sent according to the time zone at which the phone was last restarted, irrespective of the actual time zone. From November onward, notifications are sent under the actual time zone, irrespective of the notification history. So users who travel potentially receive notifications outside their designated time slots or repeated notifications in the same time slot. 
-=======
-Prior to November notifications were sent according to the time zone at which the phone was last restarted, irrespective of the actual time zone. From November onward, notifications are sent under the actual time zone, irrespective of the notification history. So users who travel potentially receive notifications outside their designated time slots or repeated notifications in the same time slot.
->>>>>>> Stashed changes
-=======
-Prior to November notifications were sent according to the time zone at which the phone was last restarted, irrespective of the actual time zone. From November onward, notifications are sent under the actual time zone, irrespective of the notification history. So users who travel potentially receive notifications outside their designated time slots or repeated notifications in the same time slot.
->>>>>>> Stashed changes
 
 Instances where the momentary decision took place outside the designated time slot are depicted below, where darker points coincide with larger differences between the intended and actual time slots. In comparing the decision time stamp and the time slow, we account for any discrepancies due to the time lag that arises when the decision is based on pre-fetched data.
 <<slot, fig.height=3>>=
@@ -174,25 +166,11 @@ The proportion of within-slot decisions among the users has an average of \Sexpr
 
 \subsection{Randomized versus administered suggestion status}
 
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
 The Momentary{\_}Decision and Response tables are largely in agreement, with only \Sexpr{with(suggest, sum(notification.message != returned.message, na.rm = TRUE))} decisions conflicting with the suggestion actually administered in terms of either the result (notify or not) or the notification message. The source of this issue is unknown. For analysis, we propose simply taking the suggestion status as-administered.
 
 \subsection{Suggestion message tags and strings}
 
 The activity suggestion messages were not stored with the bucket tags used for contextualization. To address this we apply all relevant tags post-hoc, using the curated list of suggestions. Note that all relevant tags are not necessarily the tags that influenced the message selection. Moreover the list gives the message strings as-displayed with non-ASCII characters. Internally HeartSteps strips ASCII characters from messages before saving them to the datastore, but this operation is not performed consistently. To enable correct linkage, we strip all message strings of escape codes, punctuation, non-ASCII characters and normalize white space.
-=======
-=======
->>>>>>> Stashed changes
-The Momentary{\_}Decision and Response tables are largely in agreement, with only \Sexpr{with(suggest, sum(notification.message != returned.message, na.rm = TRUE))} decisions conflicting with the suggestion actually administered in terms of either the result (notify or not) or the notification message. The source of this issue is unknown. For analysis, we consider take the suggestion status as administered.
-
-\subsection{Suggestion message tags and strings}
-
-The activity suggestion messages are not stored with the bucket tags used for contextualization. To address this we apply all relevant tags post-hoc, using the curated list of suggestions. Note that all relevant tags are not necessarily the tags that influenced the message selection. Moreover the list gives the message strings as-displayed, with non-ASCII characters. Internally HeartSteps strips ASCII characters, but this is not performed consistently. To enable linkage, we strip the message strings of escape codes, punctuation, non-ASCII characters and extraneous white space.
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
 
 \section{User characteristics}
 

@@ -31,7 +31,8 @@ center <- function(id, time, x, sd = FALSE, na.rm = TRUE) {
 ## current value minus lagged value, shifted back k time points
 change <- function(id, time, x, k = 1) {
   z <- zoosplit(splitdata(id, time, x))
-  d <- lapply(z, function(y) diff(y, lag = k, na.pad = TRUE))
+  d <- lapply(z, function(y) if (length(y) > 1) diff(y, lag = k, na.pad = TRUE)
+                             else NA)
   attributes(d) <- attributes(z)
   d <- unzoosplit(d)
   d
@@ -43,7 +44,8 @@ delay <- function(id, time, x, k = 1) {
   b <- unlist(lapply(s, function(y) y[1, 1]), use.names = FALSE)
   b <- b[attributes(s)$uid][attributes(s)$order]
   z <- zoosplit(s)
-  l <- lapply(z, function(y) lag(y, k = -k, na.pad = TRUE))
+  l <- lapply(z, function(y) if (length(y) > 1) lag(y, k = -k, na.pad = TRUE)
+                             else NA)
   attributes(l) <- attributes(z)
   l <- unzoosplit(l)
   l
@@ -61,7 +63,7 @@ roll <- function(id, time, x, width, FUN, ...) {
 ## split data by id
 splitdata <- function(id, time, x) {
   s <- lapply(split(data.frame(x, order.by = time), id),
-              function(y) y[order(y$order.by), ])
+              function(y) y[order(y$order.by), , drop = FALSE])
   attributes(s)$order <-
     as.numeric(unlist(lapply(s, rownames), use.names = FALSE))
   nid <- unlist(lapply(s, nrow))
@@ -97,7 +99,8 @@ unzoosplit <- function(z, indexed = FALSE) {
 impute.locf <- function(x, id) {
   uid <- unique(id)
   d <- x
-  sapply(uid, function(i) d[id == i, ] <<-
-                          lapply(x[id == i, ], na.locf, na.rm = FALSE))
+  sapply(uid,
+         function(i) d[id == i, ] <<-
+                     lapply(x[id == i, ], na.locf, na.rm = FALSE))
   d
 }

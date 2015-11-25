@@ -152,3 +152,16 @@ ltime2slot <- function(hour, min, data = parent.frame()) {
                  data[, match(paste(slots, "hours", sep = "."), names(data))])
   apply(hours, 1, function(x) findInterval(x[1], x[-1]))
 }
+
+## check the user-designated slot hours in a given data frame are valid
+## nb: slot ranges are selection-dependent, but we consider the widest range
+valid.slots <- function(x = parent.frame()) {
+  with(x, pmin(findInterval(morning.hours, c(5, 9.5), TRUE) == 1,
+               findInterval(lunch.hours, c(11, 13), TRUE) == 1,
+               findInterval(afternoon.hours, c(14, 15), TRUE) == 1,
+               findInterval(evening.hours, c(16.5, 18), TRUE) == 1,
+               findInterval(dinner.hours, c(19, 20.5), TRUE) == 1,
+               findInterval(ema.hours, c(19, 23.99)) == 1,
+               apply(x[, grepl("\\.hours$", names(x))], 1,
+                     function(y) all(y == cummax(y))))) == 1
+}

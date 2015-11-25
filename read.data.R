@@ -3,6 +3,7 @@
 ## arguments
 ##       file  character vector naming one or more CSV files to read
 ##   order.by  list of variables to sort the resulting data frame
+##        lag  time lag adjustment for calculating dates from date-times
 ##        ...  additional arguments passed to read.csv
 
 read.data <- function(file, order.by = NULL, ...) {
