@@ -48,10 +48,9 @@ temp <- do.call("cbind",
                        function(x) as.difftime(x, "%H:%M", units = "hours")))
 colnames(temp) <- paste(slots, "hours", sep = ".")
 timeslot <- cbind(timeslot, temp)
-
 ## if any users have late time slots, adjustments are needed for activity
 ## recognition or user response time lag
-any(timeslot[, grepl("\\.hour$", names(timeslot))] > 23)
+any(timeslot[, grepl("\\.hours$", names(timeslot))] > 23)
 
 ## daily weather by city
 weather <- read.data("Weather_History.csv", list(date))
@@ -242,7 +241,7 @@ decision <- subset(decision, !(is.prefetch &
 ## user-designated time slot
 decision <- merge.last(decision,
                        subset(timeslot, select = c(user, utime.updated,
-                                                   morning.hour:ema.min)),
+                                                   morning.hours:ema.hours)),
                        "user", var.x = "utime.stamp", var.y = "utime.updated")
 decision$time.stamp.slot <- ltime2slot(time.stamp.hour,
                                        time.stamp.min + 30 * is.prefetch,

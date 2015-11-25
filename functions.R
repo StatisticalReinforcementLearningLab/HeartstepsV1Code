@@ -140,3 +140,15 @@ char2calendar <- function(x, tz = "GMT", format = "%Y-%m-%d %H:%M:%OS",
     names(l) <- paste(prefix, names(l), sep = ".")
   l
 }
+
+## convert hour and minute date-time elements to user-designated slots
+## nb: data is presumed to contain the designated time slots in hours
+ltime2slot <- function(hour, min, data = parent.frame()) {
+  hour <- substitute(hour)
+  hour <- eval(hour, data)
+  min <- substitute(min)
+  min <- eval(min, data)
+  hours <- cbind(hour + (min / 60),
+                 data[, match(paste(slots, "hours", sep = "."), names(data))])
+  apply(hours, 1, function(x) findInterval(x[1], x[-1]))
+}

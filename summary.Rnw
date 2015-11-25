@@ -82,11 +82,7 @@ load("analysis.RData")
 
 The contextID variable was intended to uniquely identify each EMA notification and link between the EMA-related tables. However the contextID in EMA{\_}Context{\_}Notified does not represent all of the identifier values encountered in the remaining tables. Moreover different contextID values are associated with responses within the same EMA. These issues might be due in part to the phone being turned off at the EMA time slot, but more investigation is needed.
 
-<<<<<<< Updated upstream
-The decisionID variable was intended to uniquely identify each momentary decision (to provide a suggestion or not) and link to the suggestion response table. However in both of the suggestion-related tables, the same decisionID value is associated different notification time slots. This is due to a race condition in which the decisionID value stored on the device is read before being updated. 
-=======
 The decisionID variable was intended to uniquely identify each momentary decision (to provide a suggestion or not) and link to the suggestion response table. However in both of the suggestion-related tables, the same decisionID value is associated different notification time slots. This is due to a race condition in which the decisionID value stored on the device is read before being updated.
->>>>>>> Stashed changes
 
 Although infrequent, these issues prevent systematic linkage between tables. We instead construct identifiers with userID and date-time variables, accounting for time lags due for activity recognition or user response.
 
@@ -111,7 +107,7 @@ Momentary{\_}Decision & See \cref{sec:slot} & Discard decisions with wrong time 
 \bottomrule
 \end{tabular}
 
-\subsection{Study hiatus}
+\subsection{Device disconnection}
 
 
 
@@ -138,35 +134,23 @@ A total \Sexpr{with(daily, sum(is.na(context.utime) & !is.na(ema.set.length)))} 
 
 \subsection{Randomized versus administered planning status}
 
-The EMA{\_}Context{\_}Notified table provides the randomized planning status, but this often does not correspond to the planning status administered to the user when we link to the Structured{\_}Planning and Unstructured{\_}Planning tables by any reasonable identifier. This is due to a race condition in which the planning status stored on the device is read before being updated. So the administered planning status might correspond to the previous or initial status. We conjecture that this scenario arises randomly.
+The EMA{\_}Context{\_}Notified table provides the randomized planning status, but this often does not correspond to the planning status administered to the user when we link to the Structured{\_}Planning and Unstructured{\_}Planning tables by any reasonable identifier. This is due to a race condition in which the EMA{\_}Context{\_}Notified planning status stored on the device is read before being updated. So its value might represent either an initial or previous status value.
 
-Among the user-days on which there is an EMA response and notification context, we can determine whether or not the randomized planning status agrees with the planning carried out by the user. Instances of disagreement over time are depicted in the plot below, where a darker point coincides with disagreement, lighter with agreement, and no point to either no EMA response or missing notification context.
-<<plan, fig.height=3>>=
-with(daily, plot(study.day, user, pch = 16,
-                 col = rev(grey.colors(2))[1 + (planning.today != planning)],
-                 frame.plot = FALSE, xlab = "Study day", ylab = "User"))
-d <- with(daily, sapply(unique(user),
-                        function(u) with(subset(daily, user == u),
-                                         table(planning.today != planning))))
-d <- d[2, ] / apply(d, 2, sum)
-@
-The average rate of disagreement among the users is \Sexpr{round(mean(d), 2)} and ranged between \Sexpr{round(min(d), 2)} and \Sexpr{round(max(d), 2)}. For a given study day $t$, let $A_t$ denote the intended randomized level of planning and $B_t$ denote the administered level. If the race condition is indeed completely random, then $B_t$ follows the same marginal distribution as $A_t$. However we do not observe $B_t$ among users that do not respond to the EMA. To recover $\bar{B}_T$, we could fill-in the missing values sequentially by generating the race condition status $J_t \in \{0, 1\}$ according to some fixed probability. If $J_t = 0$ then we set $B_t = A_t$; otherwise, $B_t = A_{t-1}$ with $A_0$ indicating ``no planning''. (From \cref{sec:context}, we are also missing a few values for $A_t$, but these can easily be regenerated.)
-
-% FIXME: Race condition probability is very much device-specific
+If the user responded
 
 \subsection{EMA question set}
 
-<<<<<<< Updated upstream
 The EMA{\_}Completed table provides a variable EMA{\_}Set{\_}Today, which should provide the ordered set of EMA questions sent to the user. In \Sexpr{with(notify, sum(ema.set.today != ema.set, na.rm = TRUE))} cases, EMA{\_}Set{\_}Today does not agree with the sequence of questions that the user answered. This is due to a race condition in which the question set stored on the device is read before being updated. To resolve this, we infer the administered question set from EMA{\_}Response; the question set for incomplete EMAs is not entirely recoverable, particularly if the user engaged with the EMA.
-=======
-The EMA{\_}Completed table provides a variable EMA{\_}Set{\_}Today, which should provide the ordered set of EMA questions sent to the user. In \Sexpr{with(notify, sum(ema.set.today != ema.set, na.rm = TRUE))} cases, EMA{\_}Set{\_}Today does not agree with the sequence of questions that the user answered. This is due to a race condition in which the question set stored on the device is read before being updated. To resolve this, we infer the administered question set from EMA{\_}Response; the question set for incomplete EMAs is not recoverable.
->>>>>>> Stashed changes
 
 \subsection{Notifications under changing time zone}
 \label{sec:slot}
 
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 Prior to November notifications were sent according to the time zone at which the phone was last restarted, irrespective of the actual time zone. From November onward, notifications are sent under the actual time zone, irrespective of the notification history. So users who travel potentially receive notifications outside their designated time slots or repeated notifications in the same time slot. 
+=======
+Prior to November notifications were sent according to the time zone at which the phone was last restarted, irrespective of the actual time zone. From November onward, notifications are sent under the actual time zone, irrespective of the notification history. So users who travel potentially receive notifications outside their designated time slots or repeated notifications in the same time slot.
+>>>>>>> Stashed changes
 =======
 Prior to November notifications were sent according to the time zone at which the phone was last restarted, irrespective of the actual time zone. From November onward, notifications are sent under the actual time zone, irrespective of the notification history. So users who travel potentially receive notifications outside their designated time slots or repeated notifications in the same time slot.
 >>>>>>> Stashed changes
@@ -191,17 +175,23 @@ The proportion of within-slot decisions among the users has an average of \Sexpr
 \subsection{Randomized versus administered suggestion status}
 
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 The Momentary{\_}Decision and Response tables are largely in agreement, with only \Sexpr{with(suggest, sum(notification.message != returned.message, na.rm = TRUE))} decisions conflicting with the suggestion actually administered in terms of either the result (notify or not) or the notification message. The source of this issue is unknown. For analysis, we propose simply taking the suggestion status as-administered.
 
 \subsection{Suggestion message tags and strings}
 
 The activity suggestion messages were not stored with the bucket tags used for contextualization. To address this we apply all relevant tags post-hoc, using the curated list of suggestions. Note that all relevant tags are not necessarily the tags that influenced the message selection. Moreover the list gives the message strings as-displayed with non-ASCII characters. Internally HeartSteps strips ASCII characters from messages before saving them to the datastore, but this operation is not performed consistently. To enable correct linkage, we strip all message strings of escape codes, punctuation, non-ASCII characters and normalize white space.
 =======
+=======
+>>>>>>> Stashed changes
 The Momentary{\_}Decision and Response tables are largely in agreement, with only \Sexpr{with(suggest, sum(notification.message != returned.message, na.rm = TRUE))} decisions conflicting with the suggestion actually administered in terms of either the result (notify or not) or the notification message. The source of this issue is unknown. For analysis, we consider take the suggestion status as administered.
 
 \subsection{Suggestion message tags and strings}
 
 The activity suggestion messages are not stored with the bucket tags used for contextualization. To address this we apply all relevant tags post-hoc, using the curated list of suggestions. Note that all relevant tags are not necessarily the tags that influenced the message selection. Moreover the list gives the message strings as-displayed, with non-ASCII characters. Internally HeartSteps strips ASCII characters, but this is not performed consistently. To enable linkage, we strip the message strings of escape codes, punctuation, non-ASCII characters and extraneous white space.
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 
 \section{User characteristics}
