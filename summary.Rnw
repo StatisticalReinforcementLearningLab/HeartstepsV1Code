@@ -82,7 +82,11 @@ load("analysis.RData")
 
 The contextID variable was intended to uniquely identify each EMA notification and link between the EMA-related tables. However the contextID in EMA{\_}Context{\_}Notified does not represent all of the identifier values encountered in the remaining tables. Moreover different contextID values are associated with responses within the same EMA. These issues might be due in part to the phone being turned off at the EMA time slot, but more investigation is needed.
 
+<<<<<<< Updated upstream
 The decisionID variable was intended to uniquely identify each momentary decision (to provide a suggestion or not) and link to the suggestion response table. However in both of the suggestion-related tables, the same decisionID value is associated different notification time slots. This is due to a race condition in which the decisionID value stored on the device is read before being updated. 
+=======
+The decisionID variable was intended to uniquely identify each momentary decision (to provide a suggestion or not) and link to the suggestion response table. However in both of the suggestion-related tables, the same decisionID value is associated different notification time slots. This is due to a race condition in which the decisionID value stored on the device is read before being updated.
+>>>>>>> Stashed changes
 
 Although infrequent, these issues prevent systematic linkage between tables. We instead construct identifiers with userID and date-time variables, accounting for time lags due for activity recognition or user response.
 
@@ -152,12 +156,20 @@ The average rate of disagreement among the users is \Sexpr{round(mean(d), 2)} an
 
 \subsection{EMA question set}
 
+<<<<<<< Updated upstream
 The EMA{\_}Completed table provides a variable EMA{\_}Set{\_}Today, which should provide the ordered set of EMA questions sent to the user. In \Sexpr{with(notify, sum(ema.set.today != ema.set, na.rm = TRUE))} cases, EMA{\_}Set{\_}Today does not agree with the sequence of questions that the user answered. This is due to a race condition in which the question set stored on the device is read before being updated. To resolve this, we infer the administered question set from EMA{\_}Response; the question set for incomplete EMAs is not entirely recoverable, particularly if the user engaged with the EMA.
+=======
+The EMA{\_}Completed table provides a variable EMA{\_}Set{\_}Today, which should provide the ordered set of EMA questions sent to the user. In \Sexpr{with(notify, sum(ema.set.today != ema.set, na.rm = TRUE))} cases, EMA{\_}Set{\_}Today does not agree with the sequence of questions that the user answered. This is due to a race condition in which the question set stored on the device is read before being updated. To resolve this, we infer the administered question set from EMA{\_}Response; the question set for incomplete EMAs is not recoverable.
+>>>>>>> Stashed changes
 
 \subsection{Notifications under changing time zone}
 \label{sec:slot}
 
+<<<<<<< Updated upstream
 Prior to November notifications were sent according to the time zone at which the phone was last restarted, irrespective of the actual time zone. From November onward, notifications are sent under the actual time zone, irrespective of the notification history. So users who travel potentially receive notifications outside their designated time slots or repeated notifications in the same time slot. 
+=======
+Prior to November notifications were sent according to the time zone at which the phone was last restarted, irrespective of the actual time zone. From November onward, notifications are sent under the actual time zone, irrespective of the notification history. So users who travel potentially receive notifications outside their designated time slots or repeated notifications in the same time slot.
+>>>>>>> Stashed changes
 
 Instances where the momentary decision took place outside the designated time slot are depicted below, where darker points coincide with larger differences between the intended and actual time slots. In comparing the decision time stamp and the time slow, we account for any discrepancies due to the time lag that arises when the decision is based on pre-fetched data.
 <<slot, fig.height=3>>=
@@ -178,11 +190,19 @@ The proportion of within-slot decisions among the users has an average of \Sexpr
 
 \subsection{Randomized versus administered suggestion status}
 
+<<<<<<< Updated upstream
 The Momentary{\_}Decision and Response tables are largely in agreement, with only \Sexpr{with(suggest, sum(notification.message != returned.message, na.rm = TRUE))} decisions conflicting with the suggestion actually administered in terms of either the result (notify or not) or the notification message. The source of this issue is unknown. For analysis, we propose simply taking the suggestion status as-administered.
 
 \subsection{Suggestion message tags and strings}
 
 The activity suggestion messages were not stored with the bucket tags used for contextualization. To address this we apply all relevant tags post-hoc, using the curated list of suggestions. Note that all relevant tags are not necessarily the tags that influenced the message selection. Moreover the list gives the message strings as-displayed with non-ASCII characters. Internally HeartSteps strips ASCII characters from messages before saving them to the datastore, but this operation is not performed consistently. To enable correct linkage, we strip all message strings of escape codes, punctuation, non-ASCII characters and normalize white space.
+=======
+The Momentary{\_}Decision and Response tables are largely in agreement, with only \Sexpr{with(suggest, sum(notification.message != returned.message, na.rm = TRUE))} decisions conflicting with the suggestion actually administered in terms of either the result (notify or not) or the notification message. The source of this issue is unknown. For analysis, we consider take the suggestion status as administered.
+
+\subsection{Suggestion message tags and strings}
+
+The activity suggestion messages are not stored with the bucket tags used for contextualization. To address this we apply all relevant tags post-hoc, using the curated list of suggestions. Note that all relevant tags are not necessarily the tags that influenced the message selection. Moreover the list gives the message strings as-displayed, with non-ASCII characters. Internally HeartSteps strips ASCII characters, but this is not performed consistently. To enable linkage, we strip the message strings of escape codes, punctuation, non-ASCII characters and extraneous white space.
+>>>>>>> Stashed changes
 
 \section{User characteristics}
 
@@ -210,7 +230,7 @@ print(xtable(d, digits = c(0, 0, 1)), floating = FALSE, booktabs = TRUE)
 
 \subsection{Hecticness}
 
-At each EMA, the user was asked ``How hectic was your day today?'' A \Sexpr{length(ema1)}-point scale was provided, with 1 labelled as ``\Sexpr{names(ema1[1])}'' and 5 labelled as ``\Sexpr{names(rev(ema1)[1])}''.  Here we depict the responses over time, where darker points correspond to more hectic days. No point is plotted if no response is available, due to either non- or pending response.
+At each EMA, the user was asked ``How hectic was your day today?'' A \Sexpr{length(ema1)}-point scale was provided, with \Sexpr{ema1[1]} labelled as ``\Sexpr{names(ema1[1])}'' and \Sexpr{length(ema1)} labelled as ``\Sexpr{names(rev(ema1)[1])}''.  Here we depict the responses over time, where darker points correspond to more hectic days. No point is plotted if no response is available, due to either non- or pending response.
 <<ema1, fig.height=3>>=
 with(daily, plot(study.day, user, pch = 16,
                  col = rev(grey.colors(length(ema1)))[hectic],
@@ -219,7 +239,7 @@ with(daily, plot(study.day, user, pch = 16,
 
 \subsection{Stress}
 
-At each EMA, the user was asked ``How stressful was your day today?'' A \Sexpr{length(ema2)}-point scale was provided, with 1 labelled as ``\Sexpr{names(ema2[1])}'' and 5 labelled as ``\Sexpr{names(rev(ema2)[1])}''. Here we depict the responses over time, where darker points correspond to more stressful days. No point is plotted if no response is available, due to either non- or pending response.
+At each EMA, the user was asked ``How stressful was your day today?'' A \Sexpr{length(ema2)}-point scale was provided, with \Sexpr{ema1[1]} labelled as ``\Sexpr{names(ema2[1])}'' and \Sexpr{rev(ema1)[1]} labelled as ``\Sexpr{names(rev(ema2)[1])}''. Here we depict the responses over time, where darker points correspond to more stressful days. No point is plotted if no response is available, due to either non- or pending response.
 <<ema2, fig.height=3>>=
 with(daily, plot(study.day, user, pch = 16,
                  col = rev(grey.colors(length(ema2)))[stressful],
@@ -228,7 +248,7 @@ with(daily, plot(study.day, user, pch = 16,
 
 \subsection{Typicalness for the day of the week}
 
-At each EMA, the user was asked ``How typical was today for a X?'', where ``X'' is the current day of the week. A \Sexpr{length(ema3)}-point scale was provided, with 1 labelled as ``\Sexpr{names(ema3[1])}'' and 5 labelled as ``\Sexpr{names(rev(ema3)[1])}''.  Here we depict the responses over time, where darker points correspond to more atypical days. No point is plotted if no response is available, due to either non- or pending response. 
+At each EMA, the user was asked ``How typical was today for a X?'', where ``X'' is the current day of the week. A \Sexpr{length(ema3)}-point scale was provided, with \Sexpr{ema1[1]} labelled as ``\Sexpr{names(ema3[1])}'' and \Sexpr{rev(ema1)[1]} labelled as ``\Sexpr{names(rev(ema3)[1])}''.  Here we depict the responses over time, where darker points correspond to more atypical days. No point is plotted if no response is available, due to either non- or pending response. 
 <<ema3, fig.height=3>>=
 with(daily, plot(study.day, user, pch = 16,
                  col = grey.colors(length(ema3))[typical],

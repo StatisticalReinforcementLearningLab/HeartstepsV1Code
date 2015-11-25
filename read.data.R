@@ -26,6 +26,7 @@ read.data <- function(file, order.by = NULL, ...) {
   names(d) <- gsub("_", ".", names(d))
   names(d) <- gsub("\\.$", "", names(d))
   names(d)[grep("^(user|id)$", names(d))[1]] <- "userid"
+  names(d)[names(d) == "last.updated"] <- "time.updated"
   names(d)[names(d) == "test.id"] <- "user"
   ## omit extraneous variables
   d <- d[, which(!grepl("^(key|(first|last|variable)\\.name|x|x\\.[0-9]+)$",
@@ -40,6 +41,7 @@ read.data <- function(file, order.by = NULL, ...) {
   l <- which(grepl("(^time\\.(fin|sta|up)|\\.(date|)time$)", names(d)))
   utime <- ptime <- FALSE
   if (length(l)) {
+    d[, l][d[, l] == ""] <- NA
     if (!is.null(d$timezone)) {
       ## add offset in seconds from GMT/UTC
       d$gmtoff <- 0

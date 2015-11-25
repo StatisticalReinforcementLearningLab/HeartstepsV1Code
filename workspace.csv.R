@@ -4,9 +4,7 @@
 source("init.R")
 setwd(sys.var$mbox)
 
-## --- participant-level data
-## FIXME: check with Shawna about time "off-study"
-## FIXME: finalize interview spreadsheet format
+## --- user-level data
 
 ## participant/user list
 participants <- read.data("HeartSteps Participant Directory.csv", list(user))
