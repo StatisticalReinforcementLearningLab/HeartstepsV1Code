@@ -42,13 +42,13 @@ timeslot <- read.data("User_Decision_Times.csv", list(user, utime.updated))
 ## drop redundant timeslot updates
 timeslot <- subset(timeslot, !duplicated(cbind(user, date.updated, tz, morning,
                                                lunch, dinner, evening, ema)))
-## hour and minutes for user-designated times
-temp <- do.call("cbind", lapply(lapply(timeslot[, match(slots, names(timeslot))],
-                                       strsplit, split = ":"),
-                                do.call, what = "rbind"))
-colnames(temp) <- paste(rep(slots, each = 2), c("hour", "min"), sep = ".")
-mode(temp) <- "numeric"
+## time intervals for user-designated times
+temp <- do.call("cbind",
+                lapply(timeslot[, match(slots, names(timeslot))],
+                       function(x) as.difftime(x, "%H:%M", units = "hours")))
+colnames(temp) <- paste(slots, "hours", sep = ".")
 timeslot <- cbind(timeslot, temp)
+
 ## if any users have late time slots, adjustments are needed for activity
 ## recognition or user response time lag
 any(timeslot[, grepl("\\.hour$", names(timeslot))] > 23)
@@ -181,6 +181,7 @@ notify <- notify[!dup.notify$is.dup, ]
 
 ## EMA response duplicates by user-day, but different EMA question set
 ## keep EMAs that either link to EMA notification or were completed later
+## nb: 7 question if planning
 ema <- merge(ema,
              subset(notify,
                     select = c(user, notified.date, tz, notified.time.hour,
