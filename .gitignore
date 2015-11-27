@@ -10,7 +10,7 @@
 *.synctex.*
 *.Rhistory
 *.fuse*
-*bulkloader
+*bulkloader*
 *tikzDictionary*
 auto/*
 cache/*
