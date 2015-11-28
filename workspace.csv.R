@@ -55,20 +55,17 @@ timeslot <- timeslot[valid.slots(timeslot), ]
 weather <- read.data("Weather_History.csv", list(date))
 weather$date <- char2date(weather$date, "%Y:%m:%d")
 
-## --- planning intervention and evening questionnaire (EMA)
+## --- planning and evening questionnaire (EMA)
 
 ## context in which the EMA notification was sent
 ## nb: planning and EMA questions administered must be inferred from responses
 notify <- read.data("EMA_Context_Notified.csv", list(user, notified.utime))
 notify$ema.set.today <- gsub(",ema_finish", "", notify$ema.set.today)
-notify$ema.set.today.length <-
-  unlist(lapply(strsplit(notify$ema.set.today, ","), length))
-notify$days.since <-
-  with(notify, change(user, notified.utime, notified.utime)) / (24 * 60^2)
 notify <- merge.last(notify,
                      subset(timeslot, select = c(user, utime.updated,
                                                  morning.hours:ema.hours)),
                        "user", var.x = "notified.utime", var.y = "utime.updated")
+nrow(notify)
 notify$notified.time.slot <-
   ltime2slot(notified.time.hour, notified.time.min, notify)
 
@@ -104,7 +101,6 @@ complete$completed <- complete$completed == "true"
 ## EMA response
 ema <- read.data("EMA_Response.csv", list(contextid))
 ema$message <- normalize.text(ema$message)
-
 ## fix question numbering - need EMA questions 1-7, research 1-4
 ema$question[ema$question == "6"] <- "5"
 ema$question[ema$question == "7"] <- "6"
@@ -120,16 +116,15 @@ temp <- rbind(subset(notify, select = c(contextid, timezone, tz, gmtoff)),
 temp <- subset(temp, !duplicated(cbind(contextid, tz)))
 ## any contextIDs associated with more than one time zone?
 any(duplicated(temp$contextid))
-ema <- merge(ema, temp, by = "contextid", all.x = TRUE)
+nrow(ema <- merge(ema, temp, by = "contextid", all.x = TRUE))
 
 ## add notification time, given by message.time unless question is 6 or 7
 temp <- with(subset(subset(ema, !(question %in% paste(6:7))),
                     !duplicated(contextid)),
              data.frame(contextid, notified.time = message.time))
-ema <- merge(ema, temp, by = "contextid", all.x = TRUE)
+nrow(ema <- merge(ema, temp, by = "contextid", all.x = TRUE))
 
-## calculate date-time elements as 'read.data' with the now-available
-## time zone information
+## calculate date-time elements as 'read.data' with now-available time zone
 ema$notified.date <- as.Date(ema$notified.time)
 ema$notified.utime <- with(ema, char2utime(notified.time, gmtoff))
 ema$message.utime <- with(ema, char2utime(message.time, gmtoff))
@@ -140,12 +135,23 @@ ema <-
         with(ema, char2calendar(message.time, tz, prefix = "message.time")),
         with(ema, char2calendar(time.stamp, tz, prefix = "time.stamp")))
 
+## avoid associating EMA records with the wrong day, primarily due to
+## a late time slot and the time lag for activity recognition or user response
+with(notify, table(notified.time.hour, tz))
+with(engage, table(engaged.time.hour, tz))
+with(plan, table(time.started.hour, tz))
+with(ema, table(notified.time.hour, tz))
+## cut-off of 18:00 is somewhat arbitrary
+notify$ema.date <- with(notify, notified.date - (notified.time.hour < 18))
+engage$ema.date <- with(engage, engaged.date - (engaged.time.hour < 18))
+plan$ema.date <- with(plan, date.started - (time.started.hour < 18))
+ema$ema.date <- with(ema, notified.date - (notified.time.hour < 18))
+
 ## keep unique EMA responses
 ema <- ema[with(ema, order(user, order, question, notified.utime,
                            -as.numeric(utime.stamp))), ]
 dup.ema <- check.dup(ema, "checks/dup_ema_response.csv",
-                     user, notified.date, notified.time.hour, tz, order,
-                     question, response)
+                     user, ema.date, order, question, response)
 ema <- ema[!dup.ema$is.dup, ]
 
 ## form EMA question set, akin to 'ema.set.today' in 'notify'
@@ -154,44 +160,32 @@ ema <- merge(ema,
                                  function(x) paste(unique(x), collapse = ","))),
              by.x = c("user", "notified.utime"),
              by.y = paste("Group", 1:2, sep = "."))
+nrow(ema)
 names(ema)[ncol(ema)] <- "ema.set"
 ema$ema.set.length <- unlist(lapply(strsplit(ema$ema.set, ","), length))
 
 ## keep the longest and latest EMA set in the same day
 ema <- ema[with(ema, order(user, notified.utime, order, -ema.set.length,
                            -as.numeric(utime.stamp))), ]
-dup.ema <- check.dup(ema, "checks/dup_ema_multiset.csv",
-                     user, notified.date, notified.time.hour, tz, order)
+dup.ema <- check.dup(ema, "checks/dup_ema_multiset.csv", user, ema.date, order)
 ema <- ema[!dup.ema$is.dup, ]
 
-## keep unique, responded, or latest EMA notifications
-notify <- merge(notify,
-                subset(ema, !duplicated(cbind(user, notified.utime)),
-                       select = c(user, notified.date, notified.time.hour, tz,
-                                  notified.utime, ema.set)),
-                by = c("user", "notified.date", "notified.time.hour", "tz"),
-                all.x = TRUE, suffixes = c("", ".ema"))
-notify <- notify[with(notify, order(user, notified.date, is.na(ema.set),
+## keep unique, most-responded, or latest EMA notifications
+notify <-
+  merge(notify,
+        subset(ema, !duplicated(cbind(user, notified.utime)),
+               select = c(user, ema.date, notified.time, tz, notified.utime,
+                          ema.set, ema.set.length)),
+        by = c("user", "ema.date"), all.x = TRUE, suffixes = c("", ".ema"))
+nrow(notify)
+notify <- notify[with(notify, order(user, ema.date, is.na(ema.set),
+                                    -ema.set.length,
                                     abs(notified.utime - notified.utime.ema),
                                     -as.numeric(notified.utime))), ]
-dup.notify <- check.dup(notify, "checks/dup_notify.csv", user, notified.date, tz)
+dup.notify <- check.dup(notify, "checks/dup_notify.csv", user, ema.date)
 notify <- notify[!dup.notify$is.dup, ]
 
-## avoid associating EMA records with the wrong day, presumably due to
-## a late time slot plus the time lag for activity recognition or user response
-with(notify, table(notified.time.hour, tz))
-with(engage, table(engaged.time.hour, tz))
-with(plan, table(time.started.hour, tz))
-with(ema, table(notified.time.hour, tz))
-notify$ema.date <- with(notify, notified.date - (notified.time.hour < 18))
-engage$ema.date <- with(engage, engaged.date - (engaged.time.hour < 18))
-plan$ema.date <- with(plan, date.started - (time.started.hour < 18))
-ema$ema.date <- with(ema, notified.date - (notified.time.hour < 18))
-with(notify, any(duplicated(cbind(user, ema.date))))
-with(plan, any(duplicated(cbind(user, ema.date))))
-with(ema, any(duplicated(cbind(user, ema.date, order))))
-
-## convert numeric EMA responses, parse @-delimited EMA responses 
+## convert numeric and parse @-delimited EMA responses 
 ema$hectic <- with(ema, as.numeric(ifelse(question == "1", response, NA)))
 ema$stressful <- with(ema, as.numeric(ifelse(question == "2", response, NA)))
 ema$typical <- with(ema, as.numeric(ifelse(question == "3", response, NA)))
@@ -210,10 +204,11 @@ ema$energetic <- with(ema, as.numeric(ifelse(question == "research3",
                                              response, NA)))
 ema$urge <- with(ema, as.numeric(ifelse(question == "research4", response, NA)))
 
-## --- activity suggestion interventions
+## --- activity suggestions and responses
 
 ## suggestion message tags
-## nb: messages were not tagged in GAE tables, so we apply them after the fact
+## nb: messages were not saved along with their relevant tags,
+##     so we use this table to apply them after the fact
 messages <- read.data("Reviewed_Heartsteps_Messages.csv", NULL, skip = 1)
 messages$message <- normalize.text(messages$message)
 ## replace recurrent tag variable with tag indicators
@@ -231,11 +226,11 @@ messages[temp, -1] <- TRUE
 ## nb: recurrences distinguish context, which we can't recover post-hoc
 messages <- aggregate(. ~ message, data = messages, any)
 
-## momentary decision (send suggestion or not)
-## nb: we look to the response for the provided suggestion
+## momentary decision (to send suggestion or not)
+## nb: suggestion could be prefetched 30 minutes prior to initial notify time
 decision <- read.data("Momentary_Decision.csv",
-                      list(user, date.stamp, tz, time.slot,
-                           is.prefetch == "true", valid != "valid", utime.stamp))
+                      list(user, utime.stamp, is.prefetch, notify != "True",
+                           valid != "valid"))
 decision$returned.message <- normalize.text(decision$returned.message)
 decision$is.prefetch <- decision$is.prefetch == "true"
 decision$notify <- decision$notify == "True"
@@ -243,60 +238,99 @@ decision$is.randomized <- decision$is.randomized == "true"
 decision$valid <- decision$valid == "valid"
 decision$snooze.status <- decision$snooze.status == "true"
 decision$slot <- match(decision$time.slot, slots)
-## dispense with extraneous prefetch data
-decision <- subset(decision, !(is.prefetch &
-                               duplicated(cbind(user, date.stamp, tz, slot))))
-## user-designated time slot
-decision <- merge.last(decision,
-                       subset(timeslot, select = c(user, utime.updated,
-                                                   morning.hours:ema.hours)),
-                       "user", var.x = "utime.stamp", var.y = "utime.updated")
-decision$time.stamp.slot <- ltime2slot(time.stamp.hour,
-                                       time.stamp.min + 30 * is.prefetch,
-                                       decision)
-with(decision, table(slot != time.stamp.slot, user))
-## keep unique, "send" or within-slot decisions
+
+## missing day of week (just record in case this affects contextualization)
+write.data(subset(decision, day.of.week == ""), "checks/decision_nowkday.csv")
+
+## response to suggestions
+## nb: user has 30 minutes from the initial notification to respond
+response <- read.data("Response.csv", list(user, notified.utime))
+response$notification.message <- normalize.text(response$notification.message)
+
+## add indication of linkage to response by date and message
+temp <- merge(decision,
+              subset(response, select = c(user, notified.date,
+                                          notification.message, response)),
+              by.x = c("user", "date.stamp", "returned.message"),
+              by.y = c("user", "notified.date", "notification.message"),
+              all.x = TRUE)
+decision <-
+  merge(decision,
+        aggregate(!is.na(response) ~ user + date.stamp + returned.message,
+                  sum, data = temp),
+        by = c("user", "date.stamp", "returned.message"))
+nrow(decision)
+names(decision)[ncol(decision)] <- "link"
+
+## discard with redundant or extraneous prefetch decisions
+## nb: we don't rid ourselves of all prefetch decision here,
+##     since they sometimes override non-prefetch decisions
 decision <- decision[with(decision,
-                          order(user, date.stamp, tz, slot, !valid,
-                                !notify, slot != time.stamp.slot,
+                          order(user, utime.stamp, -link, !is.prefetch)), ]
+dup.decision <- check.dup(decision, "checks/dup_decision.csv", user, utime.stamp)
+decision <- decision[!dup.decision$is.dup, ]
+
+## add user-designated time slots
+decision <-
+  merge.last(decision,
+             subset(timeslot,
+                    select = c(user, utime.updated, morning.hours:ema.hours)),
+             "user", var.x = "utime.stamp", var.y = "utime.updated")
+nrow(decision)
+## designated hours for the intended time slot
+decision$slot.hours <- apply(subset(decision,
+                                    select = c(slot, morning.hours:ema.hours)),
+                             1, function(x) x[-1][x[1]])
+## (last preceeding) slot to which the decision time stamp actually belongs
+decision$time.stamp.slot <-
+  ltime2slot(time.stamp.hour, time.stamp.min + 30 * is.prefetch, decision)
+with(decision, table(slot != time.stamp.slot, user))
+
+## link responses proximally with momentary decision
+response <-
+  merge.last(response,
+             subset(decision,
+                    select = c(user, utime.stamp, date.stamp, time.stamp, tz,
+                               time.slot, slot, slot.hours, time.stamp.slot,
+                               notify, is.randomized, is.prefetch,
+                               returned.message)),
+             "user", var.x = "notified.utime", var.y = "utime.stamp",
+             suffixes = c("", ".decision"))
+## linked response messages should match
+with(response, table(notification.message == returned.message, useNA = "ifany"))
+
+## keep unique, responded or earliest suggestion responses
+response <- response[with(response,
+                          order(user, date.stamp, slot,
+                                response == "no_response", responded.utime)), ]
+dup.response <- check.dup(response, "checks/dup_response.csv",
+                          user, date.stamp, slot)
+response <- response[!dup.response$is.dup, ]
+
+## discard unused prefetch, duplicate no-send/unlinked decisions
+decision <- decision[with(decision,
+                          order(user, date.stamp, slot, -link, is.prefetch,
+                                !valid, abs(slot - time.stamp.slot),
                                 utime.stamp)), ]
 dup.decision <- check.dup(decision, "checks/dup_decision.csv",
                           user, date.stamp, slot)
 decision <- decision[!dup.decision$is.dup, ]
-## missing day of week
-write.data(subset(decision, day.of.week == ""), "checks/decision_nowkday.csv")
+## omit extraneous prefetch decisions
+dup.decision <- check.dup(subset(dup.decision$data, link == 0 & is.prefetch),
+                          "checks/dup_decision.csv", user, date.stamp, slot)
+
 ## time slot mismatch
 write.data(subset(decision, slot != time.stamp.slot),
            "checks/decision_outsideslot.csv")
+
 ## add message tags
 decision <- merge(decision, messages,
                   by.x = "returned.message", by.y = "message",
                   all.x = TRUE, sort = FALSE)
-decision <- decision[with(decision, order(user, utime.stamp)), ]
+decision <- decision[with(decision, order(user, date.stamp, slot)), ]
 ## missing tags
 write.data(subset(decision, notify & is.na(tag.active)),
            "checks/decision_notags.csv")
-
-## response to suggestions
-## suggestion could be prefetched 30 minutes prior to initial notify time
-## user has 30 minutes from the initial notification to respond
-response <- read.data("Response.csv", list(user, notified.utime))
-response$notification.message <- normalize.text(response$notification.message)
-response <- merge(response,
-                  subset(decision,
-                         select = c(user, date.stamp, time.stamp.hour, tz,
-                                    time.slot, slot, time.stamp.slot, time.stamp)),
-                  by.x = c("user", "notified.date", "notified.time.hour", "tz"),
-                  by.y = c("user", "date.stamp", "time.stamp.hour", "tz"),
-                  all.x = TRUE)
-check.dup(response, "checks/dup_response.csv", user, notified.date, slot)
-## add message tags
-response <- merge(response, messages,
-                  by.x = "notification.message", by.y = "message",
-                  all.x = TRUE, sort = FALSE)
-response <- response[with(response, order(user, notified.utime)), ]
-## missing tags
-write.data(subset(response, is.na(tag.active)), "checks/response_notags.csv")
 
 ## --- physical activity
 

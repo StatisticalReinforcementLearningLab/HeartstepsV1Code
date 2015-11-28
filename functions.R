@@ -59,7 +59,8 @@ merge.last <- function(x, y, id, var, id.x = id, id.y = id, var.x = var,
   if (!missing(order.by))
     d <- d[with(d, order(order.by)), ]
   d <- impute.locf(d, d[[id]])
-  merge(x, d, by = by.x, all.x = TRUE, ...)
+  print(nrow(d <- merge(x, d, by = by.x, all.x = TRUE, ...)))
+  d
 }
 
 ## write data frame to file if non-empty, otherwise delete file

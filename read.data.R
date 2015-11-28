@@ -91,5 +91,6 @@ read.data <- function(file, order.by = NULL, ...) {
   if (!is.null(order.by))
     d <- d[do.call("order", order.by), ]
   row.names(d) <- NULL
+  print(nrow(d))
   d
 }

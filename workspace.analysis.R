@@ -71,39 +71,39 @@ daily$study.day <- with(daily, as.numeric(difftime(study.date, intake.date,
                                                    units = "days")))
 
 ## context at EMA notification or (if unavailable) at earliest engagement
-any(with(notify, duplicated(cbind(user, notified.date))))
+any(with(notify, duplicated(cbind(user, ema.date))))
 names(notify) <- gsub("^notified\\.(|time.)", "context.", names(notify))
 names(engage) <- gsub("^engaged\\.(|time.)", "context.", names(engage))
 notify$notify <- 1
 temp <- merge(notify, engage, all = TRUE)
 temp <- temp[with(temp,
-                  order(user, is.na(notify), context.date, context.utime)), ]
-temp <- subset(temp, !duplicated(cbind(user, context.date)))
-daily <- merge(daily,
-               subset(temp,
-                      select = c(user, tz, gmtoff, context.date, context.utime,
-                                 context.year:context.sec, planning.today, home,
-                                 work, calendar, recognized.activity,
-                                 front.end.application, gps.coordinate, city,
-                                 location.exact, location.category,
-                                 weather.condition, temperature, windspeed,
-                                 precipitation.chance, snow)),
-               by.x = c("user", "study.date"), by.y = c("user", "context.date"),
-               all.x = TRUE)
+                  order(user, is.na(notify), ema.date, context.utime)), ]
+temp <- subset(temp, !duplicated(cbind(user, ema.date)))
+daily <-
+  merge(daily,
+        subset(temp,
+               select = c(user, tz, gmtoff, ema.date, context.date,
+                          context.utime, context.year:context.sec, planning.today,
+                          home, work, calendar, recognized.activity,
+                          front.end.application, gps.coordinate, city,
+                          location.exact, location.category, weather.condition,
+                          temperature, windspeed, precipitation.chance, snow)),
+        by.x = c("user", "study.date"), by.y = c("user", "context.date"),
+        all.x = TRUE)
 
 ## add planning status
-any(with(plan, duplicated(cbind(user, date.started))))
+any(with(plan, duplicated(cbind(user, ema.date))))
 daily <- merge(daily,
-               with(plan, aggregate(planning, list(user, date.started),
+               with(plan, aggregate(planning, list(user, ema.date),
                                     function(x) x[1])),
                by.x = c("user", "study.date"), by.y = c("Group.1", "Group.2"),
                all.x = TRUE)
 
 ## add EMA response
-any(with(ema, duplicated(cbind(user, message.date, order))))
+any(with(ema, duplicated(cbind(user, ema.date, order))))
 daily <- merge(daily,
                aggregate(subset(ema, select = c(ema.set.length, hectic:urge)),
-                         by = with(ema, list(user, message.date)),
+                         by = with(ema, list(user, ema.date)),
                          function(x) na.omit(x)[1]),
                by.x = c("user", "study.date"),
                by.y = paste("Group", 1:2, sep = "."), all.x = TRUE)
@@ -111,7 +111,7 @@ daily <- merge(daily,
 setNames(sapply(with(users, user[!exclude]),
                 function(u) any(subset(daily, user == u
                                        & is.na(ema.set.length))$study.date
-                                %in% subset(ema, user == u)$message.date)),
+                                %in% subset(ema, user == u)$ema.date)),
          with(users, user[!exclude]))
 
 ## administered (versus intended) planning status
