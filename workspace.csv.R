@@ -7,41 +7,9 @@ setwd(sys.var$mbox)
 ## --- user-level data
 
 ## participant/user list
-participants <- read.data("HeartSteps Participant Directory.csv", list(user))
-participants$intake.date <- char2date(participants$intake.interview.date,
-                                      "%m/%d/%Y")
-participants$exit.date <- char2date(participants$exit.interview.date, "%m/%d/%Y")
-
-## intake interviews
-intake <- read.data("Survey_Intake.csv", list(user), skip = 3, na.strings = "X")
-intake$startdate <- char2date(intake$startdate, "%m/%d/%Y")
-
-## exit interviews
-exit <- read.data("Survey_Exit.csv", list(user), skip = 3, na.strings = "X")
-exit$exitdate <- char2date(exit$exitdate, "%m/%d/%Y")
-
-## --- HeartSteps application data
-
-## application usage
-usage <- read.data("Heartsteps_Usage_History.csv", list(user, end.utime))
-
-## snooze enabled or disabled
-snooze <- read.data("Snoozed_FromInApp.csv", list(user, utime.stamp))
-
-## home and work locations
-## nb: time zone data are unavailable
-address <- read.data("User_Addresses.csv", list(user, time.updated))
-
-## calendars
-## nb: Google calendar API data are unavailable
-## nb: time zone data are unavailable
-calendar <- read.data("User_Calendars.csv", list(user, time.updated))
-
-## suggestion and EMA timeslots
-timeslot <- read.data("User_Decision_Times.csv", list(user, utime.updated))
-## drop redundant timeslot updates
-timeslot <- subset(timeslot, !duplicated(cbind(user, date.updated, tz, morning,
-                                               lunch, dinner, evening, ema)))
+timeslot <- subset(timeslot,
+                   !duplicated(cbind(user, date.updated, tz,
+                                     morning, lunch, dinner, evening, ema)))
 ## time intervals for user-designated times
 temp <- do.call("cbind",
                 lapply(timeslot[, match(slots, names(timeslot))],
@@ -50,6 +18,10 @@ colnames(temp) <- paste(slots, "hours", sep = ".")
 timeslot <- cbind(timeslot, temp)
 ## discard obviously invalid slot selections
 timeslot <- timeslot[valid.slots(timeslot), ]
+## discard recurrent slots by time
+dup.timeslot <- check.dup(timeslot, "checks/dup_timeslot.csv",
+                          user, utime.updated)
+timeslot <- timeslot[!dup.timeslot$is.dup, ]
 
 ## daily weather by city
 weather <- read.data("Weather_History.csv", list(date))
@@ -65,9 +37,12 @@ notify <- merge.last(notify,
                      subset(timeslot, select = c(user, utime.updated,
                                                  morning.hours:ema.hours)),
                        "user", var.x = "notified.utime", var.y = "utime.updated")
-nrow(notify)
 notify$notified.time.slot <-
   ltime2slot(notified.time.hour, notified.time.min, notify)
+
+## any recurrent contextIDs?
+with(notify, table(duplicated(contextid),
+                   duplicated(cbind(user, notified.date, tz))))
 
 ## context in which the user engaged with the EMA
 engage <- read.data("EMA_Context_Engaged.csv",
@@ -109,14 +84,23 @@ ema$question[ema$question == "8"] <- "7"
 ## resolve missing time zone in EMA response from other EMA tables
 ## nb: this presumes that contextID can distinguish between different-day EMAs
 ##     and each contextID is associated with at most one time zone
-temp <- rbind(subset(notify, select = c(contextid, timezone, tz, gmtoff)),
-              subset(plan, select = c(contextid, timezone, tz, gmtoff)),
-              subset(engage, select = c(contextid, timezone, tz, gmtoff)),
-              subset(complete, select = c(contextid, timezone, tz, gmtoff)))
+temp <-
+  rbind(subset(notify, select = c(user, contextid, timezone, tz, gmtoff)),
+        subset(plan, select = c(user, contextid, timezone, tz, gmtoff)),
+        subset(engage, select = c(user, contextid, timezone, tz, gmtoff)),
+        subset(complete, select = c(user, contextid, timezone, tz, gmtoff)))
 temp <- subset(temp, !duplicated(cbind(contextid, tz)))
 ## any contextIDs associated with more than one time zone?
 any(duplicated(temp$contextid))
-nrow(ema <- merge(ema, temp, by = "contextid", all.x = TRUE))
+nrow(ema <- merge(ema, temp[, -1], by = "contextid", all.x = TRUE))
+
+## save users' time zones, which can point to a variety of issues:
+## multiple time zones subject to the time zone bugs,
+## invalid time zone to problems that arise with non-English locale
+temp <- subset(temp, !duplicated(cbind(user, timezone)), select = -contextid)
+with(temp, table(duplicated(user)))
+with(subset(temp, grepl("^\\?+", timezone)), length(unique(user)))
+write.data(temp, "checks/user_timezones.csv")
 
 ## add notification time, given by message.time unless question is 6 or 7
 temp <- with(subset(subset(ema, !(question %in% paste(6:7))),
@@ -147,6 +131,20 @@ engage$ema.date <- with(engage, engaged.date - (engaged.time.hour < 18))
 plan$ema.date <- with(plan, date.started - (time.started.hour < 18))
 ema$ema.date <- with(ema, notified.date - (notified.time.hour < 18))
 
+## every EMA response has a corresponding notification?
+with(ema, table(contextid %in% notify$contextid,
+                paste(user, ema.date) %in% with(notify, paste(user, ema.date))))
+
+## every EMA engagement has a corresponding notification?
+with(engage,
+     table(contextid %in% notify$contextid,
+           paste(user, ema.date) %in% with(notify, paste(user, ema.date))))
+
+## if every EMA response associated with a single contextID,
+## the off-diagonal should be zero
+with(ema, table(duplicated(contextid, order),
+                duplicated(cbind(user, ema.date, order))))
+
 ## keep unique EMA responses
 ema <- ema[with(ema, order(user, order, question, notified.utime,
                            -as.numeric(utime.stamp))), ]
@@ -154,7 +152,7 @@ dup.ema <- check.dup(ema, "checks/dup_ema_response.csv",
                      user, ema.date, order, question, response)
 ema <- ema[!dup.ema$is.dup, ]
 
-## form EMA question set, akin to 'ema.set.today' in 'notify'
+## form EMA question set, akin to 'ema.set.today' in EMA notifications
 ema <- merge(ema,
              with(ema, aggregate(question, by = list(user, notified.utime),
                                  function(x) paste(unique(x), collapse = ","))),
@@ -242,41 +240,65 @@ decision$slot <- match(decision$time.slot, slots)
 ## missing day of week (just record in case this affects contextualization)
 write.data(subset(decision, day.of.week == ""), "checks/decision_nowkday.csv")
 
+## persistency of identifiers over time in momentary decision
+with(decision, table(duplicated(decisionid),
+                     duplicated(cbind(decisionid, is.prefetch))))
+with(subset(decision, !is.prefetch),
+     table(duplicated(decisionid), duplicated(cbind(decisionid, time.slot))))
+with(decision, table(duplicated(cbind(user, utime.stamp)),
+                     duplicated(cbind(user, utime.stamp, is.prefetch))))
+
 ## response to suggestions
 ## nb: user has 30 minutes from the initial notification to respond
 response <- read.data("Response.csv", list(user, notified.utime))
 response$notification.message <- normalize.text(response$notification.message)
 
-## add indication of linkage to response by date and message
+## persistency of identifiers over time in suggestion response
+with(response, table(duplicated(decisionid)))
+
+## persistency the same between momentary decision and response?
+table(with(response, decisionid[duplicated(decisionid)]) %in%
+      with(decision, decisionid[duplicated(cbind(decisionid, is.prefetch))]))
+
+## prefetch data always overridden if non-prefetch decision is available?
+with(merge(response, subset(decision, !is.prefetch & notify),
+           by = "decisionid", all.x = TRUE),
+     table(notification.message == returned.message))
+
+## add indication of linkage to response by date, message and delta
+## between send time by the server and notification time on the device
 temp <- merge(decision,
-              subset(response, select = c(user, notified.date,
+              subset(response, select = c(user, notified.date, notified.utime,
                                           notification.message, response)),
               by.x = c("user", "date.stamp", "returned.message"),
               by.y = c("user", "notified.date", "notification.message"),
               all.x = TRUE)
+temp$delta <- with(temp, abs(as.numeric(utime.stamp - notified.utime)))
+temp <- merge(temp,
+              aggregate(cbind(min.delta = delta)
+                        ~ user + notified.utime + returned.message,
+                        function(x) min(x, Inf), data = temp),
+              by = c("user", "notified.utime", "returned.message"), all.x = TRUE)
 decision <-
   merge(decision,
-        aggregate(!is.na(response) ~ user + date.stamp + returned.message,
-                  sum, data = temp),
-        by = c("user", "date.stamp", "returned.message"))
+        aggregate(cbind(link = ifelse(is.na(response), 0, delta == min.delta))
+                  ~ user + is.prefetch + utime.stamp + returned.message,
+                  max, data = temp),
+        by = c("user", "is.prefetch", "utime.stamp", "returned.message"))
 nrow(decision)
-names(decision)[ncol(decision)] <- "link"
 
-## discard with redundant or extraneous prefetch decisions
-## nb: we don't rid ourselves of all prefetch decision here,
-##     since they sometimes override non-prefetch decisions
+## among decisions made at the same time: discard if unlinked or prefetch
 decision <- decision[with(decision,
-                          order(user, utime.stamp, -link, !is.prefetch)), ]
+                          order(user, utime.stamp, -link, is.prefetch)), ]
 dup.decision <- check.dup(decision, "checks/dup_decision.csv", user, utime.stamp)
 decision <- decision[!dup.decision$is.dup, ]
 
-## add user-designated time slots
+## add user-designated time slots to momentary decision
 decision <-
   merge.last(decision,
              subset(timeslot,
                     select = c(user, utime.updated, morning.hours:ema.hours)),
              "user", var.x = "utime.stamp", var.y = "utime.updated")
-nrow(decision)
 ## designated hours for the intended time slot
 decision$slot.hours <- apply(subset(decision,
                                     select = c(slot, morning.hours:ema.hours)),
@@ -286,20 +308,24 @@ decision$time.stamp.slot <-
   ltime2slot(time.stamp.hour, time.stamp.min + 30 * is.prefetch, decision)
 with(decision, table(slot != time.stamp.slot, user))
 
-## link responses proximally with momentary decision
+## add the *intended* time slots to suggestion response
+## nb: we use intended versus user-designated to ensure that correctly associate
+##     each response to its corresponding decision
 response <-
   merge.last(response,
              subset(decision,
                     select = c(user, utime.stamp, date.stamp, time.stamp, tz,
                                time.slot, slot, slot.hours, time.stamp.slot,
                                notify, is.randomized, is.prefetch,
-                               returned.message)),
+                               returned.message, link)),
              "user", var.x = "notified.utime", var.y = "utime.stamp",
              suffixes = c("", ".decision"))
-## linked response messages should match
-with(response, table(notification.message == returned.message, useNA = "ifany"))
+## match between linked messages?
+with(response, table(notification.message == returned.message,
+                     link, useNA = "ifany"))
 
-## keep unique, responded or earliest suggestion responses
+## among suggestion responses in the same intended slot,
+## keep rated/snoozed or earliest responses
 response <- response[with(response,
                           order(user, date.stamp, slot,
                                 response == "no_response", responded.utime)), ]
@@ -307,26 +333,27 @@ dup.response <- check.dup(response, "checks/dup_response.csv",
                           user, date.stamp, slot)
 response <- response[!dup.response$is.dup, ]
 
-## discard unused prefetch, duplicate no-send/unlinked decisions
-decision <- decision[with(decision,
-                          order(user, date.stamp, slot, -link, is.prefetch,
-                                !valid, abs(slot - time.stamp.slot),
-                                utime.stamp)), ]
+## updated linked status
+decision <- merge(decision,
+                  subset(response, select = c(user, date.stamp, slot, response)),
+                  by = c("user", "date.stamp", "slot"), all.x = TRUE)
+nrow(decision)
+
+## among momentary decisions in the same intended slot, keep linked decisions
+decision <- decision[with(decision, order(user, date.stamp, slot,
+                                          !link | is.na(response))), ]
 dup.decision <- check.dup(decision, "checks/dup_decision.csv",
                           user, date.stamp, slot)
 decision <- decision[!dup.decision$is.dup, ]
-## omit extraneous prefetch decisions
-dup.decision <- check.dup(subset(dup.decision$data, link == 0 & is.prefetch),
-                          "checks/dup_decision.csv", user, date.stamp, slot)
 
-## time slot mismatch
+## remaining time slot mismatches
 write.data(subset(decision, slot != time.stamp.slot),
            "checks/decision_outsideslot.csv")
 
 ## add message tags
-decision <- merge(decision, messages,
-                  by.x = "returned.message", by.y = "message",
-                  all.x = TRUE, sort = FALSE)
+nrow(decision <- merge(decision, messages,
+                       by.x = "returned.message", by.y = "message",
+                       all.x = TRUE, sort = FALSE))
 decision <- decision[with(decision, order(user, date.stamp, slot)), ]
 ## missing tags
 write.data(subset(decision, notify & is.na(tag.active)),

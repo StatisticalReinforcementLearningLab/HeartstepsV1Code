@@ -5,7 +5,7 @@ source("init.R")
 setwd(sys.var$mbox)
 load("csv.RData")
 
-max.date <- as.Date("2015-11-21")
+max.date <- as.Date("2015-11-27")
 
 ## --- user data
 
@@ -44,9 +44,16 @@ users$exclude <- with(users, intake.date >= max.date | days < 7 |
 ## odd user id implies that HeartSteps is installed on own phone
 users$own.phone <- users$user %% 2 != 0
 
+## device locale is (most likely) US English
+users <- merge(users,
+               aggregate(cbind(en.locale = !grepl("^\\?+$", timezone)) ~ user,
+                         all, data = read.csv("checks/user_timezones.csv")),
+               by = "user", all.x = TRUE)
+
 ## add intake and exit interview data
-users <- merge(users, merge(intake, exit, by = c("user", "userid"), all = TRUE,
-                            suffixes = c(".intake", ".exit")),
+users <- merge(users,
+               merge(intake, exit, by = c("user", "userid"), all = TRUE,
+                     suffixes = c(".intake", ".exit")),
                by = "user", all.x = TRUE)
 
 ## --- daily data
@@ -88,7 +95,7 @@ daily <-
                           front.end.application, gps.coordinate, city,
                           location.exact, location.category, weather.condition,
                           temperature, windspeed, precipitation.chance, snow)),
-        by.x = c("user", "study.date"), by.y = c("user", "context.date"),
+        by.x = c("user", "study.date"), by.y = c("user", "ema.date"),
         all.x = TRUE)
 
 ## add planning status
