@@ -25,7 +25,7 @@ fi
     --url=https://com-um-heartsteps.appspot.com/remote_api \
     --filename=$dir/temp/$table.csv --kind=$table \
     --config_file=config_files/$table.yaml --no_cookie
-mv $dir/$table.csv $dir/$table.csv
+mv $dir/temp/$table.csv $dir/$table.csv
 done
 
 rm bulkloader*
