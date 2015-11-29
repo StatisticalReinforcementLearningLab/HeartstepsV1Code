@@ -12,14 +12,12 @@ max.date <- as.Date("2015-11-27")
 ## slot of update time, last notification
 
 ## infer intake date-time from first selection of notification time slots
-users <- subset(timeslot[with(timeslot, order(user, utime.updated)), ],
-                !duplicated(user),
-                select = c(user, date.updated, utime.updated, tz, gmtoff,
-                           time.updated.min
-       data.frame(user, intake.date = date.updated, intake.utime = utime.updated,
-                  intake.tz = tz, intake.gmtoff = gmtoff,
-                  intake.min = time.updated.min,
-                  intake.hour = time.updated.hour))
+users <- with(subset(timeslot[with(timeslot, order(user, utime.updated)), ],
+                     !duplicated(user)),
+              data.frame(user, intake.date = date.updated,
+                         intake.utime = utime.updated, intake.tz = tz,
+                         intake.gmtoff = gmtoff, intake.min = time.updated.min,
+                         intake.hour = time.updated.hour))
 
 ## infer exit date-time from last notification
 temp <-
@@ -74,8 +72,8 @@ daily <-
                  simplify = FALSE))
 
 ## index day on study, starting from zero
-daily$study.day <- with(daily, as.numeric(difftime(study.date, intake.date,
-                                                   units = "days")))
+daily$study.day <-
+  with(daily, as.numeric(difftime(study.date, intake.date, units = "days")))
 
 ## context at EMA notification or (if unavailable) at earliest engagement
 any(with(notify, duplicated(cbind(user, ema.date))))
@@ -83,8 +81,7 @@ names(notify) <- gsub("^notified\\.(|time.)", "context.", names(notify))
 names(engage) <- gsub("^engaged\\.(|time.)", "context.", names(engage))
 notify$notify <- 1
 temp <- merge(notify, engage, all = TRUE)
-temp <- temp[with(temp,
-                  order(user, is.na(notify), ema.date, context.utime)), ]
+temp <- temp[with(temp, order(user, is.na(notify), ema.date, context.utime)), ]
 temp <- subset(temp, !duplicated(cbind(user, ema.date)))
 daily <-
   merge(daily,
@@ -100,11 +97,11 @@ daily <-
 
 ## add planning status
 any(with(plan, duplicated(cbind(user, ema.date))))
-daily <- merge(daily,
-               with(plan, aggregate(planning, list(user, ema.date),
-                                    function(x) x[1])),
-               by.x = c("user", "study.date"), by.y = c("Group.1", "Group.2"),
-               all.x = TRUE)
+daily <-
+  merge(daily,
+        with(plan, aggregate(planning, list(user, ema.date), function(x) x[1])),
+        by.x = c("user", "study.date"), by.y = c("Group.1", "Group.2"),
+        all.x = TRUE)
 
 ## add EMA response
 any(with(ema, duplicated(cbind(user, ema.date, order))))
@@ -174,17 +171,17 @@ suggest <- do.call("rbind",
 
 ## add decision result by the *intended* time slot
 any(with(decision, duplicated(cbind(user, date.stamp, slot))))
-suggest <- merge(suggest,
-                 subset(decision,
-                        select = c(user, tz, gmtoff, date.stamp, utime.stamp,
-                                   time.stamp.year:time.stamp.sec, is.prefetch,
-                                   slot, time.slot, time.stamp.slot, notify,
-                                   returned.message, tag.active, snooze.status,
-                                   is.randomized, recognized.activity,
-                                   front.end.application)),
-                 by.x = c("user", "study.date", "slot"),
-                 by.y = c("user", "date.stamp", "slot"),
-                 all.x = TRUE)
+suggest <-
+  merge(suggest,
+        subset(decision,
+               select = c(user, tz, gmtoff, date.stamp, utime.stamp,
+                          time.stamp.year:time.stamp.sec, is.prefetch, slot,
+                          time.slot, time.stamp.slot, notify, returned.message,
+                          tag.active, snooze.status, is.randomized,
+                          recognized.activity, front.end.application)),
+        by.x = c("user", "study.date", "slot"),
+        by.y = c("user", "date.stamp", "slot"),
+        all.x = TRUE)
 
 ## index momentary decision, starting from zero
 suggest$decision <- do.call("c", sapply(table(suggest$user) - 1, seq, from = 0,
@@ -192,20 +189,19 @@ suggest$decision <- do.call("c", sapply(table(suggest$user) - 1, seq, from = 0,
 
 ## add suggestion response and its context
 any(with(response, duplicated(cbind(user, notified.date, slot))))
-suggest <- merge(suggest,
-                 subset(response,
-                        select = c(user, notified.date, slot,
-                                   notified.utime, responded.utime,
-                                   notified.time.year:notified.time.sec,
-                                   responded.time.year:responded.time.sec,
-                                   interaction.count, notification.message,
-                                   tag.active, response, home, work, calendar,
-                                   recognized.activity, gps.coordinate, city,
-                                   location.exact, location.category,
-                                   weather.condition, temperature, windspeed,
-                                   precipitation.chance, snow)),
-                 by.x = c("user", "study.date", "slot"),
-                 by.y = c("user", "notified.date", "slot"),
-                 all.x = TRUE, suffixes = c("", ".response"))
+suggest <-
+  merge(suggest,
+        subset(response,
+               select = c(user, date.stamp, slot, notified.utime,
+                          responded.utime, notified.time.year:notified.time.sec,
+                          responded.time.year:responded.time.sec,
+                          interaction.count, notification.message, response,
+                          home, work, calendar, recognized.activity,
+                          gps.coordinate, city, location.exact,
+                          location.category, weather.condition, temperature,
+                          windspeed, precipitation.chance, snow)),
+        by.x = c("user", "study.date", "slot"),
+        by.y = c("user", "date.stamp", "slot"),
+        all.x = TRUE, suffixes = c("", ".response"))
 
 save(max.date, users, daily, suggest, file = "analysis.RData")

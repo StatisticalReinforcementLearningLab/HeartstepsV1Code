@@ -74,17 +74,18 @@ source("summary.R")
 setwd(sys.var$mbox)
 load("csv.RData")
 load("analysis.RData")
+setwd(sys.var$repo)
 @
 
 \section{Data irregularities}
 
 \subsection{EMA and momentary decision identifiers}
 
-The contextID variable was intended to uniquely identify each EMA notification and link between the EMA-related tables. However the contextID in EMA{\_}Context{\_}Notified does not represent all of the identifier values encountered in the remaining tables. Moreover different contextID values are associated with responses within the same EMA. These issues might be due in part to the phone being turned off at the EMA time slot, but more investigation is needed.
+The contextID variable was intended to uniquely identify each EMA notification and link between the EMA-related tables. However the contextID in EMA{\_}Context{\_}Notified does not represent all of the identifier values encountered in the remaining tables. Moreover different contextID values are associated with responses within the same EMA. The reason for the former issue is described in \cref{sec:context}. More investigation is needed to determine the cause of the latter..
 
-The decisionID variable was intended to uniquely identify each momentary decision (to provide a suggestion or not) and link to the suggestion response table. However in both of the suggestion-related tables, the same decisionID value is associated different notification time slots. This is due to a race condition in which the decisionID value stored on the device is read before being updated.
+The decisionID variable was intended to uniquely identify each momentary decision (to provide a suggestion or not) and link to the suggestion response table. In Momentary{\_}Decision, each treatment occasion is preceded by a ``prefetch'' decision that is assigned the same decisionID. If the user's phone has an active connection at their treatment occasion time slot, another decision is generated. However in a small number of cases the old prefetch decision is reflected in the Response table. More often the same decisionID value is associated different notification time slots, and these recurrences arise in slightly different ways in Momentary{\_}Decision and Response. This particular issue is due to a race condition in which the decisionID value stored on the phone is read before being updated.
 
-Although infrequent, these issues prevent systematic linkage between tables. We instead construct identifiers with userID and date-time variables, accounting for time lags due for activity recognition or user response.
+Although relatively infrequent, these problems do not arise in predictable ways and prevent systematic linkage between tables. We instead construct identifiers with userID and date-time variables, accounting for time lags due for activity recognition or user response.
 
 \subsection{Duplication}
 \label{sec:dup}
@@ -97,17 +98,17 @@ Table & Source of duplication & Resolution \\
 \midrule
 EMA{\_}Context{\_}Engaged & Multiple activity recognition attempts & Discard duplicates with invalid activity recognition \\
 \midrule
-Structured{\_}Planning, Unstructured{\_}Planning & User revised response & Discard earlier or next-day plans \\
+Structured{\_}Planning, Unstructured{\_}Planning & User reviewed/revised response & Discard earlier or next-day duplicate plans \\
 \midrule
-EMA{\_}Response & User revised response & Discard earlier responses \\
+EMA{\_}Response & User reviewed/revised response & Discard earlier duplicate responses \\
 \midrule
 EMA{\_}Completed & Unknown & Take the maximum completion status among duplicates \\
 \midrule
-Momentary{\_}Decision & See \cref{sec:slot} & Discard decisions with wrong time slot or ``do not notify'' result \\
+Momentary{\_}Decision & Unknown if time stamps among duplicates are the same. Otherwise see \cref{sec:slot} & Discard duplicate decisions that are completely redundant (by time, message content, etc.), don't correctly link to Response, or take place in the wrong time slot \\
 \bottomrule
 \end{tabular}
 
-\subsection{Inactive connection with device}
+\subsection{Inactive connection with phone}
 
 
 
@@ -132,15 +133,17 @@ print(xtable(d, digits = 0),
 
 A total \Sexpr{with(daily, sum(is.na(context.utime) & !is.na(ema.set.length)))} of EMA responses have no contextual data available from notification or engagement. This was due to server-side dispensing of records for which the activity could not be recognized---a bug that was identified and patched in September.
 
-\subsection{Randomized versus administered planning status}
+\subsection{Randomized planning status}
 
-The EMA{\_}Context{\_}Notified table provides the randomized planning status, but this often does not correspond to the planning status administered to the user when we link to the Structured{\_}Planning and Unstructured{\_}Planning tables by any reasonable identifier. This is due to a race condition in which the EMA{\_}Context{\_}Notified planning status stored on the device is read before being updated. So its value might represent either an initial or previous status value.
+The EMA{\_}Context{\_}Notified table provides the randomized planning status, but this often does not correspond to the planning status administered to the user when we link to the Structured{\_}Planning and Unstructured{\_}Planning tables by any reasonable identifier. This is due to a race condition in which the EMA{\_}Context{\_}Notified planning status stored on the phone is read before being updated. So its value might represent either an initial or previous status value.
+
+We conjecture that this issue does not affect the actual, \emph{administered} planning status; the information available in Structured{\_}Planning and Unstructured{\_}Planning appears to reflect the randomized value. However we do not know the randomized planning status among those who did not 
 
 If the user responded
 
 \subsection{EMA question set}
 
-The EMA{\_}Completed table provides a variable EMA{\_}Set{\_}Today, which should provide the ordered set of EMA questions sent to the user. In \Sexpr{with(notify, sum(ema.set.today != ema.set, na.rm = TRUE))} cases, EMA{\_}Set{\_}Today does not agree with the sequence of questions that the user answered. This is due to a race condition in which the question set stored on the device is read before being updated. To resolve this, we infer the administered question set from EMA{\_}Response; the question set for incomplete EMAs is not entirely recoverable, particularly if the user engaged with the EMA.
+The EMA{\_}Completed table provides a variable EMA{\_}Set{\_}Today, which should provide the ordered set of EMA questions sent to the user. In \Sexpr{with(notify, sum(ema.set.today != ema.set, na.rm = TRUE))} cases, EMA{\_}Set{\_}Today does not agree with the sequence of questions that the user answered. This is due to a race condition in which the question set stored on the phone is read before being updated. To resolve this, we infer the administered question set from EMA{\_}Response; the question set for incomplete EMAs is not entirely recoverable, particularly if the user engaged with the EMA.
 
 \subsection{Notifications under changing time zone}
 \label{sec:slot}

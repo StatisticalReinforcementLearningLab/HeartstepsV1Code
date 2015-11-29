@@ -7,6 +7,39 @@ setwd(sys.var$mbox)
 ## --- user-level data
 
 ## participant/user list
+participants <- read.data("HeartSteps Participant Directory.csv", list(user))
+participants$intake.date <-
+  char2date(participants$intake.interview.date, "%m/%d/%Y")
+participants$exit.date <- char2date(participants$exit.interview.date, "%m/%d/%Y")
+
+## intake interviews
+intake <- read.data("Survey_Intake.csv", list(user), skip = 3, na.strings = "X")
+intake$startdate <- char2date(intake$startdate, "%m/%d/%Y")
+
+## exit interviews
+exit <- read.data("Survey_Exit.csv", list(user), skip = 3, na.strings = "X")
+exit$exitdate <- char2date(exit$exitdate, "%m/%d/%Y")
+
+## --- HeartSteps application data
+
+## application usage
+usage <- read.data("Heartsteps_Usage_History.csv", list(user, end.utime))
+
+## snooze enabled or disabled
+snooze <- read.data("Snoozed_FromInApp.csv", list(user, utime.stamp))
+
+## home and work locations
+## nb: time zone data are unavailable
+address <- read.data("User_Addresses.csv", list(user, time.updated))
+
+## calendars
+## nb: Google calendar API data are unavailable
+## nb: time zone data are unavailable
+calendar <- read.data("User_Calendars.csv", list(user, time.updated))
+
+## suggestion and EMA timeslots
+timeslot <- read.data("User_Decision_Times.csv", list(user, utime.updated))
+## drop redundant timeslot updates
 timeslot <- subset(timeslot,
                    !duplicated(cbind(user, date.updated, tz,
                                      morning, lunch, dinner, evening, ema)))
@@ -64,7 +97,6 @@ plan$planning <- c("structured", "unstructured")[1 + is.na(plan$list.of.options)
 ## keep unique or latest same-day plans
 dup.plan <- check.dup(plan, "checks/dup_planning.csv", user, date.started, tz)
 plan <- plan[!dup.plan$is.dup, ]
-with(plan, any(duplicated(cbind(user, date.started))))
 
 ## EMA completion status
 ## nb: we look to EMA response for completion status instead
@@ -131,6 +163,9 @@ engage$ema.date <- with(engage, engaged.date - (engaged.time.hour < 18))
 plan$ema.date <- with(plan, date.started - (time.started.hour < 18))
 ema$ema.date <- with(ema, notified.date - (notified.time.hour < 18))
 
+## any planning responses recur by EMA day?
+with(plan, table(duplicated(contextid), duplicated(cbind(user, ema.date))))
+
 ## every EMA response has a corresponding notification?
 with(ema, table(contextid %in% notify$contextid,
                 paste(user, ema.date) %in% with(notify, paste(user, ema.date))))
@@ -140,9 +175,9 @@ with(engage,
      table(contextid %in% notify$contextid,
            paste(user, ema.date) %in% with(notify, paste(user, ema.date))))
 
-## if every EMA response associated with a single contextID,
+## if each EMA response is associated with a single contextID,
 ## the off-diagonal should be zero
-with(ema, table(duplicated(contextid, order),
+with(ema, table(duplicated(cbind(contextid, order)),
                 duplicated(cbind(user, ema.date, order))))
 
 ## keep unique EMA responses
