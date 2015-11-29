@@ -98,13 +98,13 @@ Table & Source of duplication & Resolution \\
 \midrule
 EMA{\_}Context{\_}Engaged & Multiple activity recognition attempts & Discard duplicates with invalid activity recognition \\
 \midrule
-Structured{\_}Planning, Unstructured{\_}Planning & User reviewed/revised response & Discard earlier or next-day duplicate plans \\
+Structured{\_}Planning, Unstructured{\_}Planning & User revisited screen & Discard earlier or next-day duplicate plans \\
 \midrule
-EMA{\_}Response & User reviewed/revised response & Discard earlier duplicate responses \\
+EMA{\_}Response & User revisited screen & Discard earlier duplicate responses \\
 \midrule
 EMA{\_}Completed & Unknown & Take the maximum completion status among duplicates \\
 \midrule
-Momentary{\_}Decision & Unknown if time stamps among duplicates are the same. Otherwise see \cref{sec:slot} & Discard duplicate decisions that are completely redundant (by time, message content, etc.), don't correctly link to Response, or take place in the wrong time slot \\
+Momentary{\_}Decision & Unknown if time stamps among duplicates are the same; otherwise see \cref{sec:slot} & Discard duplicate decisions that are either completely redundant, don't correctly link to Response, or take place in the wrong time slot. These conditions are applied successively until no duplicates remain. \\
 \bottomrule
 \end{tabular}
 
@@ -135,11 +135,33 @@ A total \Sexpr{with(daily, sum(is.na(context.utime) & !is.na(ema.set.length)))} 
 
 \subsection{Randomized planning status}
 
-The EMA{\_}Context{\_}Notified table provides the randomized planning status, but this often does not correspond to the planning status administered to the user when we link to the Structured{\_}Planning and Unstructured{\_}Planning tables by any reasonable identifier. This is due to a race condition in which the EMA{\_}Context{\_}Notified planning status stored on the phone is read before being updated. So its value might represent either an initial or previous status value.
+The EMA{\_}Context{\_}Notified table was intended to provide (among other information) the randomized planning status, but the values recorded in this table often does not correspond to the planning status administered to the user when we link to the Structured{\_}Planning and Unstructured{\_}Planning tables by any reasonable identifier.
 
-We conjecture that this issue does not affect the actual, \emph{administered} planning status; the information available in Structured{\_}Planning and Unstructured{\_}Planning appears to reflect the randomized value. However we do not know the randomized planning status among those who did not 
+<<plan, results="asis">>=
+d <- with(daily, table(capitalize(planning.today), capitalize(planning),            
+                       useNA = "ifany"))
+rownames(d)[nrow(d)] <- colnames(d)[ncol(d)] <- "Unknown"
+d <- cbind(c("", "EMA{\\_}Context{\\_}Notified status", rep("", nrow(d) - 1)),
+           c("", rownames(d)), rbind(colnames(d), d))
+cm <- paste0("& & \\multicolumn{", ncol(d) - 2, "}{c}{",
+             "Structured{\\_}Planning and Unstructured{\\_}Planning status}",
+             "\\\\ \n", "\\cmidrule{3-", ncol(d), "}\n")
+print(xtable(d, digits = 0, align = rep("r", ncol(d) + 1)),
+      floating = FALSE, booktabs = TRUE, hline.after = nrow(d),
+      include.rownames = FALSE, include.colnames = FALSE,
+      add.to.row = list(pos = as.list(-1:1),
+                        command = c("\\toprule\n", cm, "\\midrule\n")),
+      sanitize.text.function = identity)
+@
 
-If the user responded
+This discrepancy is due to a race condition in which the EMA{\_}Context{\_}Notified planning status stored on the phone is read before being updated. So its value might represent either an initial or previous status value.
+
+We conjecture that this issue does not affect the actual, \emph{administered} planning status; the information available in Structured{\_}Planning and Unstructured{\_}Planning appears to reflect the randomized value. However we do not know the randomized planning status in the absence of information in EMA{\_}Response. This arises under three settings:
+\begin{itemize}
+\item \Sexpr{with(daily, sum(connect))} cases where the user's phone having no active connection to push the EMA. We could consider the user to unavailable for the planning intervention.
+\item \Sexpr{with(daily, sum(!view & !respond))} cases where the user had an active connection, but did (likely) not view the questionnaire. We could simply regenerate the randomized planning status.
+\item \Sexpr{with(daily, sum(view & !respond))} cases where the user viewed the questionnaire, but did not respond. We could ignore the viewing status and regenerate as with the second scenario.
+\end{itemize}
 
 \subsection{EMA question set}
 

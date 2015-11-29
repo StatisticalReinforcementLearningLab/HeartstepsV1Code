@@ -86,21 +86,13 @@ temp <- subset(temp, !duplicated(cbind(user, ema.date)))
 daily <-
   merge(daily,
         subset(temp,
-               select = c(user, tz, gmtoff, ema.date, context.date,
+               select = c(user, tz, gmtoff, ema.date, notify, context.date,
                           context.utime, context.year:context.sec, planning.today,
                           home, work, calendar, recognized.activity,
                           front.end.application, gps.coordinate, city,
                           location.exact, location.category, weather.condition,
                           temperature, windspeed, precipitation.chance, snow)),
         by.x = c("user", "study.date"), by.y = c("user", "ema.date"),
-        all.x = TRUE)
-
-## add planning status
-any(with(plan, duplicated(cbind(user, ema.date))))
-daily <-
-  merge(daily,
-        with(plan, aggregate(planning, list(user, ema.date), function(x) x[1])),
-        by.x = c("user", "study.date"), by.y = c("Group.1", "Group.2"),
         all.x = TRUE)
 
 ## add EMA response
@@ -118,9 +110,37 @@ setNames(sapply(with(users, user[!exclude]),
                                 %in% subset(ema, user == u)$ema.date)),
          with(users, user[!exclude]))
 
-## administered (versus intended) planning status
-daily$planning <- with(daily, ifelse(is.na(ema.set.length),
-                                     NA, ifelse(is.na(x), "no_planning", x)))
+## add indicator of EMA engagement
+daily <- merge(daily,
+               aggregate(interaction.count ~ user + ema.date, sum, data = engage),
+               by.x = c("user", "study.date"), by.y = c("user", "ema.date"),
+               all.x = TRUE)
+
+## responded to at least one EMA question?
+daily$respond <- !is.na(daily$ema.set.length)
+
+## viewed the planning/EMA?
+## FIXME: verify interpretation
+daily$view <- with(daily, !is.na(interaction.count) | respond)
+
+## had active connection at "time" of EMA?
+## FIXME: verify interpretation
+daily$notify <- !is.na(daily$notify)
+daily$connect <- with(daily, notify | view | respond)
+
+## planning status from EMA context notified, subject to race condition
+daily$planning.today[!daily$connect] <- "disconnected"
+
+## administered planning status
+any(with(plan, duplicated(cbind(user, ema.date))))
+daily <-
+  merge(daily,
+        with(plan, aggregate(planning, list(user, ema.date), function(x) x[1])),
+        by.x = c("user", "study.date"), by.y = c("Group.1", "Group.2"),
+        all.x = TRUE)
+daily$planning <- with(daily, ifelse(!connect, "disconnected",
+                              ifelse(!is.na(x), x,
+                              ifelse(respond, "no_planning", NA))))
 daily$x <- NULL
 
 ## add daily step counts,

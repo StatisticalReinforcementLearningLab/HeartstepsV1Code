@@ -17,6 +17,14 @@ normalize.text <- function(x) {
   iconv(x, "UTF-8", "ASCII", "")
 }
 
+## capitalize first letter
+capitalize <- function(x) {
+  x <- gsub("_", " ", x)
+  sapply(x,
+         function(y) if (is.na(y)) NA
+                     else paste0(toupper(substring(y, 1, 1)), substring(y, 2)))
+}
+
 ## copy variable from y to x, taking first matches in an identifier
 copy <- function(x, y, var.name, id.name)
   y[match(x[[id.name]], y[[id.name]]), names(y) == var.name]
