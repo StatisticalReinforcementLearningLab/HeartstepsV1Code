@@ -275,7 +275,11 @@ decision$slot <- match(decision$time.slot, slots)
 ## missing day of week (just record in case this affects contextualization)
 write.data(subset(decision, day.of.week == ""), "checks/decision_nowkday.csv")
 
-## persistency of identifiers over time in momentary decision
+## any prefetch singletons?
+with(decision, table(!(decisionid %in% decisionid[duplicated(decisionid)])
+                     & is.prefetch))
+
+## persistence of identifiers over time in momentary decision
 with(decision, table(duplicated(decisionid),
                      duplicated(cbind(decisionid, is.prefetch))))
 with(subset(decision, !is.prefetch),
@@ -288,10 +292,10 @@ with(decision, table(duplicated(cbind(user, utime.stamp)),
 response <- read.data("Response.csv", list(user, notified.utime))
 response$notification.message <- normalize.text(response$notification.message)
 
-## persistency of identifiers over time in suggestion response
+## persistence of identifiers over time in suggestion response
 with(response, table(duplicated(decisionid)))
 
-## persistency the same between momentary decision and response?
+## persistence the same between momentary decision and response?
 table(with(response, decisionid[duplicated(decisionid)]) %in%
       with(decision, decisionid[duplicated(cbind(decisionid, is.prefetch))]))
 
@@ -368,15 +372,15 @@ dup.response <- check.dup(response, "checks/dup_response.csv",
                           user, date.stamp, slot)
 response <- response[!dup.response$is.dup, ]
 
-## updated linked status
+## update link status
 decision <- merge(decision,
                   subset(response, select = c(user, date.stamp, slot, response)),
                   by = c("user", "date.stamp", "slot"), all.x = TRUE)
 nrow(decision)
 
 ## among momentary decisions in the same intended slot, keep linked decisions
-decision <- decision[with(decision, order(user, date.stamp, slot,
-                                          !link | is.na(response))), ]
+decision <- decision[with(decision,
+                          order(user, date.stamp, slot, !link, is.prefetch)), ]
 dup.decision <- check.dup(decision, "checks/dup_decision.csv",
                           user, date.stamp, slot)
 decision <- decision[!dup.decision$is.dup, ]

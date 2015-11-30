@@ -15,8 +15,8 @@ plot.daily.steps <- function(u) {
            col = grey(0, 0.3))
   with(d, points(study.day, jbsteps, type = "l"))
   with(d, points(study.day, gfsteps, type = "l", lty = "dotted"))
-  at <- c(0, with(d, c(study.day[na.jbsteps & !lag1.na.jbsteps] - 1,
-                       study.day[!na.jbsteps & lag1.na.jbsteps], maxd, 42)))
+  at <- with(d, c(0, study.day[is.na(jbsteps) & !is.na(lag1.jbsteps)] - 1,
+                  study.day[!is.na(jbsteps) & is.na(lag1.jbsteps)], maxd, 42))
   axis(1, at = sort(unique(at)))
   axis(2, at = sort(round(c(0, meanjb, maxs))))
 }
