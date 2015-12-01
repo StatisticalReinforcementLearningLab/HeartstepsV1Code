@@ -148,29 +148,31 @@ daily$planning[with(daily, respond & is.na(planning))] <- "no_planning"
 ## add daily step counts,
 ## aligned with the days (00:00 - 23:59) in the *intake* time zone
 ## FIXME: align step counts with timing of EMA?
-jawbone <- merge(jawbone, users, by = "user", suffixes = c("", ".user"))
-jawbone$end.date <- do.call("c",
-                            with(jawbone,
-                                 mapply(as.Date, x = end.utime, tz = intake.tz,
-                                        SIMPLIFY = FALSE)))
+jawbone <- merge(jawbone, subset(users, select = user:last.min),
+                 by = "user", suffixes = c("", ".user"))
+jawbone$end.date <-
+  do.call("c", with(jawbone, mapply(as.Date, x = end.utime, tz = intake.tz,
+                                    SIMPLIFY = FALSE)))
+jawbone <- jawbone[with(jawbone, order(user, end.utime)), ]
+
 daily <- merge(daily,
                aggregate(steps ~ user + end.date, data = jawbone, sum),
                by.x = c("user", "study.date"), by.y = c("user", "end.date"),
                all.x = TRUE)
 names(daily)[ncol(daily)] <- "jbsteps"
-daily$lag1.jbsteps <- with(daily, delay(user, study.day, jbsteps))
 
-googlefit <- merge(googlefit, users, by = "user", suffixes = c("", ".user"))
-googlefit$end.date <- do.call("c",
-                            with(googlefit,
-                                 mapply(as.Date, x = end.utime, tz = intake.tz,
-                                        SIMPLIFY = FALSE)))
+googlefit <- merge(googlefit, subset(users, select = user:last.min),
+                   by = "user", suffixes = c("", ".user"))
+googlefit$end.date <-
+  do.call("c", with(googlefit, mapply(as.Date, x = end.utime, tz = intake.tz,
+                                      SIMPLIFY = FALSE)))
+googlefit <- googlefit[with(googlefit, order(user, end.utime)), ]
+
 daily <- merge(daily,
                aggregate(steps ~ user + end.date, data = googlefit, sum),
                by.x = c("user", "study.date"), by.y = c("user", "end.date"),
                all.x = TRUE)
 names(daily)[ncol(daily)] <- "gfsteps"
-daily$lag1.gfsteps <- with(daily, delay(user, study.day, gfsteps))
 
 daily <- daily[with(daily, order(user, study.day)), ]
 
@@ -226,6 +228,12 @@ suggest <-
         by.x = c("user", "study.date", "slot"),
         by.y = c("user", "date.stamp", "slot"),
         all.x = TRUE, suffixes = c("", ".response"))
+
+## adjust time stamp for prefetch decisions
+suggest$utime.stamp <- with(suggest, utime.stamp + 30 * 60 * is.prefetch)
+
+## add slot step counts
+#jawbone <-
 
 ## had active connection at decision slot?
 suggest$connect <- with(suggest, !is.na(notify))

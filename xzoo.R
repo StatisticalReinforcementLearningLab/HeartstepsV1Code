@@ -54,8 +54,10 @@ delay <- function(id, time, x, k = 1) {
 ## rolling summary with given right-aligned window width
 roll <- function(id, time, x, width, FUN, ...) {
   z <- zoosplit(splitdata(id, time, x))
-  r <- lapply(z, function(y)
-              rollapplyr(y, width = width, FUN = FUN, partial = TRUE, ...))
+  r <- lapply(z, function(y) if (length(y) > 1)
+                               rollapplyr(y, width = width, FUN = FUN,
+                                          partial = TRUE, ...)
+                             else NA)
   attributes(r) <- attributes(z)
   unzoosplit(r)
 }

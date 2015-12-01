@@ -150,11 +150,25 @@ The proportion of within-slot decisions among the users has an average of $\Sexp
 
 \subsection{Randomized suggestion status}
 
+The Momentary{\_}Decision table provides the availability (on the basis of the recognized activity and snooze status) and randomized suggestion status. However the values recorded do not agree with the administered suggestion status in the Response table. This discrepancy is likely due to a race condition in which the Momentary{\_}Decision status stored on the phone is read before being updated. So its value might represent the positive status used as a default value for the prefetch decision.
 
+<<suggest, results="asis">>=
+
+d <- with(suggest, table(notify & connect, is.na(response), useNA = "ifany"))
+rownames(d) <- colnames(d) <- c("Don't send", "Send")
+d <- rbind(cbind(c("", "Momentary{\\_}Decision", rep("", nrow(d) - 1)),
+                 c("Response", rownames(d)), rbind(colnames(d), d)),
+           c("", "Total", apply(d, 2, sum)))
+rownames(d) <- NULL
+print(xtable(d, digits = 0, align = rep("r", ncol(d) + 1)),
+      floating = FALSE, booktabs = TRUE, hline.after = c(-1, 1, -1:0 + nrow(d)),
+      include.rownames = FALSE, include.colnames = FALSE,
+      sanitize.text.function = identity)
+@
 
 \subsection{Randomized planning status}
 
-The EMA{\_}Context{\_}Notified table was intended to provide (among other information) the randomized planning status, but the values recorded in this table often does not correspond to the planning status administered to the user when we link to the Structured{\_}Planning and Unstructured{\_}Planning tables by any reasonable identifier. This discrepancy is due to a race condition in which the EMA{\_}Context{\_}Notified planning status stored on the phone is read before being updated. So its value might represent either an initial or previous status value. 
+The EMA{\_}Context{\_}Notified table provides the randomized planning status, but the values recorded in this table often do not agree with the administered planning status in the Structured{\_}Planning and Unstructured{\_}Planning tables. This discrepancy is due to a race condition in which the EMA{\_}Context{\_}Notified planning status stored on the phone is read before being updated. So its value might represent either an initial or previous status value. 
 
 <<plan, results="asis">>=
 d <- with(daily, table(capitalize(planning.today), capitalize(planning),
@@ -164,10 +178,9 @@ d <- rbind(cbind(c("", "EMA{\\_}Context{\\_}Notified", rep("", nrow(d) - 1)),
                  c("", rownames(d)), rbind(colnames(d), d)),
            c("", "Total", apply(d, 2, sum)))
 rownames(d) <- NULL
-cm <- 
-  paste0("& & \\multicolumn{", ncol(d) - 2, "}{c}{",
-         "Structured{\\_}Planning, Unstructured{\\_}Planning, EMA{\\_}Response",
-         "}\\\\ \n", "\\cmidrule{3-", ncol(d), "}\n")
+cm <- paste0("& & \\multicolumn{", ncol(d) - 2, "}{c}{",
+             "Structured{\\_}Planning, Unstructured{\\_}Planning,",
+             " EMA{\\_}Response}\\\\ \n", "\\cmidrule{3-", ncol(d), "}\n")
 print(xtable(d, digits = 0, align = rep("r", ncol(d) + 1)),
       floating = FALSE, booktabs = TRUE, hline.after = -1:0 + nrow(d),
       include.rownames = FALSE, include.colnames = FALSE,
@@ -267,24 +280,44 @@ with(daily, plot(study.day, user.index, pch = 16,
 
 \section{Daily step count}
 
-The following plots give the daily step count for each user; the solid series corresponds to Jawbone and dotted to Google Fit. Breaks in the series indicate no step counts were recorded that day. The horizontal line gives the user average daily Jawbone step count; this extends up to the known or projected exit date. Vertical lines correspond to days on which no part of the EMA response is available.
+The following plots give the daily step count for each user; the solid series corresponds to Jawbone and dotted to Google Fit. Breaks in the series indicate no step counts were recorded that day. Grey segments of the series indicate that planning was carried out the day before. The horizontal line gives the user average daily Jawbone step count; this extends up to the known or projected exit date. Vertical lines correspond to days on which no part of the EMA was completed, with the dotted line type indicated that this was due to an inactive connection at the EMA time slot.
 <<dailysteps, fig.height=1.75>>=
+daily$last.jbsteps <- with(daily, delay(user, study.day, jbsteps))
+daily$next.jbsteps <- with(daily, delay(user, study.day, jbsteps, -1))
+daily$seg.jbsteps <- with(daily, !is.na(jbsteps) & !is.na(next.jbsteps))
+daily$last.gfsteps <- with(daily, delay(user, study.day, gfsteps))
+daily$next.gfsteps <- with(daily, delay(user, study.day, gfsteps, -1))
+daily$seg.gfsteps <- with(daily, !is.na(gfsteps) & !is.na(next.gfsteps))
+daily$plan <- daily$planning %in% c("structured", "unstructured")
 plot.daily.steps <- function(u) {
   d <- subset(daily, user == u)
   maxs <- max(1, d$jbsteps, d$gfsteps, na.rm = TRUE)
   maxd <- max(d$study.day)
+  slwd <- 1.5
+  pcol <- "darkgrey"
   plot(NULL, xlim = c(0, max(maxd, 42)), ylim = c(0, maxs),
        xlab = "", ylab = "", main = "", axes = FALSE, frame.plot = FALSE)
   mtext(paste(u), 2, line = 3)
-  sapply(subset(d, is.na(ema.set.length) & study.day < maxd)$study.day,
-         function(j) abline(v = j, col = grey(0, 0.3)))
+  apply(subset(d, is.na(ema.set.length) & study.day < maxd,
+               select = c(study.day, connect)), 1,
+        function(x) abline(v = x[1], col = "lightgrey",
+                           lty = c("dotted", "solid")[x[2] + 1]))
   meanjb <- mean(d$jbsteps, na.rm = TRUE)
   segments(0, meanjb, max(d$study.day, 42 * (d$last.date[1] > max.date)), meanjb,
-           col = grey(0, 0.3))
-  with(d, points(study.day, jbsteps, type = "l"))
-  with(d, points(study.day, gfsteps, type = "l", lty = "dotted"))
-  at <- with(d, c(0, study.day[is.na(jbsteps) & !is.na(lag1.jbsteps)] - 1,
-                  study.day[!is.na(jbsteps) & is.na(lag1.jbsteps)], maxd, 42))
+           col = "lightgrey")
+  with(subset(d, !plan & seg.gfsteps),
+       segments(study.day, gfsteps, study.day + 1, next.gfsteps,
+                lty = "dotted", lwd = slwd))
+  with(subset(d, plan & seg.gfsteps),
+       segments(study.day, gfsteps, study.day + 1, next.gfsteps,
+                lty = "dotted", col = pcol, lwd = slwd))
+  with(subset(d, !plan & seg.jbsteps),
+       segments(study.day, jbsteps, study.day + 1, next.jbsteps, lwd = slwd))
+  with(subset(d, plan & seg.jbsteps),
+       segments(study.day, jbsteps, study.day + 1, next.jbsteps,
+                col = pcol, lwd = slwd))
+  at <- with(d, c(0, study.day[is.na(jbsteps) & !is.na(last.jbsteps)] - 1,
+                  study.day[!is.na(jbsteps) & is.na(last.jbsteps)], maxd, 42))
   axis(1, at = sort(unique(at)))
   axis(2, at = sort(round(c(0, meanjb, maxs))))
 }

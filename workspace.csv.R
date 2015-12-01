@@ -55,6 +55,8 @@ timeslot <- timeslot[valid.slots(timeslot), ]
 dup.timeslot <- check.dup(timeslot, "checks/dup_timeslot.csv",
                           user, utime.updated)
 timeslot <- timeslot[!dup.timeslot$is.dup, ]
+## slot corresponding to the update time
+timeslot$slot <- ltime2slot(time.updated.hour, time.updated.min, timeslot)
 
 ## daily weather by city
 weather <- read.data("Weather_History.csv", list(date))
@@ -412,7 +414,8 @@ jawbone <- read.data(c("jawbone_step_count_data_07-15.csv",
                        "jawbone_step_count_data_10-15.csv",
                        "jawbone_step_count_data_11-15.csv"),
                      list(user, end.utime))
-check.dup(jawbone, "checks/dup_jawbone.csv", user, end.utime)
+dup.jawbone <- check.dup(jawbone, "checks/dup_jawbone.csv", user, end.utime)
+jawbone <- jawbone[!dup.jawbone$is.dup, ]
 
 ## Google Fit
 ## nb: degree of fractional seconds varies over time
@@ -423,7 +426,9 @@ googlefit <- read.data(c("google_fit_data_07-15.csv",
                          "google_fit_data_10-15.csv",
                          "google_fit_data_11-15.csv"),
                        list(user, end.utime))
-check.dup(googlefit, "checks/dup_googlefit.csv", user, end.utime)
+dup.googlefit <- check.dup(googlefit, "checks/dup_googlefit.csv",
+                           user, end.utime)
+googlefit <- googlefit[!dup.googlefit$is.dup, ]
 
 rm(temp)
 rm(sys.var)
