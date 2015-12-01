@@ -111,6 +111,8 @@ Momentary{\_}Decision & Time zone bugs (see \cref{sec:slot}) and other unknown r
 \subsection{Inactive server-phone connection}
 
 We cannot always find the anticipated data for each user-designated notification time slot. For example at the EMA notification time slot for a given user, we might find no corresponding records in any of the EMA-related tables. This presumably arises over periods when the user's phone is turned off or out of network coverage.
+
+Instances where no EMA-related records could be retrieved by user and day on study are depicted below.
 <<inactive-ema, fig.height=3>>=
 with(daily, plot(NULL, xlim = c(0, max(study.day)), ylim = c(0, max(user.index)),
                  frame.plot = FALSE, xlab = "Study day", ylab = "User index"))
@@ -118,7 +120,7 @@ with(daily, segments(0, user.index, pmax(study.day), col = "grey"))
 with(subset(daily, !connect),
      points(study.day, user.index, pch = 16, col = "darkgrey"))
 @
-
+We can similarly depict the momentary decision points at which there are no records in Momentary{\_}Decision or Response.
 <<inactive, fig.height=3>>=
 with(suggest, plot(NULL, xlim = c(0, max(index)), ylim = c(0, max(user.index)),
                    frame.plot = FALSE, xlab = "Momentary decision index",
@@ -150,14 +152,15 @@ The proportion of within-slot decisions among the users has an average of $\Sexp
 
 \subsection{Randomized suggestion status}
 
-The Momentary{\_}Decision table provides the availability (on the basis of the recognized activity and snooze status) and randomized suggestion status. However the values recorded do not agree with the administered suggestion status in the Response table. This discrepancy is likely due to a race condition in which the Momentary{\_}Decision status stored on the phone is read before being updated. So its value might represent the positive status used as a default value for the prefetch decision.
+The Momentary{\_}Decision table provides a variable Notify that indicates both availability (on the basis of the recognized activity and snooze status) and randomization to send a suggestion. However the values recorded do not agree with the administered suggestion status in the Response table. This discrepancy is likely due to a race condition in which the Momentary{\_}Decision status stored on the phone is read before being updated. So its value might represent the positive status used as a default value for the prefetch decision.
 
 <<suggest, results="asis">>=
-
-d <- with(suggest, table(notify & connect, is.na(response), useNA = "ifany"))
-rownames(d) <- colnames(d) <- c("Don't send", "Send")
+d <- with(suggest, table(notify, !is.na(response), useNA = "ifany"))
+rownames(d) <- c("Don't send", "Send", "Disconnected")
+colnames(d) <- c("No", "Yes")
 d <- rbind(cbind(c("", "Momentary{\\_}Decision", rep("", nrow(d) - 1)),
-                 c("Response", rownames(d)), rbind(colnames(d), d)),
+                 c("Message in Response?", rownames(d)),
+                 rbind(colnames(d), d)),
            c("", "Total", apply(d, 2, sum)))
 rownames(d) <- NULL
 print(xtable(d, digits = 0, align = rep("r", ncol(d) + 1)),
@@ -165,6 +168,26 @@ print(xtable(d, digits = 0, align = rep("r", ncol(d) + 1)),
       include.rownames = FALSE, include.colnames = FALSE,
       sanitize.text.function = identity)
 @
+
+The Response table captures suggestions to which the user did not provide a response, so we can infer the randomized status for users connected and presumably available at the decision time slot. For the $\Sexpr{with(suggest, sum(is.na(notify)))}$ decision points with no connection, we could consider the corresponding users to be unavailable for the intervention.
+
+<<suggest-avail, results="asis">>=
+suggest$avail <- "Available"
+suggest$avail[!(suggest$recognized.activity %in% c("STILL", "UNKNOWN"))] <-
+  "Snooze disabled, but in transit"
+suggest$avail[suggest$snooze.status] <- "Snooze enabled"
+suggest$avail[!suggest$connect] <- "Disconnected"
+d <- with(suggest, table(avail, !is.na(response), useNA = "ifany"))
+colnames(d) <- c("No", "Yes")
+d <- cbind(c("Message in Response?", rownames(d)), rbind(colnames(d), d))
+rownames(d) <- NULL
+print(xtable(d, digits = 0, align = rep("r", ncol(d) + 1)),
+      floating = FALSE, booktabs = TRUE, hline.after = c(-1, 1, nrow(d)),
+      include.rownames = FALSE, include.colnames = FALSE,
+      sanitize.text.function = identity)
+@
+
+The Response suggestion status generally agrees with availability at the decision time slot, as-defined on the basis of snooze being disabled and the recognized activity classification being STILL or UNKNOWN. However note that, among those available, the proportion presumably randomized to have a suggestion sent is $\Sexpr{with(suggest, round(sum(avail == "Available" & !is.na(response))/sum(avail == "Available"), 2))}$, which is higher than the anticipated $40\%$.
 
 \subsection{Randomized planning status}
 
@@ -194,12 +217,12 @@ We conjecture that the issue does not affect the actual, \emph{administered} pla
 \begin{itemize}
 \item $\Sexpr{with(daily, sum(!connect))}$ cases where the user's phone had no active connection. We could consider the user unavailable for the planning intervention.
 \item $\Sexpr{with(daily, sum(connect & !view & !respond))}$ cases where the user had an active connection, but probably did not view the questionnaire. We could simply regenerate the randomized planning status.
-\item $\Sexpr{with(daily, sum(view & !respond))}$ cases where we know that the user engaged with the questionnaire, but did not respond. Based on the EMA engagement definition, the randomized planning status is most likely ``No planning.''
+\item $\Sexpr{with(daily, sum(view & !respond))}$ cases where we know that the user engaged with the questionnaire, but did not respond. Based on the way in which the application captures EMA engagement, the randomized planning status is most likely ``No planning.''
 \end{itemize}
 
 \subsection{EMA question set}
 
-The EMA{\_}Completed table contains a variable EMA{\_}Set{\_}Today, which should provide the ordered set of EMA questions sent to the user. In \Sexpr{with(notify, sum(ema.set.today != ema.set, na.rm = TRUE))} cases, EMA{\_}Set{\_}Today does not agree with the sequence of questions that the user answered. This is due to a race condition in which the question set stored on the phone is read before being updated. To resolve this, we infer the administered question set from EMA{\_}Response; the question set for incomplete EMAs is not entirely recoverable, particularly if the user engaged with the EMA.
+The EMA{\_}Completed table contains a variable EMA{\_}Set{\_}Today, which should provide the ordered set of EMA questions sent to the user. In $\Sexpr{with(notify, sum(ema.set.today != ema.set, na.rm = TRUE))}$ cases, EMA{\_}Set{\_}Today does not agree with the sequence of questions that the user answered. This is due to a race condition in which the question set stored on the phone is read before being updated. To resolve this, we infer the administered question set from EMA{\_}Response; the question set for incomplete EMAs is not entirely recoverable, particularly if the user engaged with the EMA.
 
 \subsection{Missing EMA context}
 \label{sec:context}
@@ -229,7 +252,7 @@ The activity suggestion messages were not stored with the bucket tags used for c
 
 \section{User characteristics}
 
-The intake and exit interview data are updated less frequently than the application data. Here is a summary of the intake information available for \Sexpr{nrow(intake)} users.
+The intake and exit interview data are updated less frequently than the application data. Here is a summary of the intake information available for $\Sexpr{nrow(intake)}$ users.
 
 <<users, results="asis">>=
 d <- with(users,
@@ -253,7 +276,7 @@ print(xtable(d, digits = c(0, 0, 1)), floating = FALSE, booktabs = TRUE)
 
 \subsection{Hecticness}
 
-At each EMA, the user was asked ``How hectic was your day today?'' A $\Sexpr{length(ema1)}$-point scale was provided, with $\Sexpr{ema1[1]}$ labelled as ``\Sexpr{names(ema1[1])}'' and \Sexpr{length(ema1)} labelled as ``\Sexpr{names(rev(ema1)[1])}''.  Here we depict the responses over time, where darker points correspond to more hectic days. No point is plotted if no response is available, due to either non- or pending response.
+At each EMA, the user was asked ``How hectic was your day today?'' A $\Sexpr{length(ema1)}$-point scale was provided, with $\Sexpr{ema1[1]}$ labelled as ``\Sexpr{names(ema1[1])}'' and $\Sexpr{length(ema1)}$ labelled as ``\Sexpr{names(rev(ema1)[1])}''.  Here we depict the responses over time, where darker points correspond to more hectic days. No point is plotted if no response is available, due to either non- or pending response.
 <<ema1, fig.height=3>>=
 with(daily, plot(study.day, user.index, pch = 16,
                  col = rev(grey.colors(length(ema1)))[hectic],
@@ -262,7 +285,7 @@ with(daily, plot(study.day, user.index, pch = 16,
 
 \subsection{Stress}
 
-At each EMA, the user was asked ``How stressful was your day today?'' A $\Sexpr{length(ema2)}$-point scale was provided, with $\Sexpr{ema1[1]}$ labelled as ``\Sexpr{names(ema2[1])}'' and \Sexpr{rev(ema1)[1]} labelled as ``\Sexpr{names(rev(ema2)[1])}''. Here we depict the responses over time, where darker points correspond to more stressful days. No point is plotted if no response is available, due to either non- or pending response.
+At each EMA, the user was asked ``How stressful was your day today?'' A $\Sexpr{length(ema2)}$-point scale was provided, with $\Sexpr{ema1[1]}$ labelled as ``\Sexpr{names(ema2[1])}'' and $\Sexpr{rev(ema1)[1]}$ labelled as ``\Sexpr{names(rev(ema2)[1])}''. Here we depict the responses over time, where darker points correspond to more stressful days. No point is plotted if no response is available, due to either non- or pending response.
 <<ema2, fig.height=3>>=
 with(daily, plot(study.day, user.index, pch = 16,
                  col = rev(grey.colors(length(ema2)))[stressful],
@@ -271,7 +294,7 @@ with(daily, plot(study.day, user.index, pch = 16,
 
 \subsection{Typicalness for the day of the week}
 
-At each EMA, the user was asked ``How typical was today for a X?'', where ``X'' is the current day of the week. A $\Sexpr{length(ema3)}$-point scale was provided, with $\Sexpr{ema1[1]}$ labelled as ``\Sexpr{names(ema3[1])}'' and \Sexpr{rev(ema1)[1]} labelled as ``\Sexpr{names(rev(ema3)[1])}''.  Here we depict the responses over time, where darker points correspond to more atypical days. No point is plotted if no response is available, due to either non- or pending response. 
+At each EMA, the user was asked ``How typical was today for a X?'', where ``X'' is the current day of the week. A $\Sexpr{length(ema3)}$-point scale was provided, with $\Sexpr{ema1[1]}$ labelled as ``\Sexpr{names(ema3[1])}'' and $\Sexpr{rev(ema1)[1]}$ labelled as ``\Sexpr{names(rev(ema3)[1])}''.  Here we depict the responses over time, where darker points correspond to more atypical days. No point is plotted if no response is available, due to either non- or pending response. 
 <<ema3, fig.height=3>>=
 with(daily, plot(study.day, user.index, pch = 16,
                  col = grey.colors(length(ema3))[typical],
@@ -280,7 +303,7 @@ with(daily, plot(study.day, user.index, pch = 16,
 
 \section{Daily step count}
 
-The following plots give the daily step count for each user; the solid series corresponds to Jawbone and dotted to Google Fit. Breaks in the series indicate no step counts were recorded that day. Grey segments of the series indicate that planning was carried out the day before. The horizontal line gives the user average daily Jawbone step count; this extends up to the known or projected exit date. Vertical lines correspond to days on which no part of the EMA was completed, with the dotted line type indicated that this was due to an inactive connection at the EMA time slot.
+The following plots give the daily step count for each user; the solid series corresponds to Jawbone and dotted to Google Fit. Breaks in the series indicate no step counts were recorded that day. Grey segments of the series indicate that planning was carried out the day before. The horizontal line gives the user average daily Jawbone step count; this extends up to the known or projected exit date. Vertical lines correspond to days on which no part of the EMA was completed, with the dotted line type indicating an inactive connection at the EMA time slot.
 <<dailysteps, fig.height=1.75>>=
 daily$last.jbsteps <- with(daily, delay(user, study.day, jbsteps))
 daily$next.jbsteps <- with(daily, delay(user, study.day, jbsteps, -1))

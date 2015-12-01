@@ -12,7 +12,6 @@ max.date <- as.Date("2015-11-27")
 ## slot of update time, last notification
 
 ## infer intake date-time from first selection of notification time slots
-timeslot$slot <- ltime2slot(time.updated.hour, time.updated.min, timeslot)
 users <- with(subset(timeslot[with(timeslot, order(user, utime.updated)), ],
                      !duplicated(user)),
               data.frame(user, intake.date = date.updated,
@@ -212,6 +211,9 @@ suggest <-
 suggest$index <- do.call("c", sapply(table(suggest$user) - 1, seq, from = 0,
                                      by = 1, simplify = FALSE))
 
+## had active connection at decision slot?
+suggest$connect <- with(suggest, !is.na(notify))
+
 ## add suggestion response and its context
 any(with(response, duplicated(cbind(user, notified.date, slot))))
 suggest <-
@@ -234,12 +236,5 @@ suggest$utime.stamp <- with(suggest, utime.stamp + 30 * 60 * is.prefetch)
 
 ## add slot step counts
 #jawbone <-
-
-## had active connection at decision slot?
-suggest$connect <- with(suggest, !is.na(notify))
-
-## suggestion pushed to user?
-## nb: this is inferred and combines the randomization and availability
-suggest$suggest <- with(suggest, connect & link)
 
 save(max.date, users, daily, suggest, file = "analysis.RData")

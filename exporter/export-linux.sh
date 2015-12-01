@@ -17,19 +17,14 @@ for table in EMA_Completed EMA_Context_Engaged EMA_Context_Notified \
     Valid_User_Email_Addresses Weather_History
 do
 echo "EXPORTING $table..."
-if [ -f $dir/temp/$table.csv ]
-then
-    rm $dir/temp/$table.csv
-fi
-./appcfg.py download_data \
-    --url=https://com-um-heartsteps.appspot.com/remote_api \
-    --filename=$dir/temp/$table.csv --kind=$table \
-    --config_file=config_files/$table.yaml --no_cookie
 if [ -f $dir/$table.csv ]
 then
     rm $dir/$table.csv
 fi
-mv $dir/temp/$table.csv $dir/$table.csv
+./appcfg.py download_data \
+    --url=https://com-um-heartsteps.appspot.com/remote_api \
+    --filename=$dir/$table.csv --kind=$table \
+    --config_file=config_files/$table.yaml --no_cookie
 done
 
 rm bulkloader*
