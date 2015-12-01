@@ -8,7 +8,7 @@ File | Description
 [functions.R](functions.R) | Helper functions, mainly for data formatting. Loaded by [init.R](init.R).
 [init.R](init.R) | Initialize common variables. You should run this at the beginning of every R session.
 [read.data.R](read.data.R) | Read and tidy up CSV-formatted data. Called by [workspace.csv.R](workspace.csv.R).
-[summary.R](summary.R) | Extra code for the data summary. Loaded by [summary.Rnw](summary.Rnw).
+[summary.R](summary.R) | Compiles [summary.Rnw](summary.Rnw) into summary.pdf
 [summary.Rnw](summary.Rnw) | [knitr](http://yihui.name/knitr/) document for the data summary
 [workspace.analysis.R](workspace.analysis.R) | Create a workspace file containing data frames for analysis. Requires csv.RData, the workspace file created by [workspace.csv.R](workspace.csv.R).
 [workspace.csv.R](workspace.csv.R) | Create a workspace file containing data frames for the source data files

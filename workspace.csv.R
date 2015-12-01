@@ -2,7 +2,7 @@
 ## save as an R workspace (csv.RData file)
 
 source("init.R")
-setwd(sys.var$mbox)
+setwd(sys.var$mbox.data)
 
 ## --- user-level data
 
@@ -378,9 +378,12 @@ decision <- merge(decision,
                   by = c("user", "date.stamp", "slot"), all.x = TRUE)
 nrow(decision)
 
-## among momentary decisions in the same intended slot, keep linked decisions
+## among momentary decisions in the same intended slot,
+## keep linked, non-prefetch, lower-discrepancy decisions
 decision <- decision[with(decision,
-                          order(user, date.stamp, slot, !link, is.prefetch)), ]
+                          order(user, date.stamp, slot, !link,
+                                response %in% c(NA, "no_response"),
+                                abs(slot - time.stamp.slot), is.prefetch)), ]
 dup.decision <- check.dup(decision, "checks/dup_decision.csv",
                           user, date.stamp, slot)
 decision <- decision[!dup.decision$is.dup, ]

@@ -2,7 +2,7 @@
 ## tidy up and save as an R workspace (.RData file)
 
 source("init.R")
-setwd(sys.var$mbox)
+setwd(sys.var$mbox.data)
 load("csv.RData")
 
 max.date <- as.Date("2015-11-27")
@@ -29,7 +29,7 @@ temp <-
         with(notify,
              data.frame(user, last.date = notified.date,
                         last.utime = notified.utime, last.tz = tz,
-                        last.gmtoff = gmtoff, last.slot = length(slots),
+                        last.gmtoff = gmtoff, last.slot = length(slots) - 1,
                         last.hour = notified.time.hour,
                         last.min = notified.time.min)))
 temp <- temp[with(temp, order(user, -as.numeric(last.utime))), ]

@@ -18,14 +18,16 @@ options(digits.secs = 6)
 ## + largest number of digits used to represent fractional seconds
 options(digits = 10 + 6)
 
+## system-dependent variables
 sys.var <- switch(Sys.info()["sysname"],
-                  "Windows" = list(mbox = "Z:/HeartSteps/Data/",
-                                   locale = "English"),
-                  "Darwin" = list(mbox = "/Volumes/dav/HeartSteps/Data/",
-                                  locale = "en_US"),
-                  "Linux" = list(mbox = "~/mbox/HeartSteps/Data/",
-                                 locale = "en_US.UTF-8"))
+                  "Windows" = list(locale = "English",
+                                   mbox = "Z:/HeartSteps/"),
+                  "Darwin" = list(locale = "en_US",
+                                  mbox = "/Volumes/dav/HeartSteps/"),
+                  "Linux" = list(locale = "en_US.UTF-8",
+                                 mbox = "~/mbox/HeartSteps/"))
 sys.var$repo <- getwd()
+sys.var$mbox.data <- paste(sys.var$mbox, "Data/", sep = "")
 
 ## time zone identifiers are localized, so set the locale
 Sys.setlocale("LC_TIME", sys.var$locale)
