@@ -56,7 +56,8 @@ dup.timeslot <- check.dup(timeslot, "checks/dup_timeslot.csv",
                           user, utime.updated)
 timeslot <- timeslot[!dup.timeslot$is.dup, ]
 ## slot corresponding to the update time
-timeslot$slot <- ltime2slot(time.updated.hour, time.updated.min, timeslot)
+timeslot$slot.updated <- ltime2slot(time.updated.hour, time.updated.min,
+                                    timeslot)
 
 ## daily weather by city
 weather <- read.data("Weather_History.csv", list(date))
@@ -379,13 +380,16 @@ decision <- merge(decision,
                   subset(response, select = c(user, date.stamp, slot, response)),
                   by = c("user", "date.stamp", "slot"), all.x = TRUE)
 nrow(decision)
+decision$response[!decision$link] <- NA
 
 ## among momentary decisions in the same intended slot,
-## keep linked, non-prefetch, lower-discrepancy decisions
+## select one from among duplicates, with preference for linked, responded,
+## lower-discrepancy, non-prefetch, earlier decisions
 decision <- decision[with(decision,
                           order(user, date.stamp, slot, !link,
                                 response %in% c(NA, "no_response"),
-                                abs(slot - time.stamp.slot), is.prefetch)), ]
+                                abs(slot - time.stamp.slot), is.prefetch,
+                                utime.stamp)), ]
 dup.decision <- check.dup(decision, "checks/dup_decision.csv",
                           user, date.stamp, slot)
 decision <- decision[!dup.decision$is.dup, ]

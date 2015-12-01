@@ -110,7 +110,7 @@ Momentary{\_}Decision & Time zone bugs (see \cref{sec:slot}) and other unknown r
 
 \subsection{Inactive server-phone connection}
 
-We cannot always find the anticipated data for each user-designated notification time slot. For example at the EMA notification time slot for a given user, we might find no corresponding records in any of the EMA-related tables. This presumably arises over periods when the user's phone is turned off or out of network coverage.
+We cannot always find the anticipated data for each user-designated notification time slot. For example at the EMA notification time slot for a given user, we might find no corresponding records in any of the EMA-related tables. This presumably arises when the user's phone is turned off or out of network coverage over extended periods of time.
 
 Instances where no EMA-related records could be retrieved by user and day on study are depicted below.
 <<inactive-ema, fig.height=3>>=
@@ -148,7 +148,7 @@ d <- sapply(unique(suggest$user),
                              table(slot != time.stamp.slot)), simplify = FALSE)
 d <- do.call("c", lapply(d, function(x) x[1] / sum(x)))
 @
-The proportion of within-slot decisions among the users has an average of $\Sexpr{round(mean(d), 2)}$ and range $\Sexpr{round(min(d), 2)}$--$\Sexpr{round(max(d), 2)}$. Because the discrepancy from the designated time slots tends to be small and infrequent, we propose simply indexing decisions as they arise; any variables representing calendar time (e.g. time of day) could be evaluated under the correct time zone.
+The proportion of within-slot decisions among the users has an average of $\Sexpr{round(mean(d), 2)}$ and range $\Sexpr{round(min(d), 2)}$--$\Sexpr{round(max(d), 2)}$. Because the discrepancy from the designated time slots tends to be small and infrequent, we propose simply indexing decisions as they arise; any variables representing calendar time (e.g. time of day) could be evaluated under the correct time zone. Multiple decisions in the same time slot are handled as described in \cref{sec:dup}. Among these there are only $\Sexpr{with(dup.decision, nrow(subset(data, dup & link)))}$ instances where the user actually received more than one suggestion notification.
 
 \subsection{Randomized suggestion status}
 

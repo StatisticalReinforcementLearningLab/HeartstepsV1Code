@@ -15,22 +15,28 @@ max.date <- as.Date("2015-11-27")
 users <- with(subset(timeslot[with(timeslot, order(user, utime.updated)), ],
                      !duplicated(user)),
               data.frame(user, intake.date = date.updated,
-                         intake.utime = utime.updated, intake.tz = tz,
-                         intake.gmtoff = gmtoff, intake.min = time.updated.min,
-                         intake.hour = time.updated.hour, first.slot = slot + 1))
+                         intake.utime = utime.updated,
+                         intake.tz = tz, intake.gmtoff = gmtoff,
+                         intake.hour = time.updated.hour,
+                         intake.min = time.updated.min,
+                         intake.slot = slot.updated))
+
 
 ## infer exit date-time from last notification
-temp <-
-  rbind(with(decision,
-             data.frame(user, last.date = date.stamp, last.utime = utime.stamp,
-                        last.tz = tz, last.gmtoff = gmtoff, last.slot = slot,
-                        last.hour = time.stamp.hour, last.min = time.stamp.min)),
-        with(notify,
-             data.frame(user, last.date = notified.date,
-                        last.utime = notified.utime, last.tz = tz,
-                        last.gmtoff = gmtoff, last.slot = length(slots) - 1,
-                        last.hour = notified.time.hour,
-                        last.min = notified.time.min)))
+temp <- rbind(with(decision,
+                   data.frame(user, last.date = date.stamp,
+                              last.utime = utime.stamp,
+                              last.tz = tz, last.gmtoff = gmtoff,
+                              last.hour = time.stamp.hour,
+                              last.min = time.stamp.min,
+                              last.slot = slot)),
+              with(notify,
+                   data.frame(user, last.date = notified.date,
+                              last.utime = notified.utime, last.tz = tz,
+                              last.gmtoff = gmtoff,
+                              last.slot = length(slots) - 1,
+                              last.hour = notified.time.hour,
+                              last.min = notified.time.min)))
 temp <- temp[with(temp, order(user, -as.numeric(last.utime))), ]
 users <- merge(users, subset(temp, !duplicated(user)), by = "user", all = TRUE)
 
@@ -61,18 +67,14 @@ users <- merge(users,
 ## expand to user data to user-day level
 daily <-
   do.call("rbind",
-          sapply(which(!users$exclude),
-                 function(r)
-                   with(users[r, , drop = FALSE],
-                        data.frame(user, user.index, intake.date, intake.utime,
-                                   intake.tz, intake.gmtoff, intake.hour,
-                                   intake.min, first.slot, last.date,
-                                   last.utime, last.tz, last.gmtoff, last.hour,
-                                   last.min, last.slot,
-                                   study.date = seq(intake.date,
+          lapply(with(users, user[!exclude]),
+                 function(u)
+                   data.frame(subset(users, user == u, select = user:last.slot),
+                              study.date = with(subset(users, user == u),
+                                                seq(intake.date,
                                                     pmin(last.date, max.date),
-                                                    by = "days"))),
-                 simplify = FALSE))
+                                                    by = "days")),
+                              row.names = NULL)))
 
 ## index day on study, starting from zero
 daily$study.day <-
@@ -177,21 +179,22 @@ daily <- daily[with(daily, order(user, study.day)), ]
 
 ## --- suggestion data
 
-## expand daily data to level of the suggestion/treatment occasions
-suggest <-
-  do.call("rbind",
-          sapply(1:nrow(daily),
-                 function(r)
-                   with(daily[r, , drop = FALSE],
-                        data.frame(user, user.index, intake.date, intake.utime,
-                                   intake.tz, intake.gmtoff, intake.hour,
-                                   intake.min, last.date, last.utime, last.tz,
-                                   last.gmtoff, last.hour, last.min, first.slot,
-                                   last.slot, study.date, study.day,
-                                   slot = 1:5)),
-                 simplify = FALSE))
-suggest <- subset(suggest, !(study.date == intake.date & slot < first.slot)
+## expand daily data to level of the suggestion decision points
+suggest <- data.frame(subset(daily, select = user:study.day),
+                      slot = rep(1:(length(slots) - 1), nrow(daily)),
+                      row.names = NULL)
+suggest <- subset(suggest, !(study.date == intake.date & slot < intake.slot)
                   & !(study.date == last.date & slot > last.slot))
+
+## convert timeslots to GMT/UTC in POSIXct
+temp <- data.frame(timeslot, slot = rep(1:(length(slots) - 1), nrow(timeslot)))
+
+temp[, -(1:4)] <- t(apply(temp[, -(1:3)], 1,
+                          function(x) paste0(x[1], " ", x[-1], ":00")))
+temp[, -(1:4)] <- do.call("data.frame",
+                          mapply(char2utime, x = head(temp[, -(1:4)]),
+                                 offset = head(temp[, 3, drop = FALSE]),
+                                 SIMPLIFY = FALSE))
 
 ## add decision result by the *intended* time slot
 any(with(decision, duplicated(cbind(user, date.stamp, slot))))
@@ -210,6 +213,8 @@ suggest <-
 ## index momentary decision, starting from zero
 suggest$index <- do.call("c", sapply(table(suggest$user) - 1, seq, from = 0,
                                      by = 1, simplify = FALSE))
+
+## use is.randomized and availability for prefetch records
 
 ## had active connection at decision slot?
 suggest$connect <- with(suggest, !is.na(notify))
@@ -234,7 +239,10 @@ suggest <-
 ## adjust time stamp for prefetch decisions
 suggest$utime.stamp <- with(suggest, utime.stamp + 30 * 60 * is.prefetch)
 
-## add slot step counts
-#jawbone <-
+## stamp decisions with user-designed time when disconnected
+
+
+## add decision times and intended slots to the step count tables
+#jawbone <- merge.last(jawbone, 
 
 save(max.date, users, daily, suggest, file = "analysis.RData")
