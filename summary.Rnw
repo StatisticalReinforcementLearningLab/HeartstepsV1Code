@@ -310,7 +310,7 @@ with(daily, plot(study.day, user.index, pch = 20,
 
 \section{Daily step count}
 
-The following plots depict the daily step count for each user, with the solid series corresponds to Jawbone and dotted to Google Fit. Breaks coincide with one or more days on which no step counts were recorded that day. The \Sexpr{color.name} segments indicate that planning was carried out the day before. The horizontal reference line gives the user average daily Jawbone step count and extends up to the known or projected exit date. Vertical lines correspond to days on which no part of the EMA was completed, with the dotted line type used for an inactive connection at the EMA notification slot.
+The following plots depict the daily step count for each user, with the solid series corresponds to Jawbone and dotted to Google Fit. Breaks coincide with one or more days on which no step counts were recorded that day. The \Sexpr{color.name} segments indicate that planning was carried out the day before. The horizontal reference line gives the user average daily Jawbone step count and extends up to the known or projected exit date. Vertical lines correspond to days on which no part of the EMA was completed (apart from possibly planning), with the dotted line type used for an inactive connection at the EMA notification slot.
 <<dailysteps, fig.height=2>>=
 daily$last.jbsteps <- with(daily, delay(user, study.day, jbsteps))
 daily$next.jbsteps <- with(daily, delay(user, study.day, jbsteps, -1))
@@ -364,7 +364,6 @@ plot.slot.steps <- function(u, d, by = 15, mins = 60) {
   d$sum.steps <- with(d, roll(index, end.utime, steps, FUN = sum, na.rm = TRUE))
   d <- subset(d, !is.na(sum.steps))
   d$max.steps <- with(d, roll(index, end.utime, sum.steps, FUN = max))
-  slwd <- 2
   minu <- min(d$end.utime)
   maxu <- max(d$end.utime, minu + max.day * 24 * 60^2)
   means <- mean(d$sum.steps)
@@ -381,7 +380,7 @@ plot.slot.steps <- function(u, d, by = 15, mins = 60) {
                  function(j)
                    with(subset(d, index == j)[c(seq(1, sum(index == j), by = by),
                                                 sum(index == j)), ],
-                        points(end.utime, sum.steps, type = "s", lwd = slwd,
+                        points(end.utime, sum.steps, type = "s",
                                col = c("black", color)[send[1] + 1],
                                lty = c("dotted", "solid")[avail[1] + 1]))))
   axis(1, at = c(minu, maxu), labels = format(c(minu, maxu), "%d %b"))
