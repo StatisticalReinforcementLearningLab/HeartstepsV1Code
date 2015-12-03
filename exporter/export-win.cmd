@@ -23,12 +23,7 @@ FOR %%t IN (EMA_Completed EMA_Context_Engaged EMA_Context_Notified ^
             Valid_User_Email_Addresses Weather_History) DO (
         ECHO Exporting %%t ...
         IF EXIST %dir%\%%t.csv (
-          IF EXIST %dir%\oldfiles\%%t.csv (
-            DEL %dir%\oldfiles\%%t.csv
-          )
-          IF NOT EXIST %dir%\oldfiles\%%t.csv (
-            MOVE %dir%\%%t.csv %dir%\oldfiles\%%t.csv
-          )
+          DEL %dir%\%%t.csv
         )
         python appcfg.py download_data ^
         --url=https://com-um-heartsteps.appspot.com/remote_api ^
