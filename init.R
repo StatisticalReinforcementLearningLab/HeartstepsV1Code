@@ -1,4 +1,5 @@
 ## run this first
+## nb: ensure that getwd() returns the local repository
 
 library(tikzDevice)
 library(xtable)
@@ -13,10 +14,6 @@ options(stringsAsFactors = FALSE)
 
 ## largest number of digits used to represent fractional seconds
 options(digits.secs = 6)
-
-## number of digits in Unix time (seconds since 1970-01-01 00:00 UTC)
-## + largest number of digits used to represent fractional seconds
-options(digits = 10 + 6)
 
 ## system-dependent variables
 sys.var <- switch(Sys.info()["sysname"],

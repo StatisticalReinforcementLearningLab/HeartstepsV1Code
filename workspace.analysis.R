@@ -6,6 +6,7 @@ setwd(sys.var$mbox.data)
 load("csv.RData")
 
 max.date <- as.Date("2015-11-27")
+max.day <- 42
 
 ## --- user data
 
@@ -14,9 +15,11 @@ max.date <- as.Date("2015-11-27")
 ## infer intake date-time from first selection of notification time slots
 users <- with(subset(timeslot[with(timeslot, order(user, utime.updated)), ],
                      !duplicated(user)),
-              data.frame(user, intake.date = date.updated,
+              data.frame(user,
+                         intake.date = date.updated,
                          intake.utime = utime.updated,
-                         intake.tz = tz, intake.gmtoff = gmtoff,
+                         intake.tz = tz,
+                         intake.gmtoff = gmtoff,
                          intake.hour = time.updated.hour,
                          intake.min = time.updated.min,
                          intake.slot = slot.updated))
@@ -24,15 +27,19 @@ users <- with(subset(timeslot[with(timeslot, order(user, utime.updated)), ],
 
 ## infer exit date-time from last notification
 temp <- rbind(with(decision,
-                   data.frame(user, last.date = date.stamp,
+                   data.frame(user,
+                              last.date = date.stamp,
                               last.utime = utime.stamp,
-                              last.tz = tz, last.gmtoff = gmtoff,
+                              last.tz = tz,
+                              last.gmtoff = gmtoff,
                               last.hour = time.stamp.hour,
                               last.min = time.stamp.min,
                               last.slot = slot)),
               with(notify,
-                   data.frame(user, last.date = notified.date,
-                              last.utime = notified.utime, last.tz = tz,
+                   data.frame(user,
+                              last.date = notified.date,
+                              last.utime = notified.utime,
+                              last.tz = tz,
                               last.gmtoff = gmtoff,
                               last.slot = length(slots) - 1,
                               last.hour = notified.time.hour,
@@ -64,17 +71,20 @@ users <- merge(users,
 
 ## --- daily data
 
-## expand to user data to user-day level
-daily <-
-  do.call("rbind",
-          lapply(with(users, user[!exclude]),
-                 function(u)
-                   data.frame(subset(users, user == u, select = user:last.slot),
-                              study.date = with(subset(users, user == u),
-                                                seq(intake.date,
-                                                    pmin(last.date, max.date),
-                                                    by = "days")),
-                              row.names = NULL)))
+## evaluate user-date combinations, by generating a sequence of dates
+## from intake to the earliest of exit date and 'max.date'
+temp <- do.call("rbind",
+                with(subset(users, !exclude),
+                     mapply(function(u, x, y, ...) data.frame(u, seq(x, y, ...)),
+                            u = user, x = intake.date,
+                            y = pmin(last.date, max.date),
+                            by = "days", SIMPLIFY = FALSE)))
+
+## expand user level data to user-date level
+daily <- data.frame(users[match(temp[, 1], users$user), ],
+                    study.date = temp[, 2])
+daily <- subset(daily, select = c(user, user.index, intake.date:last.slot,
+                                  study.date))
 
 ## index day on study, starting from zero
 daily$study.day <-
@@ -88,18 +98,20 @@ notify$notify <- 1
 temp <- merge(notify, engage, all = TRUE)
 temp <- temp[with(temp, order(user, is.na(notify), ema.date, context.utime)), ]
 temp <- subset(temp, !duplicated(cbind(user, ema.date)))
-daily <-
-  merge(daily,
-        subset(temp,
-               select = c(user, tz, gmtoff, ema.date, notify, context.date,
-                          context.utime, context.year:context.sec,
-                          planning.today, home, work, calendar,
-                          recognized.activity, front.end.application,
-                          gps.coordinate, city, location.exact,
-                          location.category, weather.condition, temperature,
-                          windspeed, precipitation.chance, snow)),
-        by.x = c("user", "study.date"), by.y = c("user", "ema.date"),
-        all.x = TRUE)
+daily <- merge(daily,
+               subset(temp,
+                      select = c(user,
+                                 tz, gmtoff, ema.date,
+                                 notify, context.date, context.utime,
+                                 context.year:context.sec,
+                                 planning.today, recognized.activity,
+                                 front.end.application, calendar,
+                                 gps.coordinate, home, work, city,
+                                 location.exact, location.category,
+                                 weather.condition, temperature, windspeed,
+                                 precipitation.chance, snow)),
+               by.x = c("user", "study.date"), by.y = c("user", "ema.date"),
+               all.x = TRUE)
 
 ## add EMA response
 any(with(ema, duplicated(cbind(user, ema.date, order))))
@@ -109,11 +121,12 @@ daily <- merge(daily,
                          function(x) na.omit(x)[1]),
                by.x = c("user", "study.date"),
                by.y = paste("Group", 1:2, sep = "."), all.x = TRUE)
+
 ## any EMAs erroneously represented as missing?
 setNames(sapply(with(users, user[!exclude]),
-                function(u) any(subset(daily, user == u
-                                       & is.na(ema.set.length))$study.date
-                                %in% subset(ema, user == u)$ema.date)),
+                function(u)
+                  any(with(daily, study.date[user == u & is.na(ema.set.length)])
+                      %in% with(ema, ema.date[user == u]))),
          with(users, user[!exclude]))
 
 ## add indicator of EMA engagement
@@ -179,70 +192,124 @@ daily <- daily[with(daily, order(user, study.day)), ]
 
 ## --- suggestion data
 
-## expand daily data to level of the suggestion decision points
+## number of suggestion decision points in a given day
+k <- length(slots) - 1
+
+## expand daily data to level of the decision points
 suggest <- data.frame(subset(daily, select = user:study.day),
-                      slot = rep(1:(length(slots) - 1), nrow(daily)),
-                      row.names = NULL)
-suggest <- subset(suggest, !(study.date == intake.date & slot < intake.slot)
+                      slot = rep(1:k, nrow(daily)), row.names = NULL)
+
+## discard decision points that take place before intake or after exit
+suggest <- subset(suggest, !(study.date == intake.date & slot <= intake.slot)
                   & !(study.date == last.date & slot > last.slot))
-
-## convert timeslots to GMT/UTC in POSIXct
-temp <- data.frame(timeslot, slot = rep(1:(length(slots) - 1), nrow(timeslot)))
-
-temp[, -(1:4)] <- t(apply(temp[, -(1:3)], 1,
-                          function(x) paste0(x[1], " ", x[-1], ":00")))
-temp[, -(1:4)] <- do.call("data.frame",
-                          mapply(char2utime, x = head(temp[, -(1:4)]),
-                                 offset = head(temp[, 3, drop = FALSE]),
-                                 SIMPLIFY = FALSE))
 
 ## add decision result by the *intended* time slot
 any(with(decision, duplicated(cbind(user, date.stamp, slot))))
-suggest <-
-  merge(suggest,
-        subset(decision,
-               select = c(user, tz, gmtoff, date.stamp, utime.stamp,
-                          time.stamp.year:time.stamp.sec, is.prefetch, slot,
-                          time.slot, time.stamp.slot, returned.message, link,
-                          tag.active, snooze.status, notify, is.randomized,
-                          recognized.activity, front.end.application)),
-        by.x = c("user", "study.date", "slot"),
-        by.y = c("user", "date.stamp", "slot"),
-        all.x = TRUE)
+any(with(decision, duplicated(cbind(user, date.stamp, slot, tz, gmtoff))))
+suggest <- merge(suggest,
+                 subset(decision,
+                        select = c(user, tz, gmtoff, date.stamp,
+                                   utime.stamp, time.stamp.year:time.stamp.sec,
+                                   is.prefetch, slot, time.slot, time.stamp.slot,
+                                   link, notify, is.randomized, snooze.status,
+                                   recognized.activity, front.end.application,
+                                   returned.message, tag.active)),
+                 by.x = c("user", "study.date", "slot"),
+                 by.y = c("user", "date.stamp", "slot"), all.x = TRUE)
+
+## add suggestion response and its context
+any(with(response, duplicated(cbind(user, notified.date, slot))))
+suggest <- merge(suggest,
+                 subset(response,
+                        select = c(user, date.stamp, slot,
+                                   notified.utime, responded.utime,
+                                   notified.time.year:notified.time.sec,
+                                   responded.time.year:responded.time.sec,
+                                   recognized.activity, interaction.count,
+                                   calendar, gps.coordinate, home, work, city,
+                                   location.exact, location.category,
+                                   weather.condition, temperature, windspeed,
+                                   precipitation.chance, snow,
+                                   notification.message, response)),
+                 by.x = c("user", "study.date", "slot"),
+                 by.y = c("user", "date.stamp", "slot"),
+                 all.x = TRUE, suffixes = c("", ".response"))
 
 ## index momentary decision, starting from zero
 suggest$index <- do.call("c", sapply(table(suggest$user) - 1, seq, from = 0,
                                      by = 1, simplify = FALSE))
 
-## use is.randomized and availability for prefetch records
-
 ## had active connection at decision slot?
 suggest$connect <- with(suggest, !is.na(notify))
 
-## add suggestion response and its context
-any(with(response, duplicated(cbind(user, notified.date, slot))))
-suggest <-
-  merge(suggest,
-        subset(response,
-               select = c(user, date.stamp, slot, notified.utime,
-                          responded.utime, notified.time.year:notified.time.sec,
-                          responded.time.year:responded.time.sec,
-                          interaction.count, notification.message, response,
-                          home, work, calendar, recognized.activity,
-                          gps.coordinate, city, location.exact,
-                          location.category, weather.condition, temperature,
-                          windspeed, precipitation.chance, snow)),
-        by.x = c("user", "study.date", "slot"),
-        by.y = c("user", "date.stamp", "slot"),
-        all.x = TRUE, suffixes = c("", ".response"))
+## walking or in a vehicle at decision slot?
+suggest$intransit <-
+  with(suggest, !(recognized.activity %in% c("STILL", "UNKNOWN")))
+suggest$intransit[!suggest$connect] <- NA
 
-## adjust time stamp for prefetch decisions
-suggest$utime.stamp <- with(suggest, utime.stamp + 30 * 60 * is.prefetch)
+## availability, as defined plus active connection
+suggest$avail <- with(suggest, connect & !snooze.status & !intransit)
 
-## stamp decisions with user-designed time when disconnected
+## send status; like 'notify', but corrected for prefetch issues
+suggest$send <- with(suggest, (avail & is.randomized) | !is.na(response))
 
+## expand user-designated times into day-slot level
+temp <-
+  data.frame(subset(timeslot,
+                    select = c(user, date.updated, utime.updated, gmtoff)),
+             slot = rep(1:k, each = nrow(timeslot)),
+             hrsmin = unlist(timeslot[, match(slots[1:k], names(timeslot))]),
+             row.names = NULL)
+## omit redundant slots
+temp <- temp[with(temp, order(user, slot, utime.updated)), ]
+temp <- subset(temp, !duplicated(cbind(user, slot, date.updated, hrsmin)))
+## omit adjust date upated to date from which the slot designation is relevant
+temp$slot.utime <-
+  with(temp, char2utime(paste0(date.updated, " ", hrsmin, ":00"), gmtoff))
+temp$date.updated <- with(temp, date.updated + (utime.updated > slot.utime))
+## for slot times in the same relevant day, omit the earlier times
+temp <- temp[with(temp, order(user, date.updated, -as.numeric(utime.updated))), ]
+temp <- subset(temp, !duplicated(cbind(user, slot, date.updated)),
+               select = -c(slot.utime, utime.updated, gmtoff))
+## add slot times, evaluated under the last available time zone
+suggest <- merge.last(suggest, temp, id = c("user", "slot"),
+                      var.x = "study.date", var.y = "date.updated")
+suggest <- suggest[with(suggest, order(user, study.date, slot)), ]
+suggest$gmtoff <- with(suggest, impute.locf(gmtoff, user))
+suggest$slot.utime <-
+  with(suggest, char2utime(paste0(study.date, " ", hrsmin, ":00"), gmtoff))
 
-## add decision times and intended slots to the step count tables
-#jawbone <- merge.last(jawbone, 
+## decision time or (in the absence of a decision) the user-designated
+## notification time, adjusting for time lag for prefetch or activity recognition
+suggest$decision.utime <- suggest$slot.utime + 90
+suggest$decision.utime[suggest$connect] <-
+  with(subset(suggest, connect), utime.stamp + 30 * 60 * is.prefetch)
+any(is.na(suggest$decision.utime))
+any(with(suggest, duplicated(cbind(user, decision.utime))))
 
-save(max.date, users, daily, suggest, file = "analysis.RData")
+suggest <- suggest[with(suggest, order(user, index)), ]
+
+## --- step counts by slots, useful for constructing the proximal outcome
+
+jbslot <- merge.last(subset(jawbone,
+                            end.utime >= intake.utime & end.utime <= last.utime),
+                     subset(suggest,
+                            select = c(user, user.index, slot, decision.utime,
+                                       study.date, study.day, index, connect,
+                                       avail, send)),
+                     id = "user", var.x = "end.utime", var.y = "decision.utime")
+jbslot <- subset(jbslot, !is.na(slot))
+jbslot <- jbslot[with(jbslot, order(user, end.utime)), ]
+
+gfslot <- merge.last(subset(googlefit,
+                            end.utime >= intake.utime & end.utime <= last.utime),
+                     subset(suggest,
+                            select = c(user, user.index, slot, decision.utime,
+                                       study.date, study.day, index, connect,
+                                       avail, send)),
+                     id = "user", var.x = "end.utime", var.y = "decision.utime")
+gfslot <- subset(gfslot, !is.na(slot))
+gfslot <- gfslot[with(gfslot, order(user, end.utime)), ]
+
+save(max.day, max.date, users, daily, suggest, jbslot, gfslot,
+     file = "analysis.RData")

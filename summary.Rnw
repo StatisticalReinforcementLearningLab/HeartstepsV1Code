@@ -1,4 +1,4 @@
-\documentclass{article}
+\documentclass[11pt]{article}
 \usepackage[T1]{fontenc}
 \usepackage[margin=1in]{geometry}
 \usepackage{microtype}
@@ -44,7 +44,7 @@
 
 \DeclareMathOperator{\uniform}{Uniform}
 
-\linespread{1.15}
+\linespread{1.125}
 \raggedbottom
 \allowdisplaybreaks
 \columnsep=1em
@@ -62,10 +62,11 @@
 \thispagestyle{empty}
 
 <<setup, include=FALSE, cache=FALSE>>=
-opts_chunk$set(fig.align="center", dev="tikz", dev.args=list(pointsize=9), cex=0.95, echo=FALSE, fig.width=6.5, fig.show="hold", par=TRUE)
+opts_chunk$set(fig.align="center", dev="tikz", dev.args=list(pointsize=11), echo=FALSE, fig.width=6.5, fig.show="hold", par=TRUE)
 knit_hooks$set(par=function(before, options, envir){
   if (before && options$fig.show!="none")
-    par(mar=c(3,5,1,0)+0.5, mgp=c(2,0.5,0), oma=rep(0,4), las=1, tcl=0.25)})
+    par(mar=c(3, 3, 1, 0) + 0.5, mgp=c(2, 0.5, 0), oma=rep(0, 4), las=1, tcl=0.25)})
+knit_hooks$set(inline = function(x){if (is.numeric(x)) round(x, 2) else x})
 @
 
 <<data, echo=FALSE, include=FALSE>>=
@@ -74,6 +75,8 @@ setwd(sys.var$mbox.data)
 load("csv.RData")
 load("analysis.RData")
 setwd(sys.var$repo)
+color <- "chartreuse"
+color.name <- "green"
 @
 
 \section{Data irregularities}
@@ -83,16 +86,16 @@ setwd(sys.var$repo)
 
 The contextID variable was intended to uniquely identify each EMA notification and link between the EMA-related tables. However the contextID in EMA{\_}Context{\_}Notified does not represent all of the identifier values encountered in the remaining tables. Moreover different contextIDs are associated with responses within the same EMA. The reason for the former issue is described in \cref{sec:context}. More investigation is needed to determine the cause of the latter problem.
 
-The decisionID variable was intended to uniquely identify each decision point in Momentary{\_}Decision and link to the suggestion response in the Response table. However the decisionID value is sometimes re-used for subsequent decision points, and these recurrences appear in slightly different ways in Momentary{\_}Decision and Response. This particular issue is due to a race condition in which the decisionID value stored on the phone is read before being updated.
+The decisionID variable was intended to uniquely identify each decision point in Momentary{\_}Decision and link to the suggestion response in the Response table. However the decisionID value is sometimes re-used for subsequent decision points, and these recurrences appear in slightly different ways between Momentary{\_}Decision and Response. This particular issue is due to a race condition in which the decisionID value stored on the phone is read before being updated.
 
-Although relatively infrequent, these problems do not arise in predictable ways and prevent systematic linkage between tables. We instead construct identifiers with userID and date-time variables, accounting for time lags due for activity recognition or user response.
+Although relatively infrequent, these problems do not arise in a predictable manner and prevent systematic linkage between tables. We instead construct identifiers with userID and date-time variables, accounting for time lags for activity recognition and user response.
 
 \subsection{Duplication}
 \label{sec:dup}
 
 Duplicate entries arise according to various identifiers available from the data. The overall number of unanticipated duplicates is small, but prevents consistent linkage between tables. We resolve duplicates according to the rules below.
 
-\begin{tabular}{L{0.2\textwidth}L{0.3\textwidth}L{0.4\textwidth}}
+\begin{tabular}{L{0.225\textwidth}L{0.275\textwidth}L{0.4\textwidth}}
 \toprule
 Table & Source of duplication & Resolution \\
 \midrule
@@ -104,13 +107,13 @@ EMA{\_}Response & User revisited screen & Discard earlier duplicate responses \\
 \midrule
 EMA{\_}Completed & Unknown & Due to additional issues (see \cref{sec:complete}), use table only for time zone information \\
 \midrule
-Momentary{\_}Decision & Time zone bugs (see \cref{sec:slot}) and other unknown reasons & Keep decisions that correctly link to Response, have a response, have the lowest time slot discrepancy or are not prefetched. \\
+Momentary{\_}Decision & Time zone bugs (see \cref{sec:slot}) and other unknown reasons & Keep decisions that correctly link to Response, have a response, have the lowest time slot discrepancy, or are based on prefetch data. \\
 \bottomrule
 \end{tabular}
 
 \subsection{Inactive server-phone connection}
 
-We cannot always find the anticipated data for each user-designated notification time slot. For example at the EMA notification time slot for a given user, we might find no corresponding records in any of the EMA-related tables. This presumably arises when the user's phone is turned off or out of network coverage over extended periods of time.
+We cannot always find the anticipated data for each user-designated notification time slot. For example at the EMA notification time slot for a given user, we might find no corresponding records in the EMA-related tables. This presumably arises when the user's phone is turned off or has no network access over extended periods of time.
 
 Instances where no EMA-related records could be retrieved by user and day on study are depicted below.
 <<inactive-ema, fig.height=3>>=
@@ -118,7 +121,7 @@ with(daily, plot(NULL, xlim = c(0, max(study.day)), ylim = c(0, max(user.index))
                  frame.plot = FALSE, xlab = "Study day", ylab = "User index"))
 with(daily, segments(0, user.index, pmax(study.day), col = "grey"))
 with(subset(daily, !connect),
-     points(study.day, user.index, pch = 16, col = "darkgrey"))
+     points(study.day, user.index, pch = 20, col = "darkgrey"))
 @
 We can similarly depict the momentary decision points at which there are no records in Momentary{\_}Decision or Response.
 <<inactive, fig.height=3>>=
@@ -127,39 +130,41 @@ with(suggest, plot(NULL, xlim = c(0, max(index)), ylim = c(0, max(user.index)),
                    ylab = "User index"))
 with(suggest, segments(0, user.index, pmax(index), col = "grey"))
 with(subset(suggest, !connect),
-     points(index, user.index, pch = 16, col = grey(0.2, alpha = 0.3)))
+     points(index, user.index, pch = 20, col = grey(0.2, alpha = 0.3)))
 @
+To address this issue, we could consider the user unavailable for the planning and activity suggestion interventions whenever an active connection is not apparent. For analysis, we still require the time of the EMA notifications and momentary decisions that would have otherwise occurred had the user's phone been connected. This can be inferred from the user-designated notification time slots in User{\_}Decision{\_}Times. In evaluating the relevant time slot for a given decision, we account for the fact that the user can change the slots at any point and (for simplicity) use the time zone information from the last connection.
 
 \subsection{Notifications under changing time zone}
 \label{sec:slot}
 
 Prior to November notifications were sent according to the time zone at which the phone was last restarted, irrespective of the actual time zone. From November onward, notifications are sent under the actual time zone, irrespective of the notification history. So users who travel potentially receive notifications outside their designated time slots or repeated notifications in the same time slot. 
 
-Instances where the momentary decision took place outside the designated time slot are depicted below, where darker points coincide with larger differences between the intended and actual time slots. In comparing the decision time stamp and the time slow, we account for any discrepancies due to the time lag that arises when the decision is based on pre-fetched data.
+Instances where the momentary decision took place outside the designated time slot are depicted below, where darker points coincide with larger differences between the intended and actual time slots. In evaluating this discrepancy, we account for the 30-minute time lag that arises when the decision is based on prefetch data.
 <<slot, fig.height=3>>=
 with(suggest, plot(NULL, xlim = c(0, max(index)), ylim = c(0, max(user.index)),
                    frame.plot = FALSE, xlab = "Momentary decision index",
                    ylab = "User index"))
 with(subset(suggest, slot != time.stamp.slot),
-     points(index, user.index, pch = 16,
+     points(index, user.index, pch = 20,
             col = rev(grey.colors(4))[abs(slot - time.stamp.slot)]))
 d <- sapply(unique(suggest$user),
             function(u) with(subset(suggest, user == u),
                              table(slot != time.stamp.slot)), simplify = FALSE)
 d <- do.call("c", lapply(d, function(x) x[1] / sum(x)))
 @
-The proportion of within-slot decisions among the users has an average of $\Sexpr{round(mean(d), 2)}$ and range $\Sexpr{round(min(d), 2)}$--$\Sexpr{round(max(d), 2)}$. Because the discrepancy from the designated time slots tends to be small and infrequent, we propose simply indexing decisions as they arise; any variables representing calendar time (e.g. time of day) could be evaluated under the correct time zone. Multiple decisions in the same time slot are handled as described in \cref{sec:dup}. Among these there are only $\Sexpr{with(dup.decision, nrow(subset(data, dup & link)))}$ instances where the user actually received more than one suggestion notification.
+The proportion of within-slot decisions among the users has an average of $\Sexpr{mean(d)}$ and range $\Sexpr{min(d)}$--$\Sexpr{max(d)}$. Because the discrepancy from the designated time slots tends to be small and infrequent, we propose simply indexing decisions as they arise; any variables representing calendar time (e.g. time of day) could be evaluated under the correct time zone. Multiple decisions in the same time slot are handled as described in \cref{sec:dup}. Among these there are only $\Sexpr{with(dup.decision, nrow(subset(data, dup & link)))}$ instances where the user actually received more than one suggestion notification within the same slot.
 
 \subsection{Randomized suggestion status}
 
-The Momentary{\_}Decision table provides a variable Notify that indicates both availability (on the basis of the recognized activity and snooze status) and randomization to send a suggestion. However the values recorded do not agree with the administered suggestion status in the Response table. This discrepancy is likely due to a race condition in which the Momentary{\_}Decision status stored on the phone is read before being updated. So its value might represent the positive status used as a default value for the prefetch decision.
+The Momentary{\_}Decision table provides a variable Notify that indicates both availability (on the basis of Recognized{\_}Activity and Snooze{\_}Status) and randomization to send a suggestion (Is{\_}Randomized). However whenever the decision is made using prefetch data, Notify defaults to TRUE. To recover the actual Notify value for prefetch decisions, we look to the Is{\_}Randomized, Recognized{\_}Activity and Snooze{\_}Status. Comparing this with the Response table, which captures suggestion non-response, we obtain the cross-tabulation:
 
 <<suggest, results="asis">>=
-d <- with(suggest, table(notify, !is.na(response), useNA = "ifany"))
+d <- with(suggest, table(!intransit & !snooze.status & is.randomized,
+                         !is.na(response), useNA = "ifany"))
 rownames(d) <- c("Don't send", "Send", "Disconnected")
 colnames(d) <- c("No", "Yes")
 d <- rbind(cbind(c("", "Momentary{\\_}Decision", rep("", nrow(d) - 1)),
-                 c("Message in Response?", rownames(d)),
+                 c("Message received in Response?", rownames(d)),
                  rbind(colnames(d), d)),
            c("", "Total", apply(d, 2, sum)))
 rownames(d) <- NULL
@@ -167,37 +172,39 @@ print(xtable(d, digits = 0, align = rep("r", ncol(d) + 1)),
       floating = FALSE, booktabs = TRUE, hline.after = c(-1, 1, -1:0 + nrow(d)),
       include.rownames = FALSE, include.colnames = FALSE,
       sanitize.text.function = identity)
+d <- aggregate(cbind(miss = is.na(response) & send, total = send) ~ user,
+               data = subset(suggest, connect), sum)
 @
 
-The Response table captures suggestions to which the user did not provide a response, so we can infer the randomized status for users connected and presumably available at the decision time slot. For the $\Sexpr{with(suggest, sum(is.na(notify)))}$ decision points with no connection, we could consider the corresponding users to be unavailable for the intervention.
+In $\Sexpr{with(suggest, sum(!is.na(response) & (intransit | snooze.status), na.rm = TRUE))}$ cases the decision was ``don't send'' due to unavailability, but a suggestion was sent anyway; this is due to a race condition in which the Momentary{\_}Decision status stored on the phone is read before being updated, so the decision carried out reflects the prefetch availability status. This erroneous use of prefetch data is limited, to about $\Sexpr{with(dup.decision, with(data, sum(dup & !is.prefetch)))}$ decision points.
+
+A more common issue, arising in $617$ cases, is the decision result ``send,'' but no corresponding record is found in Response. The proportion of missing records per user is on average $0.23$ and has range $0.02$--$0.69$. We conjecture that the underlying problem is due (in part) to the user touching the notification (which opens the HeartSteps app), providing a response, viewing recent apps, and swiping HeartSteps away; the swiping action prevents submission of the response data to the server.
+
+The data loss limits any reliable analysis of the message responses (e.g. ``good,'' ``bad,'' ``snooze''). However we can reasonably examine the effect of suggestions, provided that we expand the definition of unavailability to include no connection. So for the $\Sexpr{with(suggest, sum(is.na(notify)))}$ decision points with no data in both Momentary{\_}Decision and Response (and thus presumably no connection), we would consider the corresponding users to be unavailable for the intervention.
 
 <<suggest-avail, results="asis">>=
-suggest$avail <- "Available"
-suggest$avail[!(suggest$recognized.activity %in% c("STILL", "UNKNOWN"))] <-
-  "Snooze disabled, but in transit"
-suggest$avail[suggest$snooze.status] <- "Snooze enabled"
-suggest$avail[!suggest$connect] <- "Disconnected"
-d <- with(suggest, table(avail, !is.na(response), useNA = "ifany"))
-colnames(d) <- c("No", "Yes")
-d <- cbind(c("Message in Response?", rownames(d)), rbind(colnames(d), d))
-rownames(d) <- NULL
+d <- with(suggest,
+          table(avail + 2*snooze.status + 3*(!snooze.status & intransit),
+                !is.na(response) | (!intransit & !snooze.status & is.randomized),
+                useNA = "ifany"))
+rownames(d) <- c("Available", "Snooze enabled", "Snooze disabled, in transit",
+                 "Disconnected")
+colnames(d) <- c("Don't send", "Send or responded", "Disconnected")
 print(xtable(d, digits = 0, align = rep("r", ncol(d) + 1)),
-      floating = FALSE, booktabs = TRUE, hline.after = c(-1, 1, nrow(d)),
-      include.rownames = FALSE, include.colnames = FALSE,
-      sanitize.text.function = identity)
+      floating = FALSE, booktabs = TRUE, sanitize.text.function = identity)
 @
 
-The Response suggestion status generally agrees with availability at the decision time slot, as-defined on the basis of snooze being disabled and the recognized activity classification being STILL or UNKNOWN. However note that, among those available, the proportion presumably randomized to have a suggestion sent is $\Sexpr{with(suggest, round(sum(avail == "Available" & !is.na(response))/sum(avail == "Available"), 2))}$, which is higher than the anticipated $40\%$.
+The proportion of decisions with Is{\_}Randomized equal to TRUE is $\Sexpr{with(suggest, sum(is.randomized[connect])/sum(connect))}$, which is close to the expected $60\%$. Under availability and an active connection, the proportion with ``send'' decision result or suggestion response is also close to the anticipated $60\%$, at $\Sexpr{with(subset(suggest, connect), sum((!intransit & !snooze.status & is.randomized) | !is.na(response))/sum(!intransit & !snooze.status))}$.
 
 \subsection{Randomized planning status}
 
-The EMA{\_}Context{\_}Notified table provides the randomized planning status, but the values recorded in this table often do not agree with the administered planning status in the Structured{\_}Planning and Unstructured{\_}Planning tables. This discrepancy is due to a race condition in which the EMA{\_}Context{\_}Notified planning status stored on the phone is read before being updated. So its value might represent either an initial or previous status value. 
+EMA{\_}Context{\_}Notified provides the randomized planning status Planning{\_}Today, but the values recorded in this table often do not agree with the administered planning status in the Structured{\_}Planning and Unstructured{\_}Planning tables. This discrepancy is due to a race condition in which the EMA{\_}Context{\_}Notified planning status stored on the phone is read before being updated. So its value might represent either an initial or previous status value. 
 
 <<plan, results="asis">>=
 d <- with(daily, table(capitalize(planning.today), capitalize(planning),
                        useNA = "ifany"))
 rownames(d)[nrow(d)] <- colnames(d)[ncol(d)] <- "Unknown"
-d <- rbind(cbind(c("", "EMA{\\_}Context{\\_}Notified", rep("", nrow(d) - 1)),
+d <- rbind(cbind(c("", "Planning{\\_}Today", rep("", nrow(d) - 1)),
                  c("", rownames(d)), rbind(colnames(d), d)),
            c("", "Total", apply(d, 2, sum)))
 rownames(d) <- NULL
@@ -217,17 +224,17 @@ We conjecture that the issue does not affect the actual, \emph{administered} pla
 \begin{itemize}
 \item $\Sexpr{with(daily, sum(!connect))}$ cases where the user's phone had no active connection. We could consider the user unavailable for the planning intervention.
 \item $\Sexpr{with(daily, sum(connect & !view & !respond))}$ cases where the user had an active connection, but probably did not view the questionnaire. We could simply regenerate the randomized planning status.
-\item $\Sexpr{with(daily, sum(view & !respond))}$ cases where we know that the user engaged with the questionnaire, but did not respond. Based on the way in which the application captures EMA engagement, the randomized planning status is most likely ``No planning.''
+\item $\Sexpr{with(daily, sum(view & !respond))}$ cases where we know that the user engaged with the questionnaire, but did not respond. Based on the way in which the application captures EMA engagement, the randomized planning status is most likely ``no planning.''
 \end{itemize}
 
 \subsection{EMA question set}
 
-The EMA{\_}Completed table contains a variable EMA{\_}Set{\_}Today, which should provide the ordered set of EMA questions sent to the user. In $\Sexpr{with(notify, sum(ema.set.today != ema.set, na.rm = TRUE))}$ cases, EMA{\_}Set{\_}Today does not agree with the sequence of questions that the user answered. This is due to a race condition in which the question set stored on the phone is read before being updated. To resolve this, we infer the administered question set from EMA{\_}Response; the question set for incomplete EMAs is not entirely recoverable, particularly if the user engaged with the EMA.
+The EMA{\_}Context{\_}Notified table contains a variable EMA{\_}Set{\_}Today, which should provide the ordered set of EMA questions sent to the user. In $\Sexpr{with(notify, sum(ema.set.today != ema.set, na.rm = TRUE))}$ cases, EMA{\_}Set{\_}Today does not agree with the sequence of questions that the user answered. This is due to a race condition in which the question set stored on the phone is read before being updated. To resolve this, we infer the administered question set from EMA{\_}Response; the question set for incomplete EMAs is not entirely recoverable, particularly if the user engaged with the EMA.
 
 \subsection{Missing EMA context}
 \label{sec:context}
 
-A total of $\Sexpr{with(daily, sum(is.na(context.utime) & !is.na(ema.set.length)))}$ EMA responses have no contextual data available from notification or engagement. This was due to server-side dispensing of records for which the activity could not be recognized---a bug that was identified and patched in September.
+A total of $\Sexpr{with(daily, sum(is.na(context.utime) & !is.na(ema.set.length)))}$ EMA responses have no contextual data available from notification or engagement. This was due to server-side dispensing of records for which the activity could not be recognized---bug that was identified and patched in September.
 
 \subsection{EMA completion status}
 \label{sec:complete}
@@ -248,11 +255,11 @@ print(xtable(d, digits = 0),
 
 \subsection{Suggestion message tags and strings}
 
-The activity suggestion messages were not stored with the bucket tags used for contextualization. To address this we apply all relevant tags post-hoc, using the curated list of suggestions. Note that all relevant tags are not necessarily the tags that influenced the message selection. Moreover the list gives the message strings as-displayed with non-ASCII characters. Internally HeartSteps strips ASCII characters from messages before saving them to the datastore, but this operation is not performed consistently. To enable correct linkage, we strip all message strings of escape codes, punctuation, non-ASCII characters and normalize white space.
+The activity suggestion messages were not stored with the bucket tags used for contextualization. To address this we apply all relevant tags post-hoc, using the curated list of suggestions. Note that all relevant tags are not necessarily the tags that influenced the message selection. Moreover the list gives the message strings as-displayed with non-ASCII characters. Internally HeartSteps strips ASCII characters from messages before saving them to the datastore, but this operation is not performed consistently. To enable correct linkage, we strip all message strings of escape codes, punctuation, non-ASCII characters and normalize whitespace.
 
 \section{User characteristics}
 
-The intake and exit interview data are updated less frequently than the application data. Here is a summary of the intake information available for $\Sexpr{nrow(intake)}$ users.
+Here is a summary of the intake information available for $\Sexpr{nrow(intake)}$ users.
 
 <<users, results="asis">>=
 d <- with(users,
@@ -278,7 +285,7 @@ print(xtable(d, digits = c(0, 0, 1)), floating = FALSE, booktabs = TRUE)
 
 At each EMA, the user was asked ``How hectic was your day today?'' A $\Sexpr{length(ema1)}$-point scale was provided, with $\Sexpr{ema1[1]}$ labelled as ``\Sexpr{names(ema1[1])}'' and $\Sexpr{length(ema1)}$ labelled as ``\Sexpr{names(rev(ema1)[1])}''.  Here we depict the responses over time, where darker points correspond to more hectic days. No point is plotted if no response is available, due to either non- or pending response.
 <<ema1, fig.height=3>>=
-with(daily, plot(study.day, user.index, pch = 16,
+with(daily, plot(study.day, user.index, pch = 20,
                  col = rev(grey.colors(length(ema1)))[hectic],
                  frame.plot = FALSE, xlab = "Study day", ylab = "User index"))
 @
@@ -287,7 +294,7 @@ with(daily, plot(study.day, user.index, pch = 16,
 
 At each EMA, the user was asked ``How stressful was your day today?'' A $\Sexpr{length(ema2)}$-point scale was provided, with $\Sexpr{ema1[1]}$ labelled as ``\Sexpr{names(ema2[1])}'' and $\Sexpr{rev(ema1)[1]}$ labelled as ``\Sexpr{names(rev(ema2)[1])}''. Here we depict the responses over time, where darker points correspond to more stressful days. No point is plotted if no response is available, due to either non- or pending response.
 <<ema2, fig.height=3>>=
-with(daily, plot(study.day, user.index, pch = 16,
+with(daily, plot(study.day, user.index, pch = 20,
                  col = rev(grey.colors(length(ema2)))[stressful],
                  frame.plot = FALSE, xlab = "Study day", ylab = "User index"))
 @
@@ -296,15 +303,15 @@ with(daily, plot(study.day, user.index, pch = 16,
 
 At each EMA, the user was asked ``How typical was today for a X?'', where ``X'' is the current day of the week. A $\Sexpr{length(ema3)}$-point scale was provided, with $\Sexpr{ema1[1]}$ labelled as ``\Sexpr{names(ema3[1])}'' and $\Sexpr{rev(ema1)[1]}$ labelled as ``\Sexpr{names(rev(ema3)[1])}''.  Here we depict the responses over time, where darker points correspond to more atypical days. No point is plotted if no response is available, due to either non- or pending response. 
 <<ema3, fig.height=3>>=
-with(daily, plot(study.day, user.index, pch = 16,
+with(daily, plot(study.day, user.index, pch = 20,
                  col = grey.colors(length(ema3))[typical],
                  frame.plot = FALSE, xlab = "Study day", ylab = "User index"))
 @
 
 \section{Daily step count}
 
-The following plots give the daily step count for each user; the solid series corresponds to Jawbone and dotted to Google Fit. Breaks in the series indicate no step counts were recorded that day. Grey segments of the series indicate that planning was carried out the day before. The horizontal line gives the user average daily Jawbone step count; this extends up to the known or projected exit date. Vertical lines correspond to days on which no part of the EMA was completed, with the dotted line type indicating an inactive connection at the EMA time slot.
-<<dailysteps, fig.height=1.75>>=
+The following plots give the daily step count for each user; the solid series corresponds to Jawbone and dotted to Google Fit. Breaks in the series indicate no step counts were recorded that day. The \Sexpr{color.name} segments of the series indicate that planning was carried out the day before. The horizontal line gives the user average daily Jawbone step count; this extends up to the known or projected exit date. Vertical lines correspond to days on which no part of the EMA was completed, with the dotted line type indicating an inactive connection at the EMA time slot.
+<<dailysteps, fig.height=2>>=
 daily$last.jbsteps <- with(daily, delay(user, study.day, jbsteps))
 daily$next.jbsteps <- with(daily, delay(user, study.day, jbsteps, -1))
 daily$seg.jbsteps <- with(daily, !is.na(jbsteps) & !is.na(next.jbsteps))
@@ -316,35 +323,71 @@ plot.daily.steps <- function(u) {
   d <- subset(daily, user == u)
   maxs <- max(1, d$jbsteps, d$gfsteps, na.rm = TRUE)
   maxd <- max(d$study.day)
-  slwd <- 1.5
-  pcol <- "darkgrey"
-  plot(NULL, xlim = c(0, max(maxd, 42)), ylim = c(0, maxs),
+  slwd <- 2
+  plot(NULL, xlim = c(0, max(maxd, max.day)), ylim = c(0, maxs),
        xlab = "", ylab = "", main = "", axes = FALSE, frame.plot = FALSE)
-  mtext(paste(u), 2, line = 3)
+  mtext(paste(u), 2, line = 2.75)
   apply(subset(d, is.na(ema.set.length) & study.day < maxd,
                select = c(study.day, connect)), 1,
         function(x) abline(v = x[1], col = "lightgrey",
                            lty = c("dotted", "solid")[x[2] + 1]))
   meanjb <- mean(d$jbsteps, na.rm = TRUE)
-  segments(0, meanjb, max(d$study.day, 42 * (d$last.date[1] > max.date)), meanjb,
-           col = "lightgrey")
+  segments(0, meanjb, max(maxd, max.day * (d$last.date[1] > max.date)),
+           meanjb, col = "lightgrey")
   with(subset(d, !plan & seg.gfsteps),
        segments(study.day, gfsteps, study.day + 1, next.gfsteps,
                 lty = "dotted", lwd = slwd))
   with(subset(d, plan & seg.gfsteps),
        segments(study.day, gfsteps, study.day + 1, next.gfsteps,
-                lty = "dotted", col = pcol, lwd = slwd))
+                lty = "dotted", col = color, lwd = slwd))
   with(subset(d, !plan & seg.jbsteps),
        segments(study.day, jbsteps, study.day + 1, next.jbsteps, lwd = slwd))
   with(subset(d, plan & seg.jbsteps),
        segments(study.day, jbsteps, study.day + 1, next.jbsteps,
-                col = pcol, lwd = slwd))
+                col = color, lwd = slwd))
   at <- with(d, c(0, study.day[is.na(jbsteps) & !is.na(last.jbsteps)] - 1,
-                  study.day[!is.na(jbsteps) & is.na(last.jbsteps)], maxd, 42))
+                  study.day[!is.na(jbsteps) & is.na(last.jbsteps)], maxd,
+                  max.day))
   axis(1, at = sort(unique(at)))
-  axis(2, at = sort(round(c(0, meanjb, maxs))))
+  axis(2, at = round(c(0, meanjb, maxs)))
 }
-invisible(sapply(unique(daily$user), plot.daily.steps))
+invisible(sapply(with(subset(daily, !is.na(jbsteps)), unique(user)),
+                 plot.daily.steps))
+@
+
+\section{Step count following decision points}
+
+Below we depict the cumulative step count one hour following each decision point. Counts following a decision to send an activity suggestion are displayed in \Sexpr{color.name}. The dotted line type indicates that the user was unavailable or disconnected at the preceding decision point. The horizontal reference line gives the average cumulative steps over every decision point, regardless of this status; it extends to either the known or projected exit date.
+<<slotsteps, fig.height=2>>=
+plot.slot.steps <- function(u, d, by = 15, mins = 60) {
+  d <- subset(d, user == u & (end.utime - decision.utime) < mins * 60)
+  d$sum.steps <- with(d, roll(index, end.utime, steps, FUN = sum, na.rm = TRUE))
+  d <- subset(d, !is.na(sum.steps))
+  d$max.steps <- with(d, roll(index, end.utime, sum.steps, FUN = max))
+  slwd <- 2
+  minu <- min(d$end.utime)
+  maxu <- max(d$end.utime, minu + max.day * 24 * 60^2)
+  means <- mean(d$sum.steps)
+  maxs <- max(d$max.steps)
+  with(subset(d, !is.na(sum.steps)),
+       plot(NULL, xlim = c(minu, maxu),
+               ylim = c(0, maxs), xlab = "", ylab = "", main = "",
+               axes = FALSE, frame.plot = FALSE))
+  mtext(paste(u), 2, line = 2.75)
+  segments(0, means,
+           max(maxu, max.day * 24 * 60^2 * (d$last.date[1] > max.date)), means,
+           col = "lightgrey")
+  with(d, sapply(index,
+                 function(j)
+                   with(subset(d, index == j)[c(seq(1, sum(index == j), by = by),
+                                                sum(index == j)), ],
+                        points(end.utime, sum.steps, type = "s", lwd = slwd,
+                               col = c("black", color)[send[1] + 1],
+                               lty = c("dotted", "solid")[avail[1] + 1]))))
+  axis(1, at = c(minu, maxu), labels = format(c(minu, maxu), "%d %b"))
+  axis(2, at = round(c(0, means, maxs)))
+}
+invisible(sapply(unique(jbslot$user), function(u) plot.slot.steps(u, jbslot)))
 @
 
 \end{document}

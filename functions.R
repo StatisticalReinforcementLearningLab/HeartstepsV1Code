@@ -65,9 +65,16 @@ merge.last <- function(x, y, id, var, id.x = id, id.y = id, var.x = var,
   by.x <- c(id.x, var.x)
   by.y <- c(id.y, var.y)
   d <- merge(x[, names(x) %in% by.x], y, by.x = by.x, by.y = by.y, all = TRUE)
+  j <- !(names(d) %in% names(x))
+  v <- d[[var.x]]
+  v[is.na(d[, j, drop = FALSE][, 1])] <- NA
+  d <- cbind(d, v)
+  names(d)[ncol(d)] <- var.y
+  j <- c(j, TRUE)
   if (!missing(order.by))
     d <- d[with(d, order(order.by)), ]
-  d <- impute.locf(d, d[[id]])
+  d[, j] <- do.call("data.frame",
+                    lapply(d[, j, drop = FALSE], impute.locf, id = d[, 1]))
   print(nrow(d <- merge(x, d, by = by.x, all.x = TRUE, ...)))
   d
 }

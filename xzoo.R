@@ -1,7 +1,5 @@
 ## zoo extras
 
-## --- on variables
-
 ## take first recorded value
 baseline <- function(id, time, x) {
   s <- splitdata(id, time, x)
@@ -52,8 +50,10 @@ delay <- function(id, time, x, k = 1) {
 }
 
 ## rolling summary with given right-aligned window width
-roll <- function(id, time, x, width, FUN, ...) {
+roll <- function(id, time, x, width = NULL, FUN, ...) {
   z <- zoosplit(splitdata(id, time, x))
+  if (is.null(width))
+    width <- do.call("max", lapply(z, length))
   r <- lapply(z, function(y) if (length(y) > 1)
                                rollapplyr(y, width = width, FUN = FUN,
                                           partial = TRUE, ...)
@@ -86,7 +86,8 @@ unzoosplit <- function(z, indexed = FALSE) {
   x <- u <- unlist(z, use.names = FALSE)
   if (indexed) {
     x <- data.frame(id = attributes(z)$id,
-                    time = unlist(lapply(z, time), use.names = FALSE), x = x)
+                    time = unlist(lapply(z, time), use.names = FALSE),
+                    x = x)
     x[attributes(z)$order, ] <- x
   }
   else x[attributes(z)$order] <- u
@@ -95,14 +96,13 @@ unzoosplit <- function(z, indexed = FALSE) {
   x
 }
 
-## --- on data frames
-
 ## last observation carried forward (LOCF) imputation of missing values
-impute.locf <- function(x, id) {
-  uid <- unique(id)
-  d <- x
-  sapply(uid,
-         function(i) d[id == i, ] <<-
-                     lapply(x[id == i, ], na.locf, na.rm = FALSE))
-  d
+impute.locf <- function(var, id) {
+  obs <- rep(1, length(id))
+  obs <- unlist(tapply(obs, id, cumsum))
+  l <- lapply(split(data.frame(x = var, order.by = obs), id),
+              function(z) do.call("zoo", z))
+  l <- unlist(lapply(l, function(z) na.locf(z, na.rm = FALSE)))
+  attributes(l) <- attributes(var)
+  l
 }

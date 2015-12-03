@@ -72,7 +72,8 @@ notify$ema.set.today <- gsub(",ema_finish", "", notify$ema.set.today)
 notify <- merge.last(notify,
                      subset(timeslot, select = c(user, utime.updated,
                                                  morning.hours:ema.hours)),
-                       "user", var.x = "notified.utime", var.y = "utime.updated")
+                     id = "user", var.x = "notified.utime",
+                     var.y = "utime.updated")
 notify$notified.time.slot <-
   ltime2slot(notified.time.hour, notified.time.min, notify)
 
@@ -340,7 +341,7 @@ decision <-
   merge.last(decision,
              subset(timeslot,
                     select = c(user, utime.updated, morning.hours:ema.hours)),
-             "user", var.x = "utime.stamp", var.y = "utime.updated")
+             id = "user", var.x = "utime.stamp", var.y = "utime.updated")
 ## designated hours for the intended time slot
 decision$slot.hours <- apply(subset(decision,
                                     select = c(slot, morning.hours:ema.hours)),
@@ -360,7 +361,7 @@ response <-
                                time.slot, slot, slot.hours, time.stamp.slot,
                                notify, is.randomized, is.prefetch,
                                returned.message, link)),
-             "user", var.x = "notified.utime", var.y = "utime.stamp",
+             id = "user", var.x = "notified.utime", var.y = "utime.stamp",
              suffixes = c("", ".decision"))
 ## match between linked messages?
 with(response, table(notification.message == returned.message,
