@@ -1,7 +1,14 @@
+% data summary document
+
+% compile with:
+% Rscript --vanilla summary.R
+
+% to address any knitr issues, start here:
+% https://github.com/yihui/knitr/blob/master/FAQ.md
+
 \documentclass[11pt]{article}
 \usepackage[T1]{fontenc}
 \usepackage[margin=1in]{geometry}
-\usepackage{microtype}
 \usepackage{booktabs}
 \usepackage{enumitem}
 \usepackage{setspace}
@@ -11,13 +18,11 @@
 \usepackage{graphicx}
 \IfFileExists{MinionPro.sty}
   {\usepackage[mathlf,italicgreek,loosequotes]{MinionPro}
-   \DisableLigatures[T]{encoding={OT1,T1}}
+   \usepackage{microtype}
+   \DisableLigatures[T]{encoding={T1}}
    \usepackage[toc,enum,bib,lineno,eqno]{tabfigures}}
-  {\usepackage{times}
-   \let\figureversion\@gobble
-   \IfFileExists{mtpro2.sty}
-     {\let\Bbbk\relax\usepackage[mtphrb]{mtpro2}}
-     {\usepackage{mathptmx}}}
+  {\makeatletter\let\figureversion\@gobble\makeatother
+   \usepackage{amsmath,amssymb}}
 % environment hooks
 \usepackage{etoolbox}
 
@@ -33,8 +38,6 @@
 \BeforeBeginEnvironment{tabular}{\begin{center}\figureversion{lf,tab}}
 \AfterEndEnvironment{tabular}{\end{center}}
 \AtBeginEnvironment{tabular}{\small\hyphenpenalty=10000}
-\AtBeginEnvironment{tikzpicture}{%
-  \figureversion{lf,tab}\small\hyphenpenalty=10000}
 
 \newcolumntype{L}[1]{>{\RaggedRight\hspace{0pt}}p{#1}}
 \newcolumntype{R}[1]{>{\RaggedLeft\hspace{0pt}}p{#1}}
@@ -42,16 +45,9 @@
 
 \setlist{leftmargin=\parindent,rightmargin=\parindent}
 
-\DeclareMathOperator{\uniform}{Uniform}
-
 \linespread{1.125}
 \raggedbottom
 \allowdisplaybreaks
-\columnsep=1em
-
-% R code "chunk" format:
-% <<chunk options>>= R code @
-% see http://yihui.name/knitr/options/#chunk{\_}options for chunk options
 
 \title{\bfseries HeartSteps data summary}
 \author{}
@@ -60,6 +56,10 @@
 \begin{document}
 \maketitle
 \thispagestyle{empty}
+
+% R code "chunk" format:
+% <<chunk options>>= R code @
+% see http://yihui.name/knitr/options/#chunk{\_}options for chunk options
 
 <<setup, include=FALSE, cache=FALSE>>=
 opts_chunk$set(fig.align="center", dev="tikz", dev.args=list(pointsize=11), echo=FALSE, fig.width=6.5, fig.show="hold", par=TRUE)
