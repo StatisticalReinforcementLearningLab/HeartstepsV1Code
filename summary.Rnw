@@ -107,13 +107,13 @@ EMA{\_}Response & User revisited screen & Discard earlier duplicate responses \\
 \midrule
 EMA{\_}Completed & Unknown & Due to additional issues (see \cref{sec:complete}), use table only for time zone information \\
 \midrule
-Momentary{\_}Decision & Time zone bugs (see \cref{sec:slot}) and other unknown reasons & Keep decisions that correctly link to Response, have a response, have the lowest time slot discrepancy, or are based on prefetch data. \\
+Momentary{\_}Decision & Time zone bugs (see \cref{sec:slot}) and other unknown reasons & Keep decisions that correctly link to Response, have a response, have the lowest time slot discrepancy, or are not based on prefetch data. \\
 \bottomrule
 \end{tabular}
 
 \subsection{Inactive server-phone connection}
 
-The anticipated data for each user-designated notification time slot is sometimes entirely missing. For example at the EMA notification time slot for a given user, we might find no corresponding records in the EMA-related tables. This presumably arises when the user's phone is turned off or has no network access over extended periods of time.
+The anticipated data for each user-designated notification time slot is sometimes entirely missing. For example around the EMA notification time slot for a given user, we might find no corresponding records in the EMA-related tables. This presumably arises when the user's phone is turned off or has no network access over extended periods of time.
 
 Instances where no EMA-related records could be retrieved by user and day on study are depicted below.
 <<inactive-ema, fig.height=3>>=
@@ -123,7 +123,7 @@ with(daily, segments(0, user.index, pmax(study.day), col = "grey"))
 with(subset(daily, !connect),
      points(study.day, user.index, pch = 20, col = "darkgrey"))
 @
-We can similarly depict the momentary decision points at which there are no records in Momentary{\_}Decision or Response.
+We can similarly depict the momentary decision points for which there are no corresponding records in Momentary{\_}Decision or Response.
 <<inactive, fig.height=3>>=
 with(suggest, plot(NULL, xlim = c(0, max(index)), ylim = c(0, max(user.index)),
                    frame.plot = FALSE, xlab = "Momentary decision index",
@@ -132,7 +132,7 @@ with(suggest, segments(0, user.index, pmax(index), col = "grey"))
 with(subset(suggest, !connect),
      points(index, user.index, pch = 20, col = grey(0.2, alpha = 0.3)))
 @
-To address this issue, we could consider the user unavailable for the planning and activity suggestion interventions whenever an active connection is not apparent. For analysis, we still require the time of the EMA notifications and momentary decisions that would have otherwise occurred had the user's phone been connected. This can be inferred from the user-designated notification time slots in User{\_}Decision{\_}Times. In evaluating the decision time, we account for the fact that the user can change the slots at any point and (for simplicity) use the time zone recorded at the last connection.
+To address this issue, we could consider the user unavailable for the planning and activity suggestion interventions whenever an active connection is not apparent. For analysis, we still require the time of the EMA notifications and momentary decisions that would have otherwise occurred had the user's phone been connected. This can be inferred from the user-designated notification time slots in User{\_}Decision{\_}Times. In evaluating the decision time, we account for the fact that the user can change the slots at any point and (for simplicity) use the time zone recorded at the last decision point for which there was a connection.
 
 \subsection{Notifications under changing time zone}
 \label{sec:slot}
@@ -178,7 +178,7 @@ d <- aggregate(cbind(miss = is.na(response) & send, total = send) ~ user,
 
 In $\Sexpr{with(suggest, sum(!is.na(response) & (intransit | snooze.status), na.rm = TRUE))}$ cases the decision was ``don't send'' due to unavailability, but a suggestion was sent anyway; this is due to a race condition in which the Momentary{\_}Decision status stored on the phone is read before being updated, so the decision carried out reflects the prefetch availability status. This erroneous use of prefetch data is limited to about $\Sexpr{with(dup.decision, with(data, sum(dup & !is.prefetch)))}$ decision points.
 
-A more common issue, arising in $617$ cases, is the decision result ``send,'' but no corresponding record is found in Response. The proportion of missing records per user is on average $0.23$ and has range $0.02$--$0.69$. We conjecture that the underlying problem is due (in part) to the user touching the notification (which opens the HeartSteps app), providing a response, viewing recent apps, and swiping HeartSteps away; the swiping action prevents submission of the response data to the server.
+A more common issue, arising in $617$ cases, is the decision result ``send,'' but no corresponding record is found in Response. The proportion of missing records per user is on average $0.23$ and has range $0.02$--$0.69$. We conjecture that the underlying problem is due (in part) to the user tapping the notification (which opens the HeartSteps app), providing a response, viewing recent apps, and swiping HeartSteps away; the swiping action prevents submission of the response data to the server.
 
 This data loss limits any reliable analysis of the message responses (e.g. ``good,'' ``bad,'' ``snooze''). However we can reasonably examine the effect of suggestions, provided that we expand the definition of unavailability to include no connection. So for the $\Sexpr{with(suggest, sum(is.na(notify)))}$ decision points with no data in both Momentary{\_}Decision and Response (and thus presumably no connection), we would consider the corresponding users to be unavailable for the intervention.
 
@@ -194,7 +194,7 @@ print(xtable(d, digits = 0, align = rep("r", ncol(d) + 1)),
       floating = FALSE, booktabs = TRUE, sanitize.text.function = identity)
 @
 
-The proportion of decisions with Is{\_}Randomized equal to TRUE is $\Sexpr{with(suggest, sum(is.randomized[connect])/sum(connect))}$, which is close to the expected $60\%$. Under availability and an active connection, the proportion with ``send'' decision result or suggestion response is also close to the anticipated $60\%$, at $\Sexpr{with(subset(suggest, connect), sum((!intransit & !snooze.status & is.randomized) | !is.na(response))/sum(!intransit & !snooze.status))}$.
+The proportion of decisions with Is{\_}Randomized equal to TRUE is $\Sexpr{with(suggest, sum(is.randomized[connect])/sum(connect))}$, which is close to the expected $60\%$. Under availability and an active connection, the proportion with a ``send'' decision result is also close to the anticipated $60\%$, at $\Sexpr{with(subset(suggest, connect), sum((!intransit & !snooze.status & is.randomized) | !is.na(response))/sum(!intransit & !snooze.status))}$.
 
 \subsection{Randomized planning status}
 
@@ -310,7 +310,7 @@ with(daily, plot(study.day, user.index, pch = 20,
 
 \section{Daily step count}
 
-The following plots depict the daily step count for each user, with the solid series corresponds to Jawbone and dotted to Google Fit. Breaks coincide with one or more days on which no step counts were recorded that day. The \Sexpr{color.name} segments indicate that planning was carried out the day before. The horizontal reference line gives the user average daily Jawbone step count and extends up to the known or projected exit date. Vertical lines correspond to days on which no part of the EMA was completed (apart from possibly planning), with the dotted line type used for an inactive connection at the EMA notification slot.
+The following plots depict the daily step count for each user, with the solid series corresponding to Jawbone and dotted to Google Fit. Breaks coincide with one or more days on which no step counts were recorded. The \Sexpr{color.name} segments indicate that planning was carried out the day before. The horizontal reference line gives the user average daily Jawbone step count and extends up to the known or projected exit date. Vertical lines correspond to days on which no part of the EMA was completed (apart from possibly planning), with the dotted line type used for an inactive connection at the EMA notification slot.
 <<dailysteps, fig.height=2>>=
 daily$last.jbsteps <- with(daily, delay(user, study.day, jbsteps))
 daily$next.jbsteps <- with(daily, delay(user, study.day, jbsteps, -1))
