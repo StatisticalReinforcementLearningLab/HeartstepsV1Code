@@ -7,10 +7,10 @@
 ##        ...  additional arguments passed to read.csv
 
 read.data <- function(file, order.by = NULL, ...) {
-  ## read named files into a list of data frame
+  ## read named files into a list of data frames
   d <- sapply(file, read.csv, header = TRUE, strip.white = TRUE, ...,
               simplify = FALSE)
-  ## make each data frame in contain the the same variables in the same order;
+  ## make each data frame contain the the same variables in the same order;
   ## if one such variable does not appear in a given data frame, add it as a
   ## vector of missing values
   if (length(d) > 1) {
@@ -32,7 +32,7 @@ read.data <- function(file, order.by = NULL, ...) {
   ## omit extraneous variables
   d <- d[, which(!grepl("^(key|(first|last|variable)\\.name|x|x\\.[0-9]+)$",
                         names(d))), drop = FALSE]
-  ## keep only pilot users
+  ## keep only pilot users and isolate their participant number
   if ("userid" %in% names(d)) {
     d <- subset(d, grepl("heartsteps.test[0-9]+", userid))
     d$user <- as.numeric(gsub("(heartsteps\\.test|@gmail.*$)", "", d$userid))
