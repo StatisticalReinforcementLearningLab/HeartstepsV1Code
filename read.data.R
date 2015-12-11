@@ -55,10 +55,11 @@ read.data <- function(file, order.by = NULL, ...) {
                       formatC(abs(d$gmtoff) / 60^2), sep = "")
         d$tz[is.na(d$gmtoff)] <- ""
       }
-      ## FIXME: So we flip utime on if there's a timezone, so then the fancy...
-      ## ...UNIX time stuff can happen below. But if there's not a timezone,...
-      ## ...we can't do anything with the time? Or at least not convert it?
+      ## indicate whether or not we have sufficient time zone information,
+      ## needed to convert local times to POSIXct (Unix time)
       utime <- TRUE
+      ## indicate whether or not the date-time variables are local times,
+      ## needed to calculate relevent POSIXlt-based variables (e.g. time of day)
       ptime <- !all(d$tz %in% c("GMT", "UTC"))
     }
     ## for each of the character date-time variables...
@@ -67,7 +68,7 @@ read.data <- function(file, order.by = NULL, ...) {
     y <- do.call("data.frame", lapply(d[, l, drop = FALSE], as.Date))
     names(y) <- gsub("(date|)time", "date", names(y))
     d <- cbind(d, y)
-    ## ... using UTC offset, calculate POSIXct (UNIX time) date-time and date
+    ## ... using UTC offset, calculate POSIXct date-time and date
     ## nb: these values can be used to put records in chronological order
     if (utime) {
       u <- do.call("data.frame",

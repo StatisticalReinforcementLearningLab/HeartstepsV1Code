@@ -18,11 +18,14 @@ options(digits.secs = 6)
 ## system-dependent variables
 sys.var <- switch(Sys.info()["sysname"],
                   "Windows" = list(locale = "English",
-                                   mbox = "Z:/HeartSteps/"),
+                                   mbox = "Z:/HeartSteps/",
+                                   knitr.plotdev = "pdf"),
                   "Darwin" = list(locale = "en_US",
-                                  mbox = "/Volumes/dav/HeartSteps/"),
+                                  mbox = "/Volumes/dav/HeartSteps/",
+                                  knitr.plotdev = "pdf"),
                   "Linux" = list(locale = "en_US.UTF-8",
-                                 mbox = "~/mbox/HeartSteps/"))
+                                 mbox = "~/mbox/HeartSteps/",
+                                 knitr.plotdev = "tikz"))
 sys.var$repo <- getwd()
 sys.var$mbox.data <- paste(sys.var$mbox, "Data/", sep = "")
 
