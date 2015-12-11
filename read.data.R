@@ -7,10 +7,10 @@
 ##        ...  additional arguments passed to read.csv
 
 read.data <- function(file, order.by = NULL, ...) {
-  ## read named files into a list of data frame
+  ## read named files into a list of data frames
   d <- sapply(file, read.csv, header = TRUE, strip.white = TRUE, ...,
               simplify = FALSE)
-  ## make each data frame in contain the the same variables in the same order;
+  ## make each data frame contain the the same variables in the same order;
   ## if one such variable does not appear in a given data frame, add it as a
   ## vector of missing values
   if (length(d) > 1) {
@@ -32,7 +32,7 @@ read.data <- function(file, order.by = NULL, ...) {
   ## omit extraneous variables
   d <- d[, which(!grepl("^(key|(first|last|variable)\\.name|x|x\\.[0-9]+)$",
                         names(d))), drop = FALSE]
-  ## keep only pilot users
+  ## keep only pilot users and isolate their participant number
   if ("userid" %in% names(d)) {
     d <- subset(d, grepl("heartsteps.test[0-9]+", userid))
     d$user <- as.numeric(gsub("(heartsteps\\.test|@gmail.*$)", "", d$userid))
@@ -43,10 +43,11 @@ read.data <- function(file, order.by = NULL, ...) {
   utime <- ptime <- FALSE
   if (length(l)) {
     d[, l][d[, l] == ""] <- NA
+    ## format timezone
     if (!is.null(d$timezone)) {
       ## add offset in seconds from GMT/UTC
       d$gmtoff <- 0
-      ## time zone identifier
+      ## add time zone identifier
       d$tz <- d$timezone
       if (!is.null(d$utc.to.local.delta)) {
         d$gmtoff <- 60 * d$utc.to.local.delta
@@ -54,6 +55,9 @@ read.data <- function(file, order.by = NULL, ...) {
                       formatC(abs(d$gmtoff) / 60^2), sep = "")
         d$tz[is.na(d$gmtoff)] <- ""
       }
+      ## FIXME: So we flip utime on if there's a timezone, so then the fancy...
+      ## ...UNIX time stuff can happen below. But if there's not a timezone,...
+      ## ...we can't do anything with the time? Or at least not convert it?
       utime <- TRUE
       ptime <- !all(d$tz %in% c("GMT", "UTC"))
     }
@@ -63,7 +67,7 @@ read.data <- function(file, order.by = NULL, ...) {
     y <- do.call("data.frame", lapply(d[, l, drop = FALSE], as.Date))
     names(y) <- gsub("(date|)time", "date", names(y))
     d <- cbind(d, y)
-    ## ... using UTC offset, calculate POSIXct date-time and date
+    ## ... using UTC offset, calculate POSIXct (UNIX time) date-time and date
     ## nb: these values can be used to put records in chronological order
     if (utime) {
       u <- do.call("data.frame",

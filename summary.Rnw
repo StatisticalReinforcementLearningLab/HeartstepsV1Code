@@ -62,7 +62,8 @@
 % see http://yihui.name/knitr/options/#chunk{\_}options for chunk options
 
 <<setup, include=FALSE, cache=FALSE>>=
-opts_chunk$set(fig.align="center", dev="tikz", dev.args=list(pointsize=11), echo=FALSE, fig.width=6.5, fig.show="hold", par=TRUE)
+# imgdev <- ifelse(Sys.info()["sysname"] == "Windows", "pdf", "tikz")
+opts_chunk$set(fig.align="center", dev="pdf", dev.args=list(pointsize=11), echo=FALSE, fig.width=6.5, fig.show="hold", par=TRUE)
 knit_hooks$set(par=function(before, options, envir){
   if (before && options$fig.show!="none")
     par(mar=c(3, 3, 1, 0) + 0.5, mgp=c(2, 0.5, 0), oma=rep(0, 4), las=1, tcl=0.25)})
