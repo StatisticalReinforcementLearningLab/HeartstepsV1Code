@@ -1,7 +1,7 @@
 % data summary document
 
 % compile with:
-% Rscript --vanilla summary.R
+% 
 
 % to address any knitr issues, start here:
 % https://github.com/yihui/knitr/blob/master/FAQ.md
@@ -17,7 +17,7 @@
 \usepackage[capitalize]{cleveref}
 \usepackage{graphicx}
 \IfFileExists{MinionPro.sty}
-  {\usepackage[mathlf,italicgreek,loosequotes]{MinionPro}
+  {\usepackage[lf,italicgreek]{MinionPro}
    \usepackage{microtype}
    \DisableLigatures[T]{encoding={T1}}
    \usepackage[toc,enum,bib,lineno,eqno]{tabfigures}}
@@ -59,18 +59,9 @@
 
 % R code "chunk" format:
 % <<chunk options>>= R code @
-% see http://yihui.name/knitr/options/#chunk{\_}options for chunk options
+% see http://yihui.name/knitr/options/#chunk_options for chunk options
 
-<<setup, include=FALSE, cache=FALSE>>=
-# imgdev <- ifelse(Sys.info()["sysname"] == "Windows", "pdf", "tikz")
-opts_chunk$set(fig.align="center", dev="pdf", dev.args=list(pointsize=11), echo=FALSE, fig.width=6.5, fig.show="hold", par=TRUE)
-knit_hooks$set(par=function(before, options, envir){
-  if (before && options$fig.show!="none")
-    par(mar=c(3, 3, 1, 0) + 0.5, mgp=c(2, 0.5, 0), oma=rep(0, 4), las=1, tcl=0.25)})
-knit_hooks$set(inline = function(x){if (is.numeric(x)) round(x, 2) else x})
-@
-
-<<data, echo=FALSE, include=FALSE>>=
+<<data, echo = FALSE, include = FALSE>>=
 source("init.R")
 setwd(sys.var$mbox.data)
 load("csv.RData")
@@ -78,6 +69,14 @@ load("analysis.RData")
 setwd(sys.var$repo)
 color <- "chartreuse"
 color.name <- "green"
+@
+
+<<setup, include=FALSE, cache=FALSE>>=
+opts_chunk$set(fig.align="center", dev=sys.var$knitr.plotdev, dev.args=list(pointsize=11), echo=FALSE, fig.width=6.5, fig.show="hold", par=TRUE)
+knit_hooks$set(par=function(before, options, envir){
+  if (before && options$fig.show != "none")
+    par(mar=c(3, 3, 1, 0) + 0.5, mgp=c(2, 0.5, 0), oma=rep(0, 4), las=1, tcl=0.25)})
+knit_hooks$set(inline=function(x) {if (is.numeric(x)) round(x, 2) else x})
 @
 
 \section{Data irregularities}
@@ -260,7 +259,7 @@ None of the activity suggestion messages were stored with the tags representing 
 
 \section{User characteristics}
 
-Here is a summary of the intake information available for $\Sexpr{nrow(intake)}$ users.
+Here is a summary of the intake information available for $\Sexpr{nrow(users)}$ users.
 
 <<users, results="asis">>=
 d <- with(users,
@@ -360,30 +359,30 @@ invisible(sapply(with(subset(daily, !is.na(jbsteps)), unique(user)),
 
 The following plots depict, for each user, the cumulative step count one hour following every decision point. Large gaps in this plot coincide with periods where no step counts were recorded. Counts immediately following a decision to send an activity suggestion are displayed in \Sexpr{color.name}. The dotted line type indicates that the user was unavailable or disconnected at the preceding decision point. The horizontal reference line gives the average cumulative steps over every decision point, regardless of connection or availability, and extends to the known or projected exit date.
 <<slotsteps, fig.height=2>>=
-plot.slot.steps <- function(u, d, by = 15, mins = 60) {
+plot.slot.steps <- function(u, d, mins = 60) {
   d <- subset(d, user == u & (end.utime - decision.utime) < mins * 60)
   d$sum.steps <- with(d, roll(index, end.utime, steps, FUN = sum, na.rm = TRUE))
-  d <- subset(d, !is.na(sum.steps))
-  d$max.steps <- with(d, roll(index, end.utime, sum.steps, FUN = max))
+  d$max.steps <- aggregate(sum.steps ~ index,
+                           data = d, FUN = max, na.rm = TRUE)[d$index + 1, 2]
   minu <- min(d$end.utime)
   maxu <- max(d$end.utime, minu + max.day * 24 * 60^2)
-  means <- mean(d$sum.steps)
-  maxs <- max(d$max.steps)
-  with(subset(d, !is.na(sum.steps)),
-       plot(NULL, xlim = c(minu, maxu),
-               ylim = c(0, maxs), xlab = "", ylab = "", main = "",
-               axes = FALSE, frame.plot = FALSE))
-  mtext(paste(u), 2, line = 2.75)
+  means <- with(d, mean(sum.steps[sum.steps %in% max.steps], na.rm = TRUE))
+  maxs <- max(d$max.steps, na.rm = TRUE)
+  with(d,
+       plot(NULL, xlim = c(minu, maxu), ylim = c(0, maxs), xlab = "", ylab = "",
+            main = "", axes = FALSE, frame.plot = FALSE))
+  mtext(paste(u), 2, line = 2.7)
   segments(0, means,
            max(maxu, max.day * 24 * 60^2 * (d$last.date[1] > max.date)), means,
            col = "lightgrey")
-  with(d, sapply(index,
-                 function(j)
-                   with(subset(d, index == j)[c(seq(1, sum(index == j), by = by),
-                                                sum(index == j)), ],
-                        points(end.utime, sum.steps, type = "s",
-                               col = c("black", color)[send[1] + 1],
-                               lty = c("dotted", "solid")[avail[1] + 1]))))
+  d$sum.steps[!duplicated(d$index)] <- 0
+  with(subset(d, !duplicated(index) | sum.steps == max.steps),
+       sapply(index,
+              function(j)
+                with(subset(d, index == j),
+                     points(end.utime, sum.steps, type = "l",
+                            col = c("black", color)[send[1] + 1],
+                            lty = c("dotted", "solid")[avail[1] + 1]))))
   axis(1, at = c(minu, maxu), labels = format(c(minu, maxu), "%d %b"))
   axis(2, at = round(c(0, means, maxs)))
 }
