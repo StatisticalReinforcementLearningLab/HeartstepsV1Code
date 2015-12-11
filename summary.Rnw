@@ -16,13 +16,13 @@
 \usepackage{hyperref}
 \usepackage[capitalize]{cleveref}
 \usepackage{graphicx}
-\IfFileExists{MinionPro.sty}
-  {\usepackage[mathlf,italicgreek,loosequotes]{MinionPro}
-   \usepackage{microtype}
-   \DisableLigatures[T]{encoding={T1}}
-   \usepackage[toc,enum,bib,lineno,eqno]{tabfigures}}
-  {\makeatletter\let\figureversion\@gobble\makeatother
-   \usepackage{amsmath,amssymb}}
+% \IfFileExists{MinionPro.sty}
+%   {\usepackage[mathlf,italicgreek,loosequotes]{MinionPro}
+%    \usepackage{microtype}
+%    \DisableLigatures[T]{encoding={T1}}
+%    \usepackage[toc,enum,bib,lineno,eqno]{tabfigures}}
+%   {\makeatletter\let\figureversion\@gobble\makeatother
+%    \usepackage{amsmath,amssymb}}
 % environment hooks
 \usepackage{etoolbox}
 
@@ -62,8 +62,8 @@
 % see http://yihui.name/knitr/options/#chunk{\_}options for chunk options
 
 <<setup, include=FALSE, cache=FALSE>>=
-# imgdev <- ifelse(Sys.info()["sysname"] == "Windows", "pdf", "tikz")
-opts_chunk$set(fig.align="center", dev="pdf", dev.args=list(pointsize=11), echo=FALSE, fig.width=6.5, fig.show="hold", par=TRUE)
+imgdev <- ifelse(Sys.info()["sysname"] == "Windows", "pdf", "tikz")
+opts_chunk$set(fig.align="center", dev=imgdev, dev.args=list(pointsize=11), echo=FALSE, fig.width=6.5, fig.show="hold", par=TRUE)
 knit_hooks$set(par=function(before, options, envir){
   if (before && options$fig.show!="none")
     par(mar=c(3, 3, 1, 0) + 0.5, mgp=c(2, 0.5, 0), oma=rep(0, 4), las=1, tcl=0.25)})
@@ -263,21 +263,45 @@ None of the activity suggestion messages were stored with the tags representing 
 Here is a summary of the intake information available for $\Sexpr{nrow(intake)}$ users.
 
 <<users, results="asis">>=
-d <- with(users,
-          cbind("Male" = gender == "male",
-                "Age under 25" = age < 25,
-                "White" = ethnicity == "white/caucasian",
-                "Graduate school" = edu %in% c("grad degree", "grad school"),
-                "Married or common-law" = marital %in%
-                              c("married", "domestic partnership"),
-                "Any children" = children > 0,
-                "Used fitness app" = fitapp == "yes",
-                "Used activity tracker" = tracker == "yes"))
-d <- cbind(apply(d, 2, sum, na.rm = TRUE),
-           apply(d, 2, sum, na.rm = TRUE)
-           / sum(!apply(d, 1, function(x) any(is.na(x)))) * 100)
-colnames(d) <- c("Number", "Percent")
-print(xtable(d, digits = c(0, 0, 1)), floating = FALSE, booktabs = TRUE)
+  d <- with(users,
+            cbind("Male" = gender == "male",
+                  "Age under 25" = age < 25,
+                  "White" = ethnicity == "white/caucasian",
+                  "Graduate school" = edu %in% c("grad degree", "grad school"),
+                  "Married or common-law" = marital %in%
+                    c("married", "domestic partnership"),
+                  "Any children" = children > 0,
+                  "Used fitness app" = fitapp == "yes",
+                  "Used activity tracker" = tracker == "yes",
+                  "Using Personal Phone" = own.phone == TRUE))
+  d <- cbind(apply(d, 2, sum, na.rm = TRUE),
+             apply(d, 2, sum, na.rm = TRUE)
+             / sum(!apply(d, 1, function(x) any(is.na(x)))) * 100)
+  colnames(d) <- c("Number", "Percent")
+  print(xtable(d, digits = c(0, 0, 1)), floating = FALSE, booktabs = TRUE)
+@
+    
+<<baselineactivity, results="asis">>=
+    d <- with(users,
+              cbind("Num. days walking >10 min in last week" = walk10.days.intake,
+                    "Time walking on one day (min)" = walk.hrs.intake * 60 +
+                      walk.min.intake,
+                    "Time sitting on one weekday (hr)s" = sit.hrs.intake + 
+                      sit.min.intake / 60,
+                    "Num. days with vigorous activity in last week" = 
+                      vigact.days.intake,
+                    "Duration of vigorous activity in one day (min)" = 
+                      vigact.hrs.intake * 60 + vigact.min.intake,
+                    "Num. days with moderate activity in last week" = 
+                      modact.days.intake,
+                    "Duration of moderate activity in one day (min)" = 
+                      modact.hrs.intake * 60 + modact.min.intake
+              ))
+  d <- cbind(apply(d, 2, mean, na.rm = TRUE),
+             apply(d, 2, sd, na.rm = TRUE))
+  colnames(d) <- c("Mean", "Std. Dev.")
+  print(xtable(d, digits = c(0, 1, 1), caption = "Baseline activity levels"),
+        floating = FALSE, booktabs = TRUE)
 @
 
 \section{EMAs}

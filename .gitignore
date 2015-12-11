@@ -16,3 +16,4 @@ auto/*
 cache/*
 figure/*
 scratch.R
+*.sty
