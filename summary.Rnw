@@ -4,7 +4,8 @@
 % 'delete-local' to remove auxiliary files and upload to M+Box:
 % Rscript --vanilla summary.R
 
-% to address any knitr issues, start here:
+% to address any knitr issues, try reinstalling/updating R, knitr, RtikzDevice
+% and any package dependencies; otherwise, failing that start here:
 % https://github.com/yihui/knitr/blob/master/FAQ.md
 
 \documentclass[11pt]{article}
@@ -63,8 +64,9 @@
 %   <<chunk options>>= R code @
 % where in chunk options, avoid line breaks and spaces within option settings
 
-% chunks are typically followed by paragraph breaks, which are non-trivial to
-% omit from the "knitted" LaTeX document
+% chunks are set in a separate paragraph; preventing the paragraph break between
+% a chunk and subsequent text is non-trivial, so invoke '\noindent' as workaround
+% (see https://github.com/yihui/knitr/commit/2b52194e)
 
 % see http://yihui.name/knitr/options/#chunk_options for chunk options settings
 
@@ -83,7 +85,7 @@ opts_chunk$set(fig.align="center", dev="tikz", dev.args=list(pointsize=11), echo
 knit_hooks$set(par=function(before, options, envir){
   if (before && options$fig.show != "none")
     par(mar=c(3, 3, 1, 0) + 0.5, mgp=c(2, 0.5, 0), oma=rep(0, 4), las=1, tcl=0.25)})
-knit_hooks$set(inline=function(x) {if (is.numeric(x)) round(x, 2) else x})
+knit_hooks$set(inline=function(x){if (is.numeric(x)) round(x, 2) else x})
 @
 
 \section{Data irregularities}
@@ -129,6 +131,7 @@ with(daily, segments(0, user.index, pmax(study.day), col = "grey"))
 with(subset(daily, !connect),
      points(study.day, user.index, pch = 20, col = "darkgrey"))
 @
+\noindent
 We can similarly depict the momentary decision points for which there are no corresponding records in Momentary{\_}Decision or Response.
 <<inactive, fig.height=3>>=
 with(suggest, plot(NULL, xlim = c(0, max(index)), ylim = c(0, max(user.index)),
