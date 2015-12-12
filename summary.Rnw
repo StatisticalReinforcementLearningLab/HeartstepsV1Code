@@ -1,7 +1,8 @@
 % data summary document
 
-% compile with:
-% 
+% compile by running the R script by the same name, using the argument
+% 'delete-local' to remove auxiliary files and upload to M+Box:
+% Rscript --vanilla summary.R
 
 % to address any knitr issues, start here:
 % https://github.com/yihui/knitr/blob/master/FAQ.md
@@ -12,11 +13,11 @@
 \usepackage{booktabs}
 \usepackage{enumitem}
 \usepackage{setspace}
+% wrap table text
 \usepackage{ragged2e,array}
 \usepackage{hyperref}
 \usepackage[capitalize]{cleveref}
 \usepackage{graphicx}
-
 \IfFileExists{MinionPro.sty}
   {\usepackage[lf,italicgreek]{MinionPro}
    \usepackage{microtype}
@@ -36,7 +37,7 @@
 
 \hypersetup{breaklinks,colorlinks,allcolors=blue,pdfpagemode=UseNone}
 
-\BeforeBeginEnvironment{tabular}{\begin{center}\figureversion{lf,tab}}
+\BeforeBeginEnvironment{tabular}{\begin{center}\figureversion{tab}}
 \AfterEndEnvironment{tabular}{\end{center}}
 \AtBeginEnvironment{tabular}{\small\hyphenpenalty=10000}
 
@@ -58,9 +59,14 @@
 \maketitle
 \thispagestyle{empty}
 
-% R code "chunk" format:
-% <<chunk options>>= R code @
-% see http://yihui.name/knitr/options/#chunk_options for chunk options
+% R code "chunk" format: 
+%   <<chunk options>>= R code @
+% where in chunk options, avoid line breaks and spaces within option settings
+
+% chunks are typically followed by paragraph breaks, which are non-trivial to
+% omit from the "knitted" LaTeX document
+
+% see http://yihui.name/knitr/options/#chunk_options for chunk options settings
 
 <<data, echo = FALSE, include = FALSE>>=
 source("init.R")
@@ -95,7 +101,6 @@ Although relatively infrequent, these problems do not arise in a predictable man
 \label{sec:dup}
 
 Duplicate entries arise according to various identifiers available from the data. The overall number of unanticipated duplicates is small, but prevents consistent linkage between tables. We resolve duplication according to the rules below.
-
 \begin{tabular}{L{0.225\textwidth}L{0.275\textwidth}L{0.4\textwidth}}
 \toprule
 Table & Source of duplication & Resolution \\
@@ -158,7 +163,6 @@ The proportion of within-slot decisions among the users has an average of $\Sexp
 \subsection{Randomized suggestion status}
 
 The Momentary{\_}Decision table provides a variable Notify that indicates both availability (on the basis of Recognized{\_}Activity and Snooze{\_}Status) and randomization to send a suggestion (Is{\_}Randomized). However whenever the decision is made using prefetch data, Notify defaults to TRUE. To recover the actual Notify value for prefetch decisions, we look to the Is{\_}Randomized, Recognized{\_}Activity and Snooze{\_}Status. Comparing this with the Response table, which captures suggestion non-response, we obtain the cross-tabulation:
-
 <<suggest, results="asis">>=
 d <- with(suggest, table(!intransit & !snooze.status & is.randomized,
                          !is.na(response), useNA = "ifany"))
@@ -176,13 +180,11 @@ print(xtable(d, digits = 0, align = rep("r", ncol(d) + 1)),
 d <- aggregate(cbind(miss = is.na(response) & send, total = send) ~ user,
                data = subset(suggest, connect), sum)
 @
-
 In $\Sexpr{with(suggest, sum(!is.na(response) & (intransit | snooze.status), na.rm = TRUE))}$ cases the decision was ``don't send'' due to unavailability, but a suggestion was sent anyway; this is due to a race condition in which the Momentary{\_}Decision status stored on the phone is read before being updated, so the decision carried out reflects the prefetch availability status. This erroneous use of prefetch data is limited to about $\Sexpr{with(dup.decision, with(data, sum(dup & !is.prefetch)))}$ decision points.
 
 A more common issue, arising in $617$ cases, is the decision result ``send,'' but no corresponding record is found in Response. The proportion of missing records per user is on average $0.23$ and has range $0.02$--$0.69$. We conjecture that the underlying problem is due (in part) to the user tapping the notification (which opens the HeartSteps app), providing a response, viewing recent apps, and swiping HeartSteps away; the swiping action prevents submission of the response data to the server.
 
 This data loss limits any reliable analysis of the message responses (e.g. ``good,'' ``bad,'' ``snooze''). However we can reasonably examine the effect of suggestions, provided that we expand the definition of unavailability to include no connection. So for the $\Sexpr{with(suggest, sum(is.na(notify)))}$ decision points with no data in both Momentary{\_}Decision and Response (and thus presumably no connection), we would consider the corresponding users to be unavailable for the intervention.
-
 <<suggest-avail, results="asis">>=
 d <- with(suggest,
           table(avail + 2*snooze.status + 3*(!snooze.status & intransit),
@@ -194,13 +196,11 @@ colnames(d) <- c("Don't send", "Send or responded", "Disconnected")
 print(xtable(d, digits = 0, align = rep("r", ncol(d) + 1)),
       floating = FALSE, booktabs = TRUE, sanitize.text.function = identity)
 @
-
 The proportion of decisions with Is{\_}Randomized equal to TRUE is $\Sexpr{with(suggest, sum(is.randomized[connect])/sum(connect))}$, which is close to the expected $60\%$. Under availability and an active connection, the proportion with a ``send'' decision result is also close to the anticipated $60\%$, at $\Sexpr{with(subset(suggest, connect), sum((!intransit & !snooze.status & is.randomized) | !is.na(response))/sum(!intransit & !snooze.status))}$.
 
 \subsection{Randomized planning status}
 
 EMA{\_}Context{\_}Notified provides the randomized planning status Planning{\_}Today, but the values recorded in this table often do not agree with the administered planning level apparent from the in the Structured{\_}Planning and Unstructured{\_}Planning tables. This discrepancy is due to a race condition in which the the value of Planning{\_}Today stored on the phone is read before being updated. So its value might represent either an initial or previous status value. 
-
 <<plan, results="asis">>=
 d <- with(daily, table(capitalize(planning.today), capitalize(planning),
                        useNA = "ifany"))
@@ -219,8 +219,7 @@ print(xtable(d, digits = 0, align = rep("r", ncol(d) + 1)),
                         command = c("\\toprule\n", cm, "\\midrule\n")),
       sanitize.text.function = identity)
 @
-
-We conjecture that the issue does not affect the actual, administered level of planning in Structured{\_}Planning and Unstructured{\_}Planning. However for the $\Sexpr{with(daily, sum(is.element(planning, c(NA, "disconnected"))))}$ EMAs that have no corresponding record in Structured{\_}Planning, Unstructured{\_}Planning or EMA{\_}Response, we do not know the randomized planning status. This number can be broken down into three settings:
+We conjecture that the issue does not affect the actual, administered level of planning in Structured{\_}Planning and Unstructured{\_}Planning. However for the $\Sexpr{with(daily, sum(is.element(planning, c(NA, "disconnected"))))}$ EMAs that have no record in Structured{\_}Planning, Unstructured{\_}Planning or EMA{\_}Response, we do not know the randomized planning status. This number can be broken down into three settings:
 
 \begin{itemize}
 \item $\Sexpr{with(daily, sum(!connect))}$ cases where the user's phone had no active connection. We could consider the user unavailable for the planning intervention.
@@ -241,7 +240,6 @@ A total of $\Sexpr{with(daily, sum(is.na(context.utime) & !is.na(ema.set.length)
 \label{sec:complete}
 
 The EMA{\_}Completed table was intended to provide the EMA completion status, but it is not always in agreement with the data available in EMA{\_}Response. The reason for this is unclear, but we address the discrepancy by inferring completion status from EMA{\_}Response. Below we tabulate completion status by the number of EMA answers available for each contextID encountered in either table.
-
 <<complete, results="asis">>=
 d <- merge(aggregate(completed ~ contextid, any, data = complete),
            subset(ema, order == 1), by = "contextid", all = TRUE)
@@ -260,48 +258,46 @@ None of the activity suggestion messages were stored with the tags representing 
 
 \section{User characteristics}
 
-Here is a summary of the intake information available for $\Sexpr{nrow(users)}$ users.
-
+The following table describes some basic characteristics collected at intake for $\Sexpr{with(users, sum(!is.na(gender)))}$ users.
 <<users, results="asis">>=
-  d <- with(users,
-            cbind("Male" = gender == "male",
-                  "Age under 25" = age < 25,
-                  "White" = ethnicity == "white/caucasian",
-                  "Graduate school" = edu %in% c("grad degree", "grad school"),
-                  "Married or common-law" = marital %in%
-                    c("married", "domestic partnership"),
-                  "Any children" = children > 0,
-                  "Used fitness app" = fitapp == "yes",
-                  "Used activity tracker" = tracker == "yes",
-                  "Using Personal Phone" = own.phone == TRUE))
-  d <- cbind(apply(d, 2, sum, na.rm = TRUE),
-             apply(d, 2, sum, na.rm = TRUE)
-             / sum(!apply(d, 1, function(x) any(is.na(x)))) * 100)
-  colnames(d) <- c("Number", "Percent")
-  print(xtable(d, digits = c(0, 0, 1)), floating = FALSE, booktabs = TRUE)
+d <- with(users,
+          cbind("Male" = gender == "male",
+                "Age under 25" = age < 25,
+                "White" = ethnicity == "white/caucasian",
+                "Graduate school" = edu %in% c("grad degree", "grad school"),
+                "Married or common-law" = marital %in%
+                              c("married", "domestic partnership"),
+                "Any children" = children > 0,
+                "Used fitness app" = fitapp == "yes",
+                "Used activity tracker" = tracker == "yes",
+                "Using own phone" = own.phone == TRUE))
+d <- cbind(apply(d, 2, sum, na.rm = TRUE), apply(d, 2, sum, na.rm = TRUE)
+           / sum(!apply(d, 1, function(x) any(is.na(x)))) * 100)
+colnames(d) <- c("Number", "Percent")
+print(xtable(d, digits = c(0, 0, 1)), floating = FALSE, booktabs = TRUE)
 @
-    
+Both the intake and exit interviews cover recent activity level via the International Physical Activity Questionnaire (IPAQ). The IPAQ measures in days in the past week on which the individual was physically active and, for one of these given days, the usual total duration of the activity (if known). If the user stated reported no physical activity in the past week, we record the usual duration of activity as zero. Here we summarize the IPAQ responses at intake for the same \Sexpr{with(users, sum(!is.na(vigact.days.intake)))} users.
 <<baselineactivity, results="asis">>=
-    d <- with(users,
-              cbind("Num. days walking >10 min in last week" = walk10.days.intake,
-                    "Time walking on one day (min)" = walk.hrs.intake * 60 +
-                      walk.min.intake,
-                    "Time sitting on one weekday (hr)s" = sit.hrs.intake + 
-                      sit.min.intake / 60,
-                    "Num. days with vigorous activity in last week" = 
-                      vigact.days.intake,
-                    "Duration of vigorous activity in one day (min)" = 
-                      vigact.hrs.intake * 60 + vigact.min.intake,
-                    "Num. days with moderate activity in last week" = 
-                      modact.days.intake,
-                    "Duration of moderate activity in one day (min)" = 
-                      modact.hrs.intake * 60 + modact.min.intake
-              ))
-  d <- cbind(apply(d, 2, mean, na.rm = TRUE),
-             apply(d, 2, sd, na.rm = TRUE))
-  colnames(d) <- c("Mean", "Std. Dev.")
-  print(xtable(d, digits = c(0, 1, 1), caption = "Baseline activity levels"),
-        floating = FALSE, booktabs = TRUE)
+d <- with(subset(users, !is.na(vigact.days.intake)),
+          cbind("Days with vigorous activity in last week"
+                = vigact.days.intake,
+                "Minutes of vigorous activity per day"
+                = vigact.hrs.intake * 60 + vigact.min.intake,
+                "Days with moderate activity in last week"
+                = modact.days.intake,
+                "Minutes of moderate activity per day"
+                = modact.hrs.intake * 60 + modact.min.intake,
+                "Days with a walk lasting at least 10 minutes in last week"
+                = walk10.days.intake,
+                "Minutes walked per day"
+                = walk.hrs.intake * 60 + walk.min.intake,
+                "Hours sitting per weekday"
+                = sit.hrs.intake +  sit.min.intake / 60))
+d <- cbind(apply(d, 2, mean, na.rm = TRUE), apply(d, 2, sd, na.rm = TRUE),
+           apply(d, 2, function(x) sum(is.na(x))))
+d <- cbind(d, d[, 3] / sum(!is.na(users$vigact.days.intake)) * 100)
+colnames(d) <- c("Mean", "SD", "Number unsure", "Percent unsure")
+print(xtable(d, digits = c(0, 1, 1, 0, 1)), floating = FALSE, booktabs = TRUE)
 @
 
 \section{EMAs}
