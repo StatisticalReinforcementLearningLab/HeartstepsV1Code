@@ -13,6 +13,10 @@ participants$intake.date <-
 participants$exit.date <- char2date(participants$exit.interview.date, "%m/%d/%Y")
 
 ## intake interviews
+## FIXME: IPAQ allows "unsure" answers only for minutes of activity;
+##        check missing responses for number of active days in past week
+## FIXME: consider incorporating instrument/item names into the variable
+##        names (e.g. ipaq.vigor.days, ipaq.vigor.hours, ipaq.vigor.mins, etc.)
 intake <- read.data("Survey_Intake.csv", list(user), skip = 3, na.strings = "X")
 intake$startdate <- char2date(intake$startdate, "%m/%d/%Y")
 
