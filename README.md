@@ -18,7 +18,7 @@ File | Description
 
 Refer to the wiki pages for detail directions to access the data. Unless you maintain the data, only steps 1 and 5 are required.
 
-1. [Mounting M+Box](https://github.com/klasnja/heartstepsdata/wiki/Mouting-Box)
+1. [Mounting M+Box](https://github.com/klasnja/heartstepsdata/wiki/Mounting-box)
 2. [Exporting data](https://github.com/klasnja/heartstepsdata/wiki/Exporting-data)
 3. [Preparing data for analysis](https://github.com/klasnja/heartstepsdata/wiki/Preparing-data-for-analysis)
 4. [Running the data summary](https://github.com/klasnja/heartstepsdata/wiki/Running-the-data-summary)
