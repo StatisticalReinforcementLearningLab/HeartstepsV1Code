@@ -41,6 +41,7 @@
 \BeforeBeginEnvironment{tabular}{\begin{center}\figureversion{tab}}
 \AfterEndEnvironment{tabular}{\end{center}}
 \AtBeginEnvironment{tabular}{\small\hyphenpenalty=10000}
+\AtBeginEnvironment{knitrout}{\figureversion{lf}}
 
 \newcolumntype{L}[1]{>{\RaggedRight\hspace{0pt}}p{#1}}
 \newcolumntype{R}[1]{>{\RaggedLeft\hspace{0pt}}p{#1}}
@@ -70,22 +71,12 @@
 
 % see http://yihui.name/knitr/options/#chunk_options for chunk options settings
 
-<<data, echo = FALSE, include = FALSE>>=
-source("init.R")
-setwd(sys.var$mbox.data)
-load("csv.RData")
-load("analysis.RData")
-setwd(sys.var$repo)
-color <- "chartreuse"
-color.name <- "green"
-@
-
 <<setup, include=FALSE, cache=FALSE>>=
 opts_chunk$set(fig.align="center", dev="tikz", dev.args=list(pointsize=11), echo=FALSE, fig.width=6.5, fig.show="hold", par=TRUE)
 knit_hooks$set(par=function(before, options, envir){
-  if (before && options$fig.show != "none")
-    par(mar=c(3, 3, 1, 0) + 0.5, mgp=c(2, 0.5, 0), oma=rep(0, 4), las=1, tcl=0.25)})
-knit_hooks$set(inline=function(x){if (is.numeric(x)) round(x, 2) else x})
+  if (before && options$fig.show!="none")
+    par(mar=c(3,3,1,0)+0.5, mgp=c(2,0.5,0), oma=rep(0,4), las=1, tcl=0.25)})
+knit_hooks$set(inline = function(x){if (is.numeric(x)) round(x, 2) else x})
 @
 
 \section{Data irregularities}
@@ -149,6 +140,7 @@ To address this issue, we could consider the user unavailable for the planning a
 Prior to November notifications were sent according to the time zone at which the phone was last restarted, irrespective of the actual time zone. From November onward, notifications are sent under the actual time zone, irrespective of the notification history. So users who travel potentially receive notifications outside their designated time slots or repeated notifications in the same time slot. 
 
 Instances where the momentary decision took place outside the designated time slot are depicted below, where darker points coincide with larger differences between the intended and actual time slots. In evaluating this discrepancy, we account for the 30-minute time lag that arises when the decision is based on prefetch data.
+
 <<slot, fig.height=3>>=
 with(suggest, plot(NULL, xlim = c(0, max(index)), ylim = c(0, max(user.index)),
                    frame.plot = FALSE, xlab = "Momentary decision index",
@@ -161,11 +153,13 @@ d <- sapply(unique(suggest$user),
                              table(slot != time.stamp.slot)), simplify = FALSE)
 d <- do.call("c", lapply(d, function(x) x[1] / sum(x)))
 @
+
 The proportion of within-slot decisions among the users has an average of $\Sexpr{mean(d)}$ and range $\Sexpr{min(d)}$--$\Sexpr{max(d)}$. Because the discrepancy from the designated time slots tends to be small and infrequent, we propose simply indexing decisions as they arise; any variables representing calendar time (e.g. time of day) could be evaluated from the actual local time, rather than the intended time slot. Multiple decisions in the same time slot are handled as described in \cref{sec:dup}. Among these there are only $\Sexpr{with(dup.decision, nrow(subset(data, dup & link)))}$ instances where the user actually received more than one suggestion notification within the same slot.
 
 \subsection{Randomized suggestion status}
 
 The Momentary{\_}Decision table provides a variable Notify that indicates both availability (on the basis of Recognized{\_}Activity and Snooze{\_}Status) and randomization to send a suggestion (Is{\_}Randomized). However whenever the decision is made using prefetch data, Notify defaults to TRUE. To recover the actual Notify value for prefetch decisions, we look to the Is{\_}Randomized, Recognized{\_}Activity and Snooze{\_}Status. Comparing this with the Response table, which captures suggestion non-response, we obtain the cross-tabulation:
+
 <<suggest, results="asis">>=
 d <- with(suggest, table(!intransit & !snooze.status & is.randomized,
                          !is.na(response), useNA = "ifany"))
@@ -183,14 +177,16 @@ print(xtable(d, digits = 0, align = rep("r", ncol(d) + 1)),
 d <- aggregate(cbind(miss = is.na(response) & send, total = send) ~ user,
                data = subset(suggest, connect), sum)
 @
+
 In $\Sexpr{with(suggest, sum(!is.na(response) & (intransit | snooze.status), na.rm = TRUE))}$ cases the decision was ``don't send'' due to unavailability, but a suggestion was sent anyway; this is due to a race condition in which the Momentary{\_}Decision status stored on the phone is read before being updated, so the decision carried out reflects the prefetch availability status. This erroneous use of prefetch data is limited to about $\Sexpr{with(dup.decision, with(data, sum(dup & !is.prefetch)))}$ decision points.
 
 A more common issue, arising in $617$ cases, is the decision result ``send,'' but no corresponding record is found in Response. The proportion of missing records per user is on average $0.23$ and has range $0.02$--$0.69$. We conjecture that the underlying problem is due (in part) to the user tapping the notification (which opens the HeartSteps app), providing a response, viewing recent apps, and swiping HeartSteps away; the swiping action prevents submission of the response data to the server.
 
 This data loss limits any reliable analysis of the message responses (e.g. ``good,'' ``bad,'' ``snooze''). However we can reasonably examine the effect of suggestions, provided that we expand the definition of unavailability to include no connection. So for the $\Sexpr{with(suggest, sum(is.na(notify)))}$ decision points with no data in both Momentary{\_}Decision and Response (and thus presumably no connection), we would consider the corresponding users to be unavailable for the intervention.
+
 <<suggest-avail, results="asis">>=
 d <- with(suggest,
-          table(avail + 2*snooze.status + 3*(!snooze.status & intransit),
+          table(avail1 + 2*snooze.status + 3*(!snooze.status & intransit),
                 !is.na(response) | (!intransit & !snooze.status & is.randomized),
                 useNA = "ifany"))
 rownames(d) <- c("Available", "Snooze enabled", "Snooze disabled, in transit",
@@ -199,11 +195,13 @@ colnames(d) <- c("Don't send", "Send or responded", "Disconnected")
 print(xtable(d, digits = 0, align = rep("r", ncol(d) + 1)),
       floating = FALSE, booktabs = TRUE, sanitize.text.function = identity)
 @
+
 The proportion of decisions with Is{\_}Randomized equal to TRUE is $\Sexpr{with(suggest, sum(is.randomized[connect])/sum(connect))}$, which is close to the expected $60\%$. Under availability and an active connection, the proportion with a ``send'' decision result is also close to the anticipated $60\%$, at $\Sexpr{with(subset(suggest, connect), sum((!intransit & !snooze.status & is.randomized) | !is.na(response))/sum(!intransit & !snooze.status))}$.
 
 \subsection{Randomized planning status}
 
 EMA{\_}Context{\_}Notified provides the randomized planning status Planning{\_}Today, but the values recorded in this table often do not agree with the administered planning level apparent from the in the Structured{\_}Planning and Unstructured{\_}Planning tables. This discrepancy is due to a race condition in which the the value of Planning{\_}Today stored on the phone is read before being updated. So its value might represent either an initial or previous status value. 
+
 <<plan, results="asis">>=
 d <- with(daily, table(capitalize(planning.today), capitalize(planning),
                        useNA = "ifany"))
@@ -222,6 +220,7 @@ print(xtable(d, digits = 0, align = rep("r", ncol(d) + 1)),
                         command = c("\\toprule\n", cm, "\\midrule\n")),
       sanitize.text.function = identity)
 @
+
 We conjecture that the issue does not affect the actual, administered level of planning in Structured{\_}Planning and Unstructured{\_}Planning. However for the $\Sexpr{with(daily, sum(is.element(planning, c(NA, "disconnected"))))}$ EMAs that have no record in Structured{\_}Planning, Unstructured{\_}Planning or EMA{\_}Response, we do not know the randomized planning status. This number can be broken down into three settings:
 
 \begin{itemize}
@@ -243,6 +242,7 @@ A total of $\Sexpr{with(daily, sum(is.na(context.utime) & !is.na(ema.set.length)
 \label{sec:complete}
 
 The EMA{\_}Completed table was intended to provide the EMA completion status, but it is not always in agreement with the data available in EMA{\_}Response. The reason for this is unclear, but we address the discrepancy by inferring completion status from EMA{\_}Response. Below we tabulate completion status by the number of EMA answers available for each contextID encountered in either table.
+
 <<complete, results="asis">>=
 d <- merge(aggregate(completed ~ contextid, any, data = complete),
            subset(ema, order == 1), by = "contextid", all = TRUE)
@@ -262,8 +262,10 @@ None of the activity suggestion messages were stored with the tags representing 
 \section{User characteristics}
 
 The following table describes some basic characteristics collected at intake for $\Sexpr{with(users, sum(!is.na(gender)))}$ users.
+
 <<users, results="asis">>=
-d <- with(users,
+n <- sum(!is.na(users$gender))
+d <- with(subset(users, !is.na(gender)),
           cbind("Male" = gender == "male",
                 "Age under 25" = age < 25,
                 "White" = ethnicity == "white/caucasian",
@@ -273,13 +275,16 @@ d <- with(users,
                 "Any children" = children > 0,
                 "Used fitness app" = fitapp == "yes",
                 "Used activity tracker" = tracker == "yes",
-                "Using own phone" = own.phone == TRUE))
-d <- cbind(apply(d, 2, sum, na.rm = TRUE), apply(d, 2, sum, na.rm = TRUE)
-           / sum(!apply(d, 1, function(x) any(is.na(x)))) * 100)
+                "Using own phone" = own.phone == TRUE,
+                "Phone set to English locale" = en.locale == TRUE))
+d <- cbind(apply(d, 2, sum, na.rm = TRUE),
+           apply(d, 2, sum, na.rm = TRUE) / n * 100)
 colnames(d) <- c("Number", "Percent")
 print(xtable(d, digits = c(0, 0, 1)), floating = FALSE, booktabs = TRUE)
 @
-Both the intake and exit interviews cover recent activity level via the International Physical Activity Questionnaire (IPAQ). The IPAQ measures in days in the past week on which the individual was physically active and, for one of these given days, the usual total duration of the activity (if known). If the user stated reported no physical activity in the past week, we record the usual duration of activity as zero. Here we summarize the IPAQ responses at intake for the same \Sexpr{with(users, sum(!is.na(vigact.days.intake)))} users.
+
+Both the intake and exit interviews cover recent activity level via the International Physical Activity Questionnaire (IPAQ). The IPAQ measures in days in the past week on which the individual was physically active and, for one of these given days, the usual total duration of the activity (if known). If the user stated reported no physical activity in the past week, we record the usual duration of activity as zero. Here we summarize the IPAQ responses at intake for \Sexpr{with(users, sum(!is.na(vigact.days.intake)))} users.
+
 <<baselineactivity, results="asis">>=
 d <- with(subset(users, !is.na(vigact.days.intake)),
           cbind("Days with vigorous activity in last week"
@@ -308,6 +313,7 @@ print(xtable(d, digits = c(0, 1, 1, 0, 1)), floating = FALSE, booktabs = TRUE)
 \subsection{Hecticness}
 
 At each EMA, the user was asked ``How hectic was your day today?'' A $\Sexpr{length(ema1)}$-point scale was provided, with $\Sexpr{ema1[1]}$ labelled as ``\Sexpr{names(ema1[1])}'' and $\Sexpr{length(ema1)}$ labelled as ``\Sexpr{names(rev(ema1)[1])}.''  Here we depict the responses over time, where darker points correspond to more hectic days. No point is plotted if the response is unavailable, due to either non- or pending response.
+
 <<ema1, fig.height=3>>=
 with(daily, plot(study.day, user.index, pch = 20,
                  col = rev(grey.colors(length(ema1)))[hectic],
@@ -326,6 +332,7 @@ with(daily, plot(study.day, user.index, pch = 20,
 \subsection{Typicalness for the day of the week}
 
 At each EMA, the user was asked ``How typical was today for a X?'', where ``X'' was displayed as the current day of the week. A $\Sexpr{length(ema3)}$-point scale was provided, with $\Sexpr{ema1[1]}$ labelled as ``\Sexpr{names(ema3[1])}'' and $\Sexpr{rev(ema1)[1]}$ labelled as ``\Sexpr{names(rev(ema3)[1])}.''  Here we depict the responses over time, where darker points correspond to more atypical days. No point is plotted if the response is unavailable, due to either non- or pending response. 
+
 <<ema3, fig.height=3>>=
 with(daily, plot(study.day, user.index, pch = 20,
                  col = grey.colors(length(ema3))[typical],
@@ -335,6 +342,7 @@ with(daily, plot(study.day, user.index, pch = 20,
 \section{Daily step count}
 
 The following plots depict the daily step count for each user, with the solid series corresponding to Jawbone and dotted to Google Fit. Breaks coincide with one or more days on which no step counts were recorded. The \Sexpr{color.name} segments indicate that planning was carried out the day before. The horizontal reference line gives the user average daily Jawbone step count and extends up to the known or projected exit date. Vertical lines correspond to days on which no part of the EMA was completed (apart from possibly planning), with the dotted line type used for an inactive connection at the EMA notification slot.
+
 <<dailysteps, fig.height=2>>=
 daily$last.jbsteps <- with(daily, delay(user, study.day, jbsteps))
 daily$next.jbsteps <- with(daily, delay(user, study.day, jbsteps, -1))
@@ -382,12 +390,14 @@ invisible(sapply(with(subset(daily, !is.na(jbsteps)), unique(user)),
 \section{Step count following decision points}
 
 The following plots depict, for each user, the cumulative step count one hour following every decision point. Large gaps in this plot coincide with periods where no step counts were recorded. Counts immediately following a decision to send an activity suggestion are displayed in \Sexpr{color.name}. The dotted line type indicates that the user was unavailable or disconnected at the preceding decision point. The horizontal reference line gives the average cumulative steps over every decision point, regardless of connection or availability, and extends to the known or projected exit date.
+
 <<slotsteps, fig.height=2>>=
 plot.slot.steps <- function(u, d, mins = 60) {
-  d <- subset(d, user == u & (end.utime - decision.utime) < mins * 60)
-  d$sum.steps <- with(d, roll(index, end.utime, steps, FUN = sum, na.rm = TRUE))
-  d$max.steps <- aggregate(sum.steps ~ index,
-                           data = d, FUN = max, na.rm = TRUE)[d$index + 1, 2]
+  d <- subset(d, user == u & (end.utime - decision.utime) <= mins * 60)
+  d$sum.steps <- with(d, roll(decision.index, end.utime, steps, FUN = sum,
+                              na.rm = TRUE))
+  d$max.steps <- aggregate(sum.steps ~ decision.index, data = d,
+                           FUN = max, na.rm = TRUE)[d$decision.index + 1, 2]
   minu <- min(d$end.utime)
   maxu <- max(d$end.utime, minu + max.day * 24 * 60^2)
   means <- with(d, mean(sum.steps[sum.steps %in% max.steps], na.rm = TRUE))
@@ -399,11 +409,11 @@ plot.slot.steps <- function(u, d, mins = 60) {
   segments(0, means,
            max(maxu, max.day * 24 * 60^2 * (d$last.date[1] > max.date)), means,
            col = "lightgrey")
-  d$sum.steps[!duplicated(d$index)] <- 0
-  with(subset(d, !duplicated(index) | sum.steps == max.steps),
-       sapply(index,
+  d$sum.steps[!duplicated(d$decision.index)] <- 0
+  with(subset(d, !duplicated(decision.index) | sum.steps == max.steps),
+       sapply(decision.index,
               function(j)
-                with(subset(d, index == j),
+                with(subset(d, decision.index == j),
                      points(end.utime, sum.steps, type = "l",
                             col = c("black", color)[send[1] + 1],
                             lty = c("dotted", "solid")[avail[1] + 1]))))

@@ -5,7 +5,7 @@ source("init.R")
 setwd(sys.var$mbox.data)
 load("csv.RData")
 
-max.date <- as.Date("2015-11-27")
+max.date <- as.Date("2015-12-11")
 max.day <- 42
 
 ## --- user data
@@ -23,7 +23,6 @@ users <- with(subset(timeslot[with(timeslot, order(user, utime.updated)), ],
                          intake.hour = time.updated.hour,
                          intake.min = time.updated.min,
                          intake.slot = slot.updated))
-
 
 ## infer exit date-time from last notification
 temp <- rbind(with(decision,
@@ -236,8 +235,9 @@ suggest <- merge(suggest,
                  all.x = TRUE, suffixes = c("", ".response"))
 
 ## index momentary decision, starting from zero
-suggest$index <- do.call("c", sapply(table(suggest$user) - 1, seq, from = 0,
-                                     by = 1, simplify = FALSE))
+suggest$decision.index <-
+  do.call("c", sapply(table(suggest$user) - 1, seq, from = 0, by = 1,
+                      simplify = FALSE))
 
 ## had active connection at decision slot?
 suggest$connect <- with(suggest, !is.na(notify))
@@ -247,11 +247,11 @@ suggest$intransit <-
   with(suggest, !(recognized.activity %in% c("STILL", "UNKNOWN")))
 suggest$intransit[!suggest$connect] <- NA
 
-## availability, as defined plus active connection
-suggest$avail <- with(suggest, connect & !snooze.status & !intransit)
+## first-pass availability, as defined plus active connection
+suggest$avail1 <- with(suggest, connect & !snooze.status & !intransit)
 
 ## send status; like 'notify', but corrected for prefetch issues
-suggest$send <- with(suggest, (avail & is.randomized) | !is.na(response))
+suggest$send <- with(suggest, (avail1 & is.randomized) | !is.na(response))
 
 ## expand user-designated times into day-slot level
 temp <-
@@ -275,19 +275,19 @@ temp <- subset(temp, !duplicated(cbind(user, slot, date.updated)),
 suggest <- merge.last(suggest, temp, id = c("user", "slot"),
                       var.x = "study.date", var.y = "date.updated")
 suggest <- suggest[with(suggest, order(user, study.date, slot)), ]
-suggest$gmtoff <- with(suggest, impute.locf(gmtoff, user))
+suggest$gmtoff <- with(suggest, impute(user, decision.index, gmtoff, na.locf))
 suggest$slot.utime <-
   with(suggest, char2utime(paste0(study.date, " ", hrsmin, ":00"), gmtoff))
 
 ## decision time or (in the absence of a decision) the user-designated
-## notification time, adjusting for time lag for prefetch or activity recognition
+## notification time, adjusting for time lag with prefetch/activity recognition
 suggest$decision.utime <- suggest$slot.utime + 90
 suggest$decision.utime[suggest$connect] <-
   with(subset(suggest, connect), utime.stamp + 30 * 60 * is.prefetch)
 any(is.na(suggest$decision.utime))
 any(with(suggest, duplicated(cbind(user, decision.utime))))
 
-suggest <- suggest[with(suggest, order(user, index)), ]
+suggest <- suggest[with(suggest, order(user, decision.index)), ]
 
 ## --- step counts by slots, useful for constructing the proximal outcome
 
@@ -295,8 +295,8 @@ jbslot <- merge.last(subset(jawbone,
                             end.utime >= intake.utime & end.utime <= last.utime),
                      subset(suggest,
                             select = c(user, user.index, slot, decision.utime,
-                                       study.date, study.day, index, connect,
-                                       avail, send)),
+                                       study.date, study.day, decision.index,
+                                       connect, avail1, send)),
                      id = "user", var.x = "end.utime", var.y = "decision.utime")
 jbslot <- subset(jbslot, !is.na(slot))
 jbslot <- jbslot[with(jbslot, order(user, end.utime)), ]
@@ -305,11 +305,27 @@ gfslot <- merge.last(subset(googlefit,
                             end.utime >= intake.utime & end.utime <= last.utime),
                      subset(suggest,
                             select = c(user, user.index, slot, decision.utime,
-                                       study.date, study.day, index, connect,
-                                       avail, send)),
+                                       study.date, study.day, decision.index,
+                                       connect, avail1, send)),
                      id = "user", var.x = "end.utime", var.y = "decision.utime")
 gfslot <- subset(gfslot, !is.na(slot))
 gfslot <- gfslot[with(gfslot, order(user, end.utime)), ]
+
+## --- add step counts 30 and 60 minute following each decision point
+
+temp <- with(jbslot, end.utime - decision.utime)
+suggest <- merge(suggest,
+                 aggregate(cbind(mins30 = temp <= 30 * 60,
+                                 steps30 = steps * (temp <= 30 * 60),
+                                 mins60 = temp <= 60 * 60,
+                                 steps60 = steps * (temp <= 60 * 60))
+                           ~ decision.index + user, data = jbslot, FUN = sum),
+                 by = c("user", "decision.index"), all.x = TRUE)
+
+suggest$steps30.spl <- with(suggest, impute(user, decision.index, steps30,
+                                            fun = na.spline))
+suggest$steps60.spl <- with(suggest, impute(user, decision.index, steps60,
+                                            fun = na.spline))
 
 save(max.day, max.date, users, daily, suggest, jbslot, gfslot,
      file = "analysis.RData")

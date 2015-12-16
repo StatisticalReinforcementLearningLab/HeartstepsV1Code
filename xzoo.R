@@ -49,15 +49,24 @@ delay <- function(id, time, x, k = 1) {
   l
 }
 
+## single imputation of missing values using zoo's na.* functions
+impute <- function(id, time, x, fun = na.locf, na.rm = FALSE, ...) {
+  z <- zoosplit(splitdata(id, time, x))
+  n <- lapply(z, function(y) if (all(is.na(y))) y
+                             else fun(y, na.rm = na.rm, ...))
+  n <- unzoosplit(n)
+  attributes(n) <- attributes(x)
+  n
+}
+
 ## rolling summary with given right-aligned window width
 roll <- function(id, time, x, width = NULL, FUN, ...) {
   z <- zoosplit(splitdata(id, time, x))
   if (is.null(width))
     width <- do.call("max", lapply(z, length))
-  r <- lapply(z, function(y) if (length(y) > 1)
-                               rollapplyr(y, width = width, FUN = FUN,
-                                          partial = TRUE, ...)
-                             else NA)
+  r <- lapply(z, function(y) if (all(is.na(y))) NA
+                             else rollapplyr(y, width = width, FUN = FUN,
+                                             partial = TRUE, ...))
   attributes(r) <- attributes(z)
   unzoosplit(r)
 }
@@ -94,15 +103,4 @@ unzoosplit <- function(z, indexed = FALSE) {
   class(x) <- attributes(z)$oclass
   levels(x) <- levels(z)
   x
-}
-
-## last observation carried forward (LOCF) imputation of missing values
-impute.locf <- function(var, id) {
-  obs <- rep(1, length(id))
-  obs <- unlist(tapply(obs, id, cumsum))
-  l <- lapply(split(data.frame(x = var, order.by = obs), id),
-              function(z) do.call("zoo", z))
-  l <- unlist(lapply(l, function(z) na.locf(z, na.rm = FALSE)))
-  attributes(l) <- attributes(var)
-  l
 }

@@ -61,7 +61,7 @@ match.option <- function(x, y, l = rep(TRUE, length(y)), prefix = "",
 ## like merge, but "proximally" in the named variables;
 ## bring y into x, such that id.x = id.y and the largest var.y <= var.x
 merge.last <- function(x, y, id, var, id.x = id, id.y = id, var.x = var,
-                       var.y = var, order.by = NULL, ...) {
+                       var.y = var, ...) {
   by.x <- c(id.x, var.x)
   by.y <- c(id.y, var.y)
   d <- merge(x[, names(x) %in% by.x], y, by.x = by.x, by.y = by.y, all = TRUE)
@@ -71,10 +71,8 @@ merge.last <- function(x, y, id, var, id.x = id, id.y = id, var.x = var,
   d <- cbind(d, v)
   names(d)[ncol(d)] <- var.y
   j <- c(j, TRUE)
-  if (!missing(order.by))
-    d <- d[with(d, order(order.by)), ]
-  d[, j] <- do.call("data.frame",
-                    lapply(d[, j, drop = FALSE], impute.locf, id = d[, 1]))
+  d[, j] <- do.call("data.frame", lapply(d[, j, drop = FALSE],
+                                         function(v) impute(d[, 1], d[, 2], v)))
   print(nrow(d <- merge(x, d, by = by.x, all.x = TRUE, ...)))
   d
 }
