@@ -64,6 +64,7 @@ merge.last <- function(x, y, id, var, id.x = id, id.y = id, var.x = var,
                        var.y = var, ...) {
   by.x <- c(id.x, var.x)
   by.y <- c(id.y, var.y)
+  ## merge all x and y
   d <- merge(x[, names(x) %in% by.x], y, by.x = by.x, by.y = by.y, all = TRUE)
   j <- !(names(d) %in% names(x))
   v <- d[[var.x]]
@@ -71,8 +72,15 @@ merge.last <- function(x, y, id, var, id.x = id, id.y = id, var.x = var,
   d <- cbind(d, v)
   names(d)[ncol(d)] <- var.y
   j <- c(j, TRUE)
+  ## LOCF-impute values for records only found in y
+  if (any(duplicated(d[, 1:2]))) {
+    o <- rep(1, nrow(d))
+    o <- unlist(tapply(o, d[, 1], cumsum))
+  }
+  else
+    o <- d[, 2]
   d[, j] <- do.call("data.frame", lapply(d[, j, drop = FALSE],
-                                         function(v) impute(d[, 1], d[, 2], v)))
+                                         impute, id = d[, 1], time = o))
   print(nrow(d <- merge(x, d, by = by.x, all.x = TRUE, ...)))
   d
 }

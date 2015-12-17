@@ -4,8 +4,10 @@
 library(tikzDevice)
 library(xtable)
 library(zoo)
+library(geepack)
 
 source("xzoo.R")
+source("xgeepack.R")
 source("functions.R")
 source("read.data.R")
 source("ema.options.R")

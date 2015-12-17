@@ -79,6 +79,16 @@ knit_hooks$set(par=function(before, options, envir){
 knit_hooks$set(inline = function(x){if (is.numeric(x)) round(x, 2) else x})
 @
 
+<<data, echo = FALSE, include = FALSE>>=
+source("init.R")
+setwd(sys.var$mbox.data)
+load("csv.RData")
+load("analysis.RData")
+setwd(sys.var$repo)
+color <- "chartreuse"
+color.name <- "green"
+@
+
 \section{Data irregularities}
 
 \subsection{EMA and momentary decision identifiers}
@@ -111,6 +121,7 @@ Momentary{\_}Decision & Time zone bugs (see \cref{sec:slot}) and other unknown r
 \end{tabular}
 
 \subsection{Inactive server-phone connection}
+\label{sec:connect}
 
 The anticipated data for each user-designated notification time slot is sometimes entirely missing. For example around the EMA notification time slot for a given user, we might find no corresponding records in the EMA-related tables. This presumably arises when the user's phone is turned off or has no network access over extended periods of time.
 
@@ -125,12 +136,12 @@ with(subset(daily, !connect),
 \noindent
 We can similarly depict the momentary decision points for which there are no corresponding records in Momentary{\_}Decision or Response.
 <<inactive, fig.height=3>>=
-with(suggest, plot(NULL, xlim = c(0, max(index)), ylim = c(0, max(user.index)),
-                   frame.plot = FALSE, xlab = "Momentary decision index",
-                   ylab = "User index"))
-with(suggest, segments(0, user.index, pmax(index), col = "grey"))
+with(suggest, plot(NULL, xlim = c(0, max(decision.index)),
+                   ylim = c(0, max(user.index)), frame.plot = FALSE,
+                   xlab = "Momentary decision index", ylab = "User index"))
+with(suggest, segments(0, user.index, pmax(decision.index), col = "grey"))
 with(subset(suggest, !connect),
-     points(index, user.index, pch = 20, col = grey(0.2, alpha = 0.3)))
+     points(decision.index, user.index, pch = 20, col = grey(0.2, alpha = 0.3)))
 @
 To address this issue, we could consider the user unavailable for the planning and activity suggestion interventions whenever an active connection is not apparent. For analysis, we still require the time of the EMA notifications and momentary decisions that would have otherwise occurred had the user's phone been connected. This can be inferred from the user-designated notification time slots in User{\_}Decision{\_}Times. In evaluating the decision time, we account for the fact that the user can change the slots at any point and (for simplicity) use the time zone recorded at the last decision point for which there was a connection.
 
@@ -142,11 +153,11 @@ Prior to November notifications were sent according to the time zone at which th
 Instances where the momentary decision took place outside the designated time slot are depicted below, where darker points coincide with larger differences between the intended and actual time slots. In evaluating this discrepancy, we account for the 30-minute time lag that arises when the decision is based on prefetch data.
 
 <<slot, fig.height=3>>=
-with(suggest, plot(NULL, xlim = c(0, max(index)), ylim = c(0, max(user.index)),
-                   frame.plot = FALSE, xlab = "Momentary decision index",
-                   ylab = "User index"))
+with(suggest, plot(NULL, xlim = c(0, max(decision.index)),
+                   ylim = c(0, max(user.index)), frame.plot = FALSE,
+                   xlab = "Momentary decision index", ylab = "User index"))
 with(subset(suggest, slot != time.stamp.slot),
-     points(index, user.index, pch = 20,
+     points(decision.index, user.index, pch = 20,
             col = rev(grey.colors(4))[abs(slot - time.stamp.slot)]))
 d <- sapply(unique(suggest$user),
             function(u) with(subset(suggest, user == u),
@@ -186,7 +197,7 @@ This data loss limits any reliable analysis of the message responses (e.g. ``goo
 
 <<suggest-avail, results="asis">>=
 d <- with(suggest,
-          table(avail1 + 2*snooze.status + 3*(!snooze.status & intransit),
+          table(avail + 2*snooze.status + 3*(!snooze.status & intransit),
                 !is.na(response) | (!intransit & !snooze.status & is.randomized),
                 useNA = "ifany"))
 rownames(d) <- c("Available", "Snooze enabled", "Snooze disabled, in transit",
@@ -285,7 +296,7 @@ print(xtable(d, digits = c(0, 0, 1)), floating = FALSE, booktabs = TRUE)
 
 Both the intake and exit interviews cover recent activity level via the International Physical Activity Questionnaire (IPAQ). The IPAQ measures in days in the past week on which the individual was physically active and, for one of these given days, the usual total duration of the activity (if known). If the user stated reported no physical activity in the past week, we record the usual duration of activity as zero. Here we summarize the IPAQ responses at intake for \Sexpr{with(users, sum(!is.na(vigact.days.intake)))} users.
 
-<<baselineactivity, results="asis">>=
+<<ipaq, results="asis">>=
 d <- with(subset(users, !is.na(vigact.days.intake)),
           cbind("Days with vigorous activity in last week"
                 = vigact.days.intake,
@@ -421,6 +432,40 @@ plot.slot.steps <- function(u, d, mins = 60) {
   axis(2, at = round(c(0, means, maxs)))
 }
 invisible(sapply(unique(jbslot$user), function(u) plot.slot.steps(u, jbslot)))
+@
+
+<<stepsfit, echo = FALSE, include = FALSE>>=
+days <- 1:40
+ids <- with(suggest, unique(user[study.day == rev(days)[1]]))
+fit <- function(y) {
+  d <- subset(suggest, user %in% ids & study.day %in% days)
+  y <- substitute(y)
+  y <- eval(y, d)
+  ids <- with(subset(suggest, !is.na(y)), user[study.day == rev(days)[1]])
+  fit <- geeglm(y ~ send * factor(study.day), id = user,
+                weights = pmax(avail, send), data = d, scale.fix = TRUE)
+  combos <- do.call("rbind",
+                    lapply(days,
+                           function(x) grepl(paste("^sendTRUE(|.+\\)", x, ")$",
+                                                   sep = ""), names(fit$coef))))
+  list(est = estimate(fit, combos), n = length(fit$geese$clusz))
+}
+f30 <- fit(steps30.spl)
+f60 <- fit(steps60.spl)
+@ 
+A very rough assessment of the effect of sending a suggestion on the step count within 30 minutes of the decision time is depicted by study day below.  For a given study day, the $y$-value of point displayed corresponds to the additional number of steps achieved, on average, by sending a suggestion.  These results are based on \Sexpr{with(f30, n)} users over \Sexpr{rev(days)[1]} study days, omitting the day of intake and any days after the planned exit date.  We say ``very rough'' for a variety of reasons:
+\begin{itemize}
+\item The effects are conditional on both being available (i.e., snooze disabled, not walking or in a vehicle) and connected (\cref{sec:connect}).  The connected status could cover the scenario in which the user's phone was connected to a network, but not authorized to send or receive data.  In this case the phone might generate a suggestion and attempt to send the resulting data to the server without verifying that it cannot be sent or has not been received.  So this expanded definition of availability needs some refinement.
+\item The step count distribution has many zeros and is highly skewed.
+\item Missing step counts are singly-imputed using spline interpolation.
+\item We dispense with data on the first day of study, since intake takes place after \Sexpr{min(with(subset(suggest, study.day == 0), table(user)))} to \Sexpr{max(with(subset(suggest, study.day == 0), table(user)))} of the decision points that day.  However the effect of sending suggestions on the first day appears to be large.
+\end{itemize}
+<<stepsfit30, fig.height=3>>=
+plot(f30$est, xval = days, xlab = "Study day", ylab = "Effect")
+@
+The same display can be generated for step counts within an hour of the decision to send a suggestion or not.
+<<stepsfit60, fig.height=3>>=
+plot(f60$est, xval = days, xlab = "Study day", ylab = "Effect")
 @
 
 \end{document}

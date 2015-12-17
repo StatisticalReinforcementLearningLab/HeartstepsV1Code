@@ -443,4 +443,7 @@ googlefit <- googlefit[!dup.googlefit$is.dup, ]
 
 rm(temp)
 rm(sys.var)
+rm(list = lsf.str(all.names = TRUE))
+ls()
+
 save.image("csv.RData", safe = FALSE)

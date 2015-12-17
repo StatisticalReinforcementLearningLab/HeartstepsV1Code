@@ -51,10 +51,14 @@ delay <- function(id, time, x, k = 1) {
 
 ## single imputation of missing values using zoo's na.* functions
 impute <- function(id, time, x, fun = na.locf, na.rm = FALSE, ...) {
+  xmin <- min(x, na.rm = TRUE)
+  xmax <- max(x, na.rm = TRUE)
   z <- zoosplit(splitdata(id, time, x))
   n <- lapply(z, function(y) if (all(is.na(y))) y
                              else fun(y, na.rm = na.rm, ...))
   n <- unzoosplit(n)
+  n[n < xmin] <- xmin
+  n[n > xmax] <- xmax
   attributes(n) <- attributes(x)
   n
 }

@@ -46,13 +46,6 @@ temp <- rbind(with(decision,
 temp <- temp[with(temp, order(user, -as.numeric(last.utime))), ]
 users <- merge(users, subset(temp, !duplicated(user)), by = "user", all = TRUE)
 
-## indicate users that just enrolled or dropped out
-users$days <- with(users, as.numeric(difftime(last.date, intake.date, "days")))
-users$exclude <- with(users, intake.date >= max.date | days < 7 |
-                             (intake.date + 42 < max.date & days < 10))
-users$user.index <- cumsum(!users$exclude)
-users$user.index[users$exclude] <- NA
-
 ## odd user id implies that HeartSteps is installed on own phone
 users$own.phone <- users$user %% 2 != 0
 
@@ -67,6 +60,14 @@ users <- merge(users,
                merge(intake, exit, by = c("user", "userid"), all = TRUE,
                      suffixes = c(".intake", ".exit")),
                by = "user", all.x = TRUE)
+
+## indicate users that just enrolled or dropped out,
+## don't have their locale set to English
+users$days <- with(users, as.numeric(difftime(last.date, intake.date, "days")))
+users$exclude <- with(users, !en.locale & intake.date >= max.date | days < 7 |
+                             (intake.date + 42 < max.date & days < 10))
+users$user.index <- cumsum(!users$exclude)
+users$user.index[users$exclude] <- NA
 
 ## --- daily data
 
@@ -248,30 +249,34 @@ suggest$intransit <-
 suggest$intransit[!suggest$connect] <- NA
 
 ## first-pass availability, as defined plus active connection
-suggest$avail1 <- with(suggest, connect & !snooze.status & !intransit)
+suggest$avail <- with(suggest, connect & !snooze.status & !intransit)
 
 ## send status; like 'notify', but corrected for prefetch issues
-suggest$send <- with(suggest, (avail1 & is.randomized) | !is.na(response))
+suggest$send <- with(suggest, (avail & is.randomized) | !is.na(response))
 
-## expand user-designated times into day-slot level
+## expand user-designated times into day-slot level...
 temp <-
   data.frame(subset(timeslot,
                     select = c(user, date.updated, utime.updated, gmtoff)),
              slot = rep(1:k, each = nrow(timeslot)),
              hrsmin = unlist(timeslot[, match(slots[1:k], names(timeslot))]),
              row.names = NULL)
-## omit redundant slots
+
+## ... omit redundant slots
 temp <- temp[with(temp, order(user, slot, utime.updated)), ]
 temp <- subset(temp, !duplicated(cbind(user, slot, date.updated, hrsmin)))
-## omit adjust date upated to date from which the slot designation is relevant
+
+## .. omit adjust date upated to date from which the slot designation is relevant
 temp$slot.utime <-
   with(temp, char2utime(paste0(date.updated, " ", hrsmin, ":00"), gmtoff))
 temp$date.updated <- with(temp, date.updated + (utime.updated > slot.utime))
-## for slot times in the same relevant day, omit the earlier times
+
+## ... for slot times in the same relevant day, omit the earlier times
 temp <- temp[with(temp, order(user, date.updated, -as.numeric(utime.updated))), ]
 temp <- subset(temp, !duplicated(cbind(user, slot, date.updated)),
                select = -c(slot.utime, utime.updated, gmtoff))
-## add slot times, evaluated under the last available time zone
+
+## ... add slot times, evaluated under the last available time zone
 suggest <- merge.last(suggest, temp, id = c("user", "slot"),
                       var.x = "study.date", var.y = "date.updated")
 suggest <- suggest[with(suggest, order(user, study.date, slot)), ]
@@ -296,7 +301,7 @@ jbslot <- merge.last(subset(jawbone,
                      subset(suggest,
                             select = c(user, user.index, slot, decision.utime,
                                        study.date, study.day, decision.index,
-                                       connect, avail1, send)),
+                                       connect, avail, send)),
                      id = "user", var.x = "end.utime", var.y = "decision.utime")
 jbslot <- subset(jbslot, !is.na(slot))
 jbslot <- jbslot[with(jbslot, order(user, end.utime)), ]
@@ -306,7 +311,7 @@ gfslot <- merge.last(subset(googlefit,
                      subset(suggest,
                             select = c(user, user.index, slot, decision.utime,
                                        study.date, study.day, decision.index,
-                                       connect, avail1, send)),
+                                       connect, avail, send)),
                      id = "user", var.x = "end.utime", var.y = "decision.utime")
 gfslot <- subset(gfslot, !is.na(slot))
 gfslot <- gfslot[with(gfslot, order(user, end.utime)), ]
