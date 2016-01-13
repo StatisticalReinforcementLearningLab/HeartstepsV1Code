@@ -9,6 +9,27 @@
 - Home or work
 - Time of day, week
 - Use of the phone (at notification, for non-essential tasks)
+
+- users to exclude - clear reasons
+- reason for early dropout
+
+- ways to make things easier - what information we need to "bullet-proof" data wrangling
+
+- problematic users - what their data looks like? what to do?
+
+- given new indicator of availability, how much missing data left?
+- MI needed to even do primary analysis?
+
+lower priority
+- social media, interaction with others, email
+- synchronous communication, games, videos
+- phone in use at time of notification
+
+- time zone: cut corners
+- holes: time zone at 
+
+- on phone or not
+
 - Fraction of past suggestions that timed out with user interaction
 - Recent EMA answers (hecticness, stress, energy) averaged over a rolling window - attempt to predict today's - no response category for 617
 - Past thumbs up/down

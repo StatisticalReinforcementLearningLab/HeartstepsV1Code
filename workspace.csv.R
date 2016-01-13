@@ -4,7 +4,7 @@
 source("init.R")
 setwd(sys.var$mbox.data)
 
-## --- user-level data
+## --- administrative and interview data
 
 ## participant/user list
 participants <- read.data("HeartSteps Participant Directory.csv", list(user))
@@ -16,7 +16,7 @@ participants$exit.date <- char2date(participants$exit.interview.date, "%m/%d/%Y"
 ## FIXME: IPAQ allows "unsure" answers only for minutes of activity;
 ##        check missing responses for number of active days in past week
 ## FIXME: consider incorporating instrument/item names into the variable
-##        names (e.g. ipaq.vigor.days, ipaq.vigor.hours, ipaq.vigor.mins, etc.)
+##        names (e.g. ipaq.vigor.days, ipaq.vigor.hours, ipaq.vigor.mins, etc)
 intake <- read.data("Survey_Intake.csv", list(user), skip = 3, na.strings = "X")
 intake$startdate <- char2date(intake$startdate, "%m/%d/%Y")
 
@@ -28,6 +28,10 @@ exit$exitdate <- char2date(exit$exitdate, "%m/%d/%Y")
 
 ## application usage
 usage <- read.data("Heartsteps_Usage_History.csv", list(user, end.utime))
+## dispense with data time-stamped pre-study
+temp <- usage$start.date < as.Date("2015-07-01")
+write.data(usage[temp, ], "checks/usage_prestudy.csv")
+usage <- usage[!temp, ]
 
 ## snooze enabled or disabled
 snooze <- read.data("Snoozed_FromInApp.csv", list(user, utime.stamp))
@@ -113,6 +117,17 @@ complete <- read.data("EMA_Completed.csv",
                            -as.numeric(utime.stamp)))
 complete$completed <- complete$completed == "true"
 
+## start assembling user time zones
+set.unames <- function(x, n) {
+  n <- intersect(c("user", "timezone", "tz", "gmtoff", n,
+                   gsub("time", "utime", n[length(n)])), names(x))
+  setNames(x[, match(n, names(x))], c(n[-(-1:0 + length(n))], "ltime", "utime"))
+}
+timezone <- rbind(set.unames(notify, c("contextid", "notified.time")),
+                  set.unames(plan, c("contextid", "time.started")),
+                  set.unames(engage, c("contextid", "engaged.time")),
+                  set.unames(complete, c("contextid", "time.stamp")))
+
 ## EMA response
 ema <- read.data("EMA_Response.csv", list(contextid))
 ema$message <- normalize.text(ema$message)
@@ -124,23 +139,10 @@ ema$question[ema$question == "8"] <- "7"
 ## resolve missing time zone in EMA response from other EMA tables
 ## nb: this presumes that contextID can distinguish between different-day EMAs
 ##     and each contextID is associated with at most one time zone
-temp <-
-  rbind(subset(notify, select = c(user, contextid, timezone, tz, gmtoff)),
-        subset(plan, select = c(user, contextid, timezone, tz, gmtoff)),
-        subset(engage, select = c(user, contextid, timezone, tz, gmtoff)),
-        subset(complete, select = c(user, contextid, timezone, tz, gmtoff)))
-temp <- subset(temp, !duplicated(cbind(contextid, tz)))
+temp <- subset(timezone, !duplicated(cbind(contextid, tz)), select = -utime)
 ## any contextIDs associated with more than one time zone?
 any(duplicated(temp$contextid))
 nrow(ema <- merge(ema, temp[, -1], by = "contextid", all.x = TRUE))
-
-## save users' time zones, which can point to a variety of issues:
-## multiple time zones subject to the time zone bugs,
-## invalid time zone to problems that arise with non-English locale
-temp <- subset(temp, !duplicated(cbind(user, timezone)), select = -contextid)
-with(temp, table(duplicated(user)))
-with(subset(temp, grepl("^\\?+", timezone)), length(unique(user)))
-write.data(temp, "checks/user_timezones.csv")
 
 ## add notification time, given by message.time unless question is 6 or 7
 temp <- with(subset(subset(ema, !(question %in% paste(6:7))),
@@ -300,6 +302,29 @@ with(decision, table(duplicated(cbind(user, utime.stamp)),
 response <- read.data("Response.csv", list(user, notified.utime))
 response$notification.message <- normalize.text(response$notification.message)
 
+## finish assembling user time zones
+timezone <- rbind(subset(timezone, select = -contextid),
+                  set.unames(usage, "start.time"),
+                  set.unames(timeslot, "time.updated"),
+                  set.unames(decision, "time.stamp"),
+                  set.unames(response, "responded.time"))
+timezone <- subset(timezone, !duplicated(cbind(user, utime, timezone)))
+timezone <- timezone[with(timezone, order(user, utime)), ]
+rownames(timezone) <- NULL
+## unknown time zone indicative of non-English device locale
+timezone$en.locale <- !grepl("^\\?+$", timezone$timezone)
+with(timezone, length(unique(user[!en.locale])))
+
+## save users' time zones, which can point to a variety of issues, such as...
+temp <- subset(timezone, !duplicated(cbind(user, timezone)),
+               select = -c(ltime, utime))
+temp <- temp[with(temp, order(user)), ]
+write.data(temp, "checks/user_timezones.csv")
+## ... multiple time zones subject to the time zone bugs
+with(temp, table(duplicated(user)))
+## ... invalid time zone to problems that arise with non-English locale
+with(subset(temp, grepl("^\\?+", timezone)), length(unique(user)))
+
 ## persistence of identifiers over time in suggestion response
 with(response, table(duplicated(decisionid)))
 
@@ -412,6 +437,100 @@ decision <- decision[with(decision, order(user, date.stamp, slot)), ]
 write.data(subset(decision, notify & is.na(tag.active)),
            "checks/decision_notags.csv")
 
+## --- application usage tracker
+
+mbox.tracker <- paste0(sys.var$mbox, "Interviews/Exit/App_Usage_Tracker_Data/")
+tracker.files <- list.files(mbox.tracker)
+tracker.files <- setdiff(tracker.files,
+                         intersect(tracker.files, list.files("tracker")))
+if (length(tracker.files)) {
+  normalize.format <- function(x) {
+    format <- gsub(".+\\((.+)\\)", "\\1", strsplit(x[1], ",")[[1]][2])
+    if (format == "MM-dd-yyyy HH:mm:ss")
+      gsub("(^[^,]+),([0-9]+)-([0-9]+)-([0-9]+)", "\\1,\\4-\\2-\\3", x)
+    else if (format == "dd-MM-yyyy HH:mm:ss")
+      gsub("(^[^,]+),([0-9]+)-([0-9]+)-([0-9]+)", "\\1,\\4-\\3-\\2", x)
+    else {
+      x <- gsub("(^[^,]+),([0-9]+)/([0-9A-Za-z]+).*/([0-9]+)",
+                "\\1,\\4-\\3-\\2", x)
+      x <- gsub("-Jan-", "-01-", x, fixed = TRUE)
+      x <- gsub("-Feb-", "-02-", x, fixed = TRUE)
+      x <- gsub("-Mar-", "-03-", x, fixed = TRUE)
+      x <- gsub("-Apr-", "-04-", x, fixed = TRUE)
+      x <- gsub("-May-", "-05-", x, fixed = TRUE)
+      x <- gsub("-Jun-", "-06-", x, fixed = TRUE)
+      x <- gsub("-Jul-", "-07-", x, fixed = TRUE)
+      x <- gsub("-Aug-", "-08-", x, fixed = TRUE)
+      x <- gsub("-Sep-", "-09-", x, fixed = TRUE)
+      x <- gsub("-Oct-", "-10-", x, fixed = TRUE)
+      x <- gsub("-Nov-", "-11-", x, fixed = TRUE)
+      gsub("-Dec-", "-12-", x, fixed = TRUE)
+    }
+  }
+  temp <- lapply(tracker.files,
+                 function(x) readLines(paste0(mbox.tracker, x), warn = FALSE))
+  ## strip commas with trailing spaces
+  temp <- lapply(temp, gsub, pattern = ", ", replacement = " ", fixed = TRUE)
+  temp <- lapply(temp, normalize.format)
+  mapply(function(x, y) writeLines(x, paste0("tracker/", y)),
+         temp, tracker.files, SIMPLIFY = FALSE)
+}
+
+tracker <- read.data(list.files("tracker", full.names = TRUE),
+                     list(user), add.user = TRUE,
+                     col.names = c("app", "start.datetime", "duration",
+                                   "duration.secs"))
+tracker$order <- unlist(sapply(table(tracker$user), seq, from = 1, by = 1))
+## omit "total" rows
+nrow(tracker <- subset(tracker, !grepl("^Total", start.datetime)))
+## any dates not parsed correctly?
+write.data(subset(tracker, is.na(start.date)), "checks/tracker_nadate.csv")
+
+## break ties in time by adding fractional seconds
+## nb: presumes tracker records in chronological order
+print(temp <- with(tracker, max(table(user, start.datetime))))
+tracker$rank <-
+  unlist(lapply(unique(tracker$user),
+                function(x) with(subset(tracker, user == x),
+                                 rank(start.datetime, ties.method = "min"))))
+tracker$fsecs <-
+  unlist(lapply(lapply(unique(tracker$user),
+                       function(x) with(subset(tracker, user == x),
+                                        table(rank)[match(unique(rank),
+                                                          sort(unique(rank)))])),
+                function(y) lapply(y, seq, from = 1, by = 1))) - 1
+tracker$start.datetime <- 
+  with(tracker, paste(start.datetime,
+                      formatC(fsecs * round(10/temp),
+                              width = ceiling(log(temp, 10)), flag = "0"),
+                      sep = "."))
+tracker$start.ltime <- char2utime(tracker$start.datetime)
+## any ties remaining?
+with(tracker, any(duplicated(cbind(user, start.ltime))))
+
+## tracker records local date-times but no time zone,
+## so presume users start in Eastern time zone and LOCF-impute time zone
+temp <- with(subset(tracker, !duplicated(user)),
+             as.POSIXlt(char2utime(start.datetime), tz = "US/Eastern"))
+temp <- do.call("data.frame", lapply(temp, unlist))
+temp <- with(subset(tracker, !duplicated(user)),
+             data.frame(user, timezone = "Eastern Standard Time",
+                        tz = paste0("Etc/GMT", temp$gmtoff / 60^2),
+                        gmtoff = temp$gmtoff, ltime = start.ltime,
+                        utime = start.ltime + temp$gmtoff,
+                        en.locale = TRUE))
+tracker <- merge.last(tracker, rbind(temp, timezone),
+                      id = "user", var.x = "start.ltime", var.y = "ltime")
+## any unlinked tracker records?
+write.data(subset(tracker, is.na(gmtoff)), "checks/tracker_notz.csv")
+tracker$start.utime <- with(tracker, char2utime(start.datetime, offset = gmtoff))
+tracker <- tracker[with(tracker, order(user, start.utime)), ]
+tracker$utime <- tracker$ltime <- rownames(tracker) <- NULL
+
+## application list, excluding devices with non-English locale
+write.data(with(subset(tracker, !(user %in% user[!en.locale])),
+                data.frame(app = sort(unique(app)))), "checks/tracker_apps.csv")
+
 ## --- physical activity
 
 ## Jawbone
@@ -422,7 +541,8 @@ jawbone <- read.data(c("jawbone_step_count_data_07-15.csv",
                        "jawbone_step_count_data_09-15.csv",
                        "jawbone_step_count_data_10-15.csv",
                        "jawbone_step_count_data_11-15.csv",
-                       "jawbone_step_count_data_12-15.csv"),
+                       "jawbone_step_count_data_12-15.csv",
+                       "jawbone_step_count_data_01-16.csv"),
                      list(user, end.utime))
 dup.jawbone <- check.dup(jawbone, "checks/dup_jawbone.csv", user, end.utime)
 jawbone <- jawbone[!dup.jawbone$is.dup, ]
@@ -435,12 +555,14 @@ googlefit <- read.data(c("google_fit_data_07-15.csv",
                          "google_fit_data_09-15.csv",
                          "google_fit_data_10-15.csv",
                          "google_fit_data_11-15.csv",
-                         "google_fit_data_12-15.csv"),
+                         "google_fit_data_12-15.csv",
+                         "google_fit_data_01-16.csv"),
                        list(user, end.utime))
 dup.googlefit <- check.dup(googlefit, "checks/dup_googlefit.csv",
                            user, end.utime)
 googlefit <- googlefit[!dup.googlefit$is.dup, ]
 
+## don't save temporary objects, system-specific variables or functions
 rm(temp)
 rm(sys.var)
 rm(list = lsf.str(all.names = TRUE))

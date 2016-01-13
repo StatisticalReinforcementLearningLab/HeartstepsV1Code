@@ -5,7 +5,7 @@ source("init.R")
 setwd(sys.var$mbox.data)
 load("csv.RData")
 
-max.date <- as.Date("2015-12-11")
+max.date <- as.Date("2016-01-10")
 max.day <- 42
 
 ## --- user data
@@ -50,9 +50,7 @@ users <- merge(users, subset(temp, !duplicated(user)), by = "user", all = TRUE)
 users$own.phone <- users$user %% 2 != 0
 
 ## device locale is (most likely) US English
-users <- merge(users,
-               aggregate(cbind(en.locale = !grepl("^\\?+$", timezone)) ~ user,
-                         all, data = read.csv("checks/user_timezones.csv")),
+users <- merge(users, aggregate(en.locale ~ user, all, data = timezone),
                by = "user", all.x = TRUE)
 
 ## add intake and exit interview data
@@ -234,6 +232,9 @@ suggest <- merge(suggest,
                  by.x = c("user", "study.date", "slot"),
                  by.y = c("user", "date.stamp", "slot"),
                  all.x = TRUE, suffixes = c("", ".response"))
+
+## add last time the device was active
+
 
 ## index momentary decision, starting from zero
 suggest$decision.index <-

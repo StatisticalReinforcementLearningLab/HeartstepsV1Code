@@ -23,6 +23,7 @@ center <- function(id, time, x, sd = FALSE, na.rm = TRUE) {
     c <- lapply(c, function(y) y / s)
   }
   attributes(c) <- attributes(z)
+  mode(c) <- mode(z)
   unzoosplit(c)
 }
 
@@ -32,6 +33,7 @@ change <- function(id, time, x, k = 1) {
   d <- lapply(z, function(y) if (length(y) > 1) diff(y, lag = k, na.pad = TRUE)
                              else NA)
   attributes(d) <- attributes(z)
+  mode(d) <- mode(z)
   d <- unzoosplit(d)
   d
 }
@@ -45,6 +47,7 @@ delay <- function(id, time, x, k = 1) {
   l <- lapply(z, function(y) if (length(y) > 1) lag(y, k = -k, na.pad = TRUE)
                              else NA)
   attributes(l) <- attributes(z)
+  mode(l) <- mode(z)
   l <- unzoosplit(l)
   l
 }
@@ -60,6 +63,7 @@ impute <- function(id, time, x, fun = na.locf, na.rm = FALSE, ...) {
   n[n < xmin] <- xmin
   n[n > xmax] <- xmax
   attributes(n) <- attributes(x)
+  mode(n) <- mode(x)
   n
 }
 
@@ -72,6 +76,7 @@ roll <- function(id, time, x, width = NULL, FUN, ...) {
                              else rollapplyr(y, width = width, FUN = FUN,
                                              partial = TRUE, ...))
   attributes(r) <- attributes(z)
+  mode(r) <- mode(z)
   unzoosplit(r)
 }
 
@@ -91,6 +96,7 @@ splitdata <- function(id, time, x) {
 zoosplit <- function(s) {
   z <- lapply(s, function(y) do.call(zoo, y))
   attributes(z) <- attributes(s)
+  mode(z) <- mode(s)
   z
 }
 

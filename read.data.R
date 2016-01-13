@@ -3,13 +3,13 @@
 ## arguments
 ##       file  character vector naming one or more CSV files to read
 ##   order.by  list of variables to sort the resulting data frame
+##   add.user  add user variable based on numeric part of file name
 ##        lag  time lag adjustment for calculating dates from date-times
 ##        ...  additional arguments passed to read.csv
 
-read.data <- function(file, order.by = NULL, ...) {
+read.data <- function(file, order.by = NULL, add.user = FALSE, ...) {
   ## read named files into a list of data frames
-  d <- sapply(file, read.csv, header = TRUE, strip.white = TRUE, ...,
-              simplify = FALSE)
+  d <- lapply(file, read.csv, header = TRUE, strip.white = TRUE, ...)
   ## make each data frame contain the the same variables in the same order;
   ## if one such variable does not appear in a given data frame, add it as a
   ## vector of missing values
@@ -19,6 +19,10 @@ read.data <- function(file, order.by = NULL, ...) {
     d <- lapply(l, function(x) data.frame(matrix(NA, nrow(x), length(n),
                                                  dimnames = list(NULL, n))))
     sapply(1:length(l), function(i) d[[i]][, match(names(l[[i]]), n)] <<- l[[i]])
+    if (add.user)
+      d <- mapply(function(x, y) data.frame(test.id = x, y),
+                  as.numeric(gsub("[^0-9]*([0-9]+)[^0-9]*", "\\1", file)), d,
+                  SIMPLIFY = FALSE)
   }
   ## append, row-wise, the list of data frames to one another
   d <- do.call("rbind", d)
@@ -65,7 +69,7 @@ read.data <- function(file, order.by = NULL, ...) {
     ## for each of the character date-time variables...
     ## ... extract the date part
     ## nb: this is does not consider the time zone
-    y <- do.call("data.frame", lapply(d[, l, drop = FALSE], as.Date))
+    y <- do.call("data.frame", lapply(d[, l, drop = FALSE], char2date))
     names(y) <- gsub("(date|)time", "date", names(y))
     d <- cbind(d, y)
     ## ... using UTC offset, calculate POSIXct date-time and date
@@ -76,7 +80,7 @@ read.data <- function(file, order.by = NULL, ...) {
                           offset = d[, names(d) == "gmtoff", drop = FALSE],
                           SIMPLIFY = FALSE))
       names(u) <- gsub("(date|)time", "utime", names(u))
-      y <- do.call("data.frame", lapply(u, as.Date))
+      y <- do.call("data.frame", lapply(u, char2date))
       names(y) <- gsub("utime", "udate", names(y))
       d <- cbind(d, u, y)
     }
