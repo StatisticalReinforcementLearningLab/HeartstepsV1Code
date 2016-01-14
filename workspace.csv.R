@@ -10,7 +10,10 @@ setwd(sys.var$mbox.data)
 participants <- read.data("HeartSteps Participant Directory.csv", list(user))
 participants$intake.date <-
   char2date(participants$intake.interview.date, "%m/%d/%Y")
-participants$exit.date <- char2date(participants$exit.interview.date, "%m/%d/%Y")
+participants$exit.date <- char2date(with(participants,
+                                         ifelse(dropout.day == "",
+                                                exit.interview.date,
+                                                dropout.day)), "%m/%d/%Y")
 
 ## intake interviews
 ## FIXME: IPAQ allows "unsure" answers only for minutes of activity;
@@ -452,7 +455,7 @@ if (length(tracker.files)) {
       gsub("(^[^,]+),([0-9]+)-([0-9]+)-([0-9]+)", "\\1,\\4-\\3-\\2", x)
     else {
       x <- gsub("(^[^,]+),([0-9]+)/([0-9A-Za-z]+).*/([0-9]+)",
-                "\\1,\\4-\\3-\\2", x)
+                "\\1,\\4-\\3-\\2", x) # toss out Chinese characters
       x <- gsub("-Jan-", "-01-", x, fixed = TRUE)
       x <- gsub("-Feb-", "-02-", x, fixed = TRUE)
       x <- gsub("-Mar-", "-03-", x, fixed = TRUE)
