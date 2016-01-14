@@ -8,9 +8,11 @@ setwd(sys.var$mbox.data)
 
 ## participant/user list
 participants <- read.data("HeartSteps Participant Directory.csv", list(user))
-participants$intake.date <-
+participants$intake.interview.date <-
   char2date(participants$intake.interview.date, "%m/%d/%Y")
-participants$exit.date <- char2date(participants$exit.interview.date, "%m/%d/%Y")
+participants$exit.interview.date <-
+  char2date(participants$exit.interview.date, "%m/%d/%Y")
+participants$dropout.date <- char2date(participants$dropout.date, "%m/%d/%Y")
 
 ## intake interviews
 ## FIXME: IPAQ allows "unsure" answers only for minutes of activity;
@@ -121,7 +123,7 @@ complete$completed <- complete$completed == "true"
 set.unames <- function(x, n) {
   n <- intersect(c("user", "timezone", "tz", "gmtoff", n,
                    gsub("time", "utime", n[length(n)])), names(x))
-  setNames(x[, match(n, names(x))], c(n[-(-1:0 + length(n))], "ltime", "utime"))
+  setNames(x[, match(n, names(x))], c(n[-(-1:0 + length(n))], "time", "utime"))
 }
 timezone <- rbind(set.unames(notify, c("contextid", "notified.time")),
                   set.unames(plan, c("contextid", "time.started")),
@@ -311,6 +313,7 @@ timezone <- rbind(subset(timezone, select = -contextid),
 timezone <- subset(timezone, !duplicated(cbind(user, utime, timezone)))
 timezone <- timezone[with(timezone, order(user, utime)), ]
 rownames(timezone) <- NULL
+timezone$ltime <- with(timezone, utime + gmtoff)
 ## unknown time zone indicative of non-English device locale
 timezone$en.locale <- !grepl("^\\?+$", timezone$timezone)
 with(timezone, length(unique(user[!en.locale])))
@@ -439,18 +442,21 @@ write.data(subset(decision, notify & is.na(tag.active)),
 
 ## --- application usage tracker
 
+## pre-process tracker files (if not previously done)
 mbox.tracker <- paste0(sys.var$mbox, "Interviews/Exit/App_Usage_Tracker_Data/")
 tracker.files <- list.files(mbox.tracker)
 tracker.files <- setdiff(tracker.files,
                          intersect(tracker.files, list.files("tracker")))
 if (length(tracker.files)) {
+  ## routine to normalize date format
   normalize.format <- function(x) {
+    ## tracker files indicate date-time format in column name
     format <- gsub(".+\\((.+)\\)", "\\1", strsplit(x[1], ",")[[1]][2])
-    if (format == "MM-dd-yyyy HH:mm:ss")
+    if (format == "MM-dd-yyyy HH:mm:ss") # %m-%d-%Y
       gsub("(^[^,]+),([0-9]+)-([0-9]+)-([0-9]+)", "\\1,\\4-\\2-\\3", x)
-    else if (format == "dd-MM-yyyy HH:mm:ss")
+    else if (format == "dd-MM-yyyy HH:mm:ss")  # %d-%m-%Y
       gsub("(^[^,]+),([0-9]+)-([0-9]+)-([0-9]+)", "\\1,\\4-\\3-\\2", x)
-    else {
+    else { # %d/%b/%Y with alphabetic month part %b dependent on locale
       x <- gsub("(^[^,]+),([0-9]+)/([0-9A-Za-z]+).*/([0-9]+)",
                 "\\1,\\4-\\3-\\2", x)
       x <- gsub("-Jan-", "-01-", x, fixed = TRUE)
@@ -469,6 +475,9 @@ if (length(tracker.files)) {
   }
   temp <- lapply(tracker.files,
                  function(x) readLines(paste0(mbox.tracker, x), warn = FALSE))
+  ## omit non-breaking spaces and hyphens
+  temp <- lapply(temp, gsub, pattern = " ", replacement = " ", fixed = TRUE)
+  temp <- lapply(temp, gsub, pattern = "‑", replacement = "-", fixed = TRUE)
   ## strip commas with trailing spaces
   temp <- lapply(temp, gsub, pattern = ", ", replacement = " ", fixed = TRUE)
   temp <- lapply(temp, normalize.format)
@@ -481,7 +490,7 @@ tracker <- read.data(list.files("tracker", full.names = TRUE),
                      col.names = c("app", "start.datetime", "duration",
                                    "duration.secs"))
 tracker$order <- unlist(sapply(table(tracker$user), seq, from = 1, by = 1))
-## omit "total" rows
+## omit "total" rows, found in the last line of the tracker files
 nrow(tracker <- subset(tracker, !grepl("^Total", start.datetime)))
 ## any dates not parsed correctly?
 write.data(subset(tracker, is.na(start.date)), "checks/tracker_nadate.csv")
@@ -519,11 +528,11 @@ temp <- with(subset(tracker, !duplicated(user)),
                         gmtoff = temp$gmtoff, ltime = start.ltime,
                         utime = start.ltime + temp$gmtoff,
                         en.locale = TRUE))
-tracker <- merge.last(tracker, rbind(temp, timezone),
+tracker <- merge.last(tracker, rbind(temp, subset(timezone, select = -time)),
                       id = "user", var.x = "start.ltime", var.y = "ltime")
 ## any unlinked tracker records?
 write.data(subset(tracker, is.na(gmtoff)), "checks/tracker_notz.csv")
-tracker$start.utime <- with(tracker, char2utime(start.datetime, offset = gmtoff))
+tracker$start.utime <- with(tracker, start.ltime - gmtoff)
 tracker <- tracker[with(tracker, order(user, start.utime)), ]
 tracker$utime <- tracker$ltime <- rownames(tracker) <- NULL
 

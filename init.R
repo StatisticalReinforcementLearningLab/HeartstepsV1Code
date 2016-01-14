@@ -33,7 +33,7 @@ sys.var$repo <- getwd()
 sys.var$mbox.data <- paste(sys.var$mbox, "Data/", sep = "")
 
 ## time zone identifiers are localized, so set the locale
-Sys.setlocale("LC_TIME", sys.var$locale)
+Sys.setlocale("LC_ALL", sys.var$locale)
 
 ## arithmetic on POSIXct objects uses system time zone, so set this to UTC
 Sys.setenv(TZ = "GMT")

@@ -5,8 +5,14 @@ source("init.R")
 setwd(sys.var$mbox.data)
 load("csv.RData")
 
+## last data update
 max.date <- as.Date("2016-01-10")
+
+## target study days for each user
 max.day <- 42
+
+## hour threshold for which we can presume that the device is actively being used
+max.device.since <- 1
 
 ## --- user data
 
@@ -62,7 +68,7 @@ users <- merge(users,
 ## indicate users that just enrolled or dropped out,
 ## don't have their locale set to English
 users$days <- with(users, as.numeric(difftime(last.date, intake.date, "days")))
-users$exclude <- with(users, !en.locale & intake.date >= max.date | days < 7 |
+users$exclude <- with(users, !en.locale | intake.date >= max.date | days < 7 |
                              (intake.date + 42 < max.date & days < 10))
 users$user.index <- cumsum(!users$exclude)
 users$user.index[users$exclude] <- NA
@@ -84,15 +90,34 @@ daily <- data.frame(users[match(temp[, 1], users$user), ],
 daily <- subset(daily, select = c(user, user.index, intake.date:last.slot,
                                   study.date))
 
-## index day on study, starting from zero
+## add index day on study, starting from zero
 daily$study.day <-
   with(daily, as.numeric(difftime(study.date, intake.date, units = "days")))
 
-## context at EMA notification or (if unavailable) at earliest engagement
+## add *intended* EMA notification time
+## nb: take latest time if user updated the EMA slot repeatedly in one day
+temp <- subset(timeslot, time.updated.hour + time.updated.min / 60 < ema.hours)
+temp <- subset(temp, !duplicated(cbind(user, date.updated, ema.hours)))
+temp <- temp[with(temp, order(user, date.updated, -as.numeric(utime.updated))), ]
+temp <- subset(temp, !duplicated(cbind(user, date.updated)),
+               select = c(user, date.updated, ema.hours))
+daily <- merge.last(daily, temp,
+                    id = "user", var.x = "study.date", var.y = "date.updated")
+daily$ema.utime <- with(daily, as.POSIXct(study.date) + ema.hours * 60^2)
+daily <-
+  merge.last(daily,
+             with(timezone,
+                  data.frame(user, ltime, ema.tz = tz, ema.gmtoff = gmtoff)),
+             id = "user", var.x = "ema.utime", var.y = "ltime")
+any(is.na(daily$ema.gmtoff))
+## adjust EMA time for inferred time zone
+daily$ema.utime <- with(daily, ema.utime - ema.gmtoff)
+
+## add context at EMA notification or (if unavailable) at earliest engagement
 any(with(notify, duplicated(cbind(user, ema.date))))
 names(notify) <- gsub("^notified\\.(|time.)", "context.", names(notify))
 names(engage) <- gsub("^engaged\\.(|time.)", "context.", names(engage))
-notify$notify <- 1
+notify$notify <- TRUE
 temp <- merge(notify, engage, all = TRUE)
 temp <- temp[with(temp, order(user, is.na(notify), ema.date, context.utime)), ]
 temp <- subset(temp, !duplicated(cbind(user, ema.date)))
@@ -110,6 +135,9 @@ daily <- merge(daily,
                                  precipitation.chance, snow)),
                by.x = c("user", "study.date"), by.y = c("user", "ema.date"),
                all.x = TRUE)
+## adjust EMA time to that of context, when available
+temp <- !is.na(daily$context.utime)
+daily$ema.utime[temp] <- daily$context.utime[temp]
 
 ## add EMA response
 any(with(ema, duplicated(cbind(user, ema.date, order))))
@@ -141,6 +169,14 @@ daily <- merge(daily,
                                     function(x) x[1])),
                by.x = c("user", "study.date"), all.x = TRUE)
 
+## add last time the device was used
+daily <- merge.last(daily,
+                    with(tracker, data.frame(user, start.utime,
+                                             device.utime = start.utime)),
+                    id = "user", var.x = "ema.utime", var.y = "start.utime")
+daily$device.since <-
+  with(daily, difftime(ema.utime, device.utime, units = "hours"))
+
 ## responded to planning or at least one EMA question?
 daily$respond <- with(daily, !is.na(planning) | !is.na(ema.set.length))
 
@@ -150,7 +186,8 @@ daily$view <- with(daily, !is.na(interaction.count) | respond)
 
 ## had active connection at "time" of EMA?
 daily$notify <- !is.na(daily$notify)
-daily$connect <- with(daily, notify | view | respond)
+daily$connect <- with(daily, notify | view | respond |
+                             (device.since < max.device.since) %in% TRUE)
 
 ## revise planning status
 daily$planning.today[!daily$connect] <-
@@ -233,27 +270,10 @@ suggest <- merge(suggest,
                  by.y = c("user", "date.stamp", "slot"),
                  all.x = TRUE, suffixes = c("", ".response"))
 
-## add last time the device was active
-
-
 ## index momentary decision, starting from zero
 suggest$decision.index <-
   do.call("c", sapply(table(suggest$user) - 1, seq, from = 0, by = 1,
                       simplify = FALSE))
-
-## had active connection at decision slot?
-suggest$connect <- with(suggest, !is.na(notify))
-
-## walking or in a vehicle at decision slot?
-suggest$intransit <-
-  with(suggest, !(recognized.activity %in% c("STILL", "UNKNOWN")))
-suggest$intransit[!suggest$connect] <- NA
-
-## first-pass availability, as defined plus active connection
-suggest$avail <- with(suggest, connect & !snooze.status & !intransit)
-
-## send status; like 'notify', but corrected for prefetch issues
-suggest$send <- with(suggest, (avail & is.randomized) | !is.na(response))
 
 ## expand user-designated times into day-slot level...
 temp <-
@@ -267,7 +287,7 @@ temp <-
 temp <- temp[with(temp, order(user, slot, utime.updated)), ]
 temp <- subset(temp, !duplicated(cbind(user, slot, date.updated, hrsmin)))
 
-## .. omit adjust date upated to date from which the slot designation is relevant
+## ... adjust date updated to date from which the slot designation is relevant
 temp$slot.utime <-
   with(temp, char2utime(paste0(date.updated, " ", hrsmin, ":00"), gmtoff))
 temp$date.updated <- with(temp, date.updated + (utime.updated > slot.utime))
@@ -292,6 +312,30 @@ suggest$decision.utime[suggest$connect] <-
   with(subset(suggest, connect), utime.stamp + 30 * 60 * is.prefetch)
 any(is.na(suggest$decision.utime))
 any(with(suggest, duplicated(cbind(user, decision.utime))))
+
+## add last time the device was used
+suggest <-
+  merge.last(suggest,
+             with(tracker, data.frame(user, start.utime,
+                                      device.utime = start.utime)),
+             id = "user", var.x = "decision.utime", var.y = "start.utime")
+suggest$device.since <-
+  with(suggest, difftime(decision.utime, device.utime, units = "hours"))
+
+## had active connection at decision slot?
+suggest$connect <- with(suggest, !is.na(notify) |
+                                 (device.since < max.device.since) %in% TRUE)
+
+## walking or in a vehicle at decision slot?
+suggest$intransit <-
+  with(suggest, !(recognized.activity %in% c("STILL", "UNKNOWN")))
+suggest$intransit[!suggest$connect] <- NA
+
+## first-pass availability, as defined plus active connection
+suggest$avail <- with(suggest, connect & !snooze.status & !intransit)
+
+## send status; like 'notify', but corrected for prefetch issues
+suggest$send <- with(suggest, (avail & is.randomized) | !is.na(response))
 
 suggest <- suggest[with(suggest, order(user, decision.index)), ]
 
