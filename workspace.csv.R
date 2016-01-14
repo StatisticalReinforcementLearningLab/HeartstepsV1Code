@@ -11,9 +11,9 @@ participants <- read.data("HeartSteps Participant Directory.csv", list(user))
 participants$intake.date <-
   char2date(participants$intake.interview.date, "%m/%d/%Y")
 participants$exit.date <- char2date(with(participants,
-                                         ifelse(dropout.day == "",
+                                         ifelse(dropout.date == "",
                                                 exit.interview.date,
-                                                dropout.day)), "%m/%d/%Y")
+                                                dropout.date)), "%m/%d/%Y")
 
 ## intake interviews
 ## FIXME: IPAQ allows "unsure" answers only for minutes of activity;
