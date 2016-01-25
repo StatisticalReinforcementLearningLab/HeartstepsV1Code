@@ -13,7 +13,6 @@ ECHO Please wait while we search for and delete any existing access tokens.
 DEL C:\Users\*.appcfg_oauth2_tokens* /s
 
 ECHO Beginning export process...
-@ECHO ON
 FOR %%t IN (EMA_Completed EMA_Context_Engaged EMA_Context_Notified ^
             EMA_Response Heartsteps_Usage_History Momentary_Decision ^
             Motivational_Message Response Snoozed_FromInApp ^
@@ -25,12 +24,13 @@ FOR %%t IN (EMA_Completed EMA_Context_Engaged EMA_Context_Notified ^
         IF EXIST %dir%\%%t.csv (
           DEL %dir%\%%t.csv
         )
-        python appcfg.py download_data ^
+        py -2 appcfg.py download_data ^
         --url=https://com-um-heartsteps.appspot.com/remote_api ^
         --filename=%dir%\%%t.csv --kind=%%t ^
         --config_file=config_files/%%t.yaml --no_cookie
     )
-@ECHO OFF
 ECHO CLEANING UP...
 DEL bulkloader*
+ECHO ALL DONE!
+PAUSE
 EXIT
