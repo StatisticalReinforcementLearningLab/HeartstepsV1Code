@@ -123,8 +123,12 @@ Momentary{\_}Decision & Time zone bugs (see \cref{sec:slot}) and other unknown r
 \subsection{Inactive server-phone connection}
 \label{sec:connect}
 
-The anticipated data for each user-designated notification time slot is sometimes entirely missing. For example around the EMA notification time slot for a given user, we might find no corresponding records in the EMA-related tables. This presumably arises when the user's phone is turned off or has no network access over extended periods of time.
-
+The anticipated data for each user-designated notification time slot is sometimes entirely missing. For example around the EMA notification time slot for a given user, we might find no corresponding records in the EMA-related tables. This presumably arises when the user's phone is in one of the following states:
+\begin{enumerate}
+\item connected to a network, but not authorized to send data\footnote{HeartSteps did not follow any handshake protocol prior, so in this scenario the device would send and discard data without ensuring that it was actually sent to the server.};
+\item turned off; or
+\item has no network access over extended periods of time.
+\end{enumerate}
 Instances where no EMA-related records could be retrieved by user and day on study are depicted below.
 <<inactive-ema, fig.height=3>>=
 with(daily, plot(NULL, xlim = c(0, max(study.day)), ylim = c(0, max(user.index)),
@@ -133,7 +137,20 @@ with(daily, segments(0, user.index, pmax(study.day), col = "grey"))
 with(subset(daily, !connect),
      points(study.day, user.index, pch = 20, col = "darkgrey"))
 @
-\noindent
+
+<<suggest-avail, results="asis">>=
+d <- with(suggest,
+          table(avail + 2*snooze.status + 3*(!snooze.status & intransit),
+                !is.na(response) | (!intransit & !snooze.status & is.randomized),
+                useNA = "ifany"))
+rownames(d) <- c("Available", "Snooze enabled", "Snooze disabled, in transit",
+                 "Disconnected")
+colnames(d) <- c("Don't send", "Send or responded", "Disconnected")
+print(xtable(d, digits = 0, align = rep("r", ncol(d) + 1)),
+      floating = FALSE, booktabs = TRUE, sanitize.text.function = identity)
+@
+
+
 We can similarly depict the momentary decision points for which there are no corresponding records in Momentary{\_}Decision or Response.
 <<inactive, fig.height=3>>=
 with(suggest, plot(NULL, xlim = c(0, max(decision.index)),
@@ -143,6 +160,7 @@ with(suggest, segments(0, user.index, pmax(decision.index), col = "grey"))
 with(subset(suggest, !connect),
      points(decision.index, user.index, pch = 20, col = grey(0.2, alpha = 0.3)))
 @
+
 To address this issue, we could consider the user unavailable for the planning and activity suggestion interventions whenever an active connection is not apparent. For analysis, we still require the time of the EMA notifications and momentary decisions that would have otherwise occurred had the user's phone been connected. This can be inferred from the user-designated notification time slots in User{\_}Decision{\_}Times. In evaluating the decision time, we account for the fact that the user can change the slots at any point and (for simplicity) use the time zone recorded at the last decision point for which there was a connection.
 
 \subsection{Notifications under changing time zone}
@@ -285,7 +303,7 @@ d <- with(subset(users, !is.na(gender)),
                               c("married", "domestic partnership"),
                 "Any children" = children > 0,
                 "Used fitness app" = fitapp == "yes",
-                "Used activity tracker" = tracker == "yes",
+                "Used activity tracker" = fittracker == "yes",
                 "Using own phone" = own.phone == TRUE,
                 "Phone set to English locale" = en.locale == TRUE))
 d <- cbind(apply(d, 2, sum, na.rm = TRUE),

@@ -88,7 +88,7 @@ temp <- do.call("rbind",
 daily <- data.frame(users[match(temp[, 1], users$user), ],
                     study.date = temp[, 2])
 daily <- subset(daily, select = c(user, user.index, intake.date:last.slot,
-                                  study.date))
+                                  study.date, own.phone))
 
 ## add index day on study, starting from zero
 daily$study.day <-
@@ -186,8 +186,7 @@ daily$view <- with(daily, !is.na(interaction.count) | respond)
 
 ## had active connection at "time" of EMA?
 daily$notify <- !is.na(daily$notify)
-daily$connect <- with(daily, notify | view | respond |
-                             (device.since < max.device.since) %in% TRUE)
+daily$connect <- with(daily, notify | view | respond)
 
 ## revise planning status
 daily$planning.today[!daily$connect] <-
@@ -305,6 +304,9 @@ suggest$gmtoff <- with(suggest, impute(user, decision.index, gmtoff, na.locf))
 suggest$slot.utime <-
   with(suggest, char2utime(paste0(study.date, " ", hrsmin, ":00"), gmtoff))
 
+## had active connection at decision slot?
+suggest$connect <- with(suggest, !is.na(notify))
+
 ## decision time or (in the absence of a decision) the user-designated
 ## notification time, adjusting for time lag with prefetch/activity recognition
 suggest$decision.utime <- suggest$slot.utime + 90
@@ -321,10 +323,6 @@ suggest <-
              id = "user", var.x = "decision.utime", var.y = "start.utime")
 suggest$device.since <-
   with(suggest, difftime(decision.utime, device.utime, units = "hours"))
-
-## had active connection at decision slot?
-suggest$connect <- with(suggest, !is.na(notify) |
-                                 (device.since < max.device.since) %in% TRUE)
 
 ## walking or in a vehicle at decision slot?
 suggest$intransit <-
