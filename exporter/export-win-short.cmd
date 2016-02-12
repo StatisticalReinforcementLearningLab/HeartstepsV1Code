@@ -13,8 +13,7 @@ ECHO Please wait while we search for and delete any existing access tokens.
 DEL C:\Users\*.appcfg_oauth2_tokens* /s
 
 ECHO Beginning export process...
-FOR %%t IN (EMA_Completed EMA_Context_Engaged EMA_Context_Notified ^
-	    EMA_Response Heartsteps_Usage_History Momentary_Decision ^
+FOR %%t IN (
             Motivational_Message Response Snoozed_FromInApp ^
             Structured_Planning_Response Unstructured_Planning_Response ^
             User_Addresses User_Calendars User_Data User_Decision_Times ^
