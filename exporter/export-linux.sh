@@ -13,8 +13,7 @@ for table in EMA_Completed EMA_Context_Engaged EMA_Context_Notified \
     Motivational_Message Response Snoozed_FromInApp \
     Structured_Planning_Response Unstructured_Planning_Response \
     User_Addresses User_Calendars User_Data User_Decision_Times \
-    User_Last_Updated Valid_Jawbone_Email_Addresses \
-    Valid_User_Email_Addresses Weather_History
+    Weather_History
 do
 echo "EXPORTING $table..."
 if [ -f $dir/$table.csv ]

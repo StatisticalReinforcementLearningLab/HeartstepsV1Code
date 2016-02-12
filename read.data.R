@@ -41,6 +41,12 @@ read.data <- function(file, order.by = NULL, add.user = FALSE, ...) {
     d <- subset(d, grepl("heartsteps.test[0-9]+", userid))
     d$user <- as.numeric(gsub("(heartsteps\\.test|@gmail.*$)", "", d$userid))
   }
+  ## convert variables that should be numeric, apart from missing values
+  l <- which(names(d) %in% c("distance", "snow", "temperature"))
+  if (length(l)) {
+    d[, l][d[, l] == "unknown"] <- NA
+    d[, l] <- as.numeric(d[, l])
+  }
   ## indicate character date-time variables representing by name
   ## (e.g. 'time.finished', 'time.started', 'time.stamp', 'time.updated', ...)
   l <- which(grepl("(^time\\.(fin|sta|up)|\\.(date|)time$)", names(d)))
