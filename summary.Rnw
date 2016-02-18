@@ -138,17 +138,17 @@ with(subset(daily, !connect),
      points(study.day, user.index, pch = 20, col = "darkgrey"))
 @
 
-<<suggest-avail, results="asis">>=
-d <- with(suggest,
-          table(avail + 2*snooze.status + 3*(!snooze.status & intransit),
-                !is.na(response) | (!intransit & !snooze.status & is.randomized),
-                useNA = "ifany"))
-rownames(d) <- c("Available", "Snooze enabled", "Snooze disabled, in transit",
-                 "Disconnected")
-colnames(d) <- c("Don't send", "Send or responded", "Disconnected")
-print(xtable(d, digits = 0, align = rep("r", ncol(d) + 1)),
-      floating = FALSE, booktabs = TRUE, sanitize.text.function = identity)
-@
+#' <<suggest-avail, results="asis">>=
+#' d <- with(suggest,
+#'           table(avail + 2*snooze.status + 3*(!snooze.status & intransit),
+#'                 !is.na(response) | (!intransit & !snooze.status & is.randomized),
+#'                 useNA = "ifany"))
+#' rownames(d) <- c("Available", "Snooze enabled", "Snooze disabled, in transit",
+#'                  "Disconnected")
+#' colnames(d) <- c("Don't send", "Send or responded", "Disconnected")
+#' print(xtable(d, digits = 0, align = rep("r", ncol(d) + 1)),
+#'       floating = FALSE, booktabs = TRUE, sanitize.text.function = identity)
+#' @
 
 
 We can similarly depict the momentary decision points for which there are no corresponding records in Momentary{\_}Decision or Response.
@@ -298,7 +298,7 @@ d <- with(subset(users, !is.na(gender)),
           cbind("Male" = gender == "male",
                 "Age under 25" = age < 25,
                 "White" = ethnicity == "white/caucasian",
-                "Graduate school" = edu %in% c("grad degree", "grad school"),
+                "Graduate school" = education %in% c("grad degree", "grad school"),
                 "Married or common-law" = marital %in%
                               c("married", "domestic partnership"),
                 "Any children" = children > 0,

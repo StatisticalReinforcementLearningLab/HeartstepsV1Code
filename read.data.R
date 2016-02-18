@@ -45,7 +45,7 @@ read.data <- function(file, order.by = NULL, add.user = FALSE, ...) {
   l <- which(names(d) %in% c("distance", "snow", "temperature"))
   if (length(l)) {
     d[, l][d[, l] == "unknown"] <- NA
-    d[, l] <- as.numeric(d[, l])
+    d[, l] <- sapply(l, function(x) as.numeric(d[, x]))
   }
   ## indicate character date-time variables representing by name
   ## (e.g. 'time.finished', 'time.started', 'time.stamp', 'time.updated', ...)

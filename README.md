@@ -18,8 +18,8 @@ File | Description
 
 Refer to the wiki pages for detail directions to access the data. Unless you maintain the data, only steps 1 and 5 are required.
 
-1. [Mounting M+Box](https://github.com/klasnja/heartstepsdata/wiki/Mounting-box)
-2. [Exporting data](https://github.com/klasnja/heartstepsdata/wiki/Exporting-data)
-3. [Preparing data for analysis](https://github.com/klasnja/heartstepsdata/wiki/Preparing-data-for-analysis)
-4. [Running the data summary](https://github.com/klasnja/heartstepsdata/wiki/Running-the-data-summary)
-5. [Running data analysis](https://github.com/klasnja/heartstepsdata/wiki/Running-data-analysis)
+1. [Mounting M+Box](https://github.com/nseewald1/heartstepsdata/wiki/1-Mounting-Box)
+2. [Exporting data](https://github.com/nseewald1/heartstepsdata/wiki/2-Exporting-data)
+3. [Preparing data for analysis](https://github.com/nseewald1/heartstepsdata/wiki/3-Preparing-data-for-analysis)
+4. [Running the data summary](https://github.com/nseewald1/heartstepsdata/wiki/4-Running-the-data-summary)
+5. [Running data analysis](https://github.com/nseewald1/heartstepsdata/wiki/5-Running-data-analysis)
