@@ -6,7 +6,7 @@ setwd(sys.var$mbox.data)
 load("csv.RData")
 
 ## last data update
-max.date <- as.Date("2016-01-10")
+max.date <- as.Date("2016-02-19")
 
 ## target study days for each user
 max.day <- 42

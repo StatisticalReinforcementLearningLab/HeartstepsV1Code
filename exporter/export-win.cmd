@@ -14,12 +14,30 @@ DEL C:\Users\*.appcfg_oauth2_tokens* /s
 
 ECHO Beginning export process...
 FOR %%t IN (EMA_Completed EMA_Context_Engaged EMA_Context_Notified ^
-	    EMA_Response Heartsteps_Usage_History Momentary_Decision ^
-            Motivational_Message Response Snoozed_FromInApp ^
-            Structured_Planning_Response Unstructured_Planning_Response ^
-            User_Addresses User_Calendars User_Data User_Decision_Times ^
-            User_Last_Updated Valid_Jawbone_Email_Addresses ^
-            Valid_User_Email_Addresses Weather_History) DO (
+	    			EMA_Response Heartsteps_Usage_History Momentary_Decision) DO (
+        ECHO Exporting %%t ...
+        IF EXIST %dir%\%%t.csv (
+          DEL %dir%\%%t.csv
+        )
+        py -2 appcfg.py download_data ^
+        --url=https://com-um-heartsteps.appspot.com/remote_api ^
+        --filename=%dir%\%%t.csv --kind=%%t ^
+        --config_file=config_files/%%t.yaml
+    )
+ECHO To avoid problems with expiration of the authorization token created ^
+earlier, please re-authenticate with Google. We will delete the existing ^
+token and ask you to create a new one.
+
+ECHO Please wait while we search for and delete any existing access tokens.
+DEL C:\Users\*.appcfg_oauth2_tokens* /s
+
+ECHO Continuing export process...
+
+FOR %%t IN (Motivational_Message Response Snoozed_FromInApp ^
+						Structured_Planning_Response Unstructured_Planning_Response ^
+						User_Addresses User_Calendars User_Data User_Decision_Times ^
+						User_Last_Updated Valid_Jawbone_Email_Addresses ^
+						Valid_User_Email_Addresses Weather_History) DO (
         ECHO Exporting %%t ...
         IF EXIST %dir%\%%t.csv (
           DEL %dir%\%%t.csv
