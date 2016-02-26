@@ -14,7 +14,7 @@ max.day <- 42
 ## hour threshold for which we can presume that the device is actively being used
 max.device.since <- 1
 
-## --- user data
+##### user data #####
 
 ## slot of update time, last notification
 
@@ -73,7 +73,7 @@ users$exclude <- with(users, !en.locale | intake.date >= max.date | days < 7 |
 users$user.index <- cumsum(!users$exclude)
 users$user.index[users$exclude] <- NA
 
-## --- daily data
+##### daily data #####
 
 ## evaluate user-date combinations, by generating a sequence of dates
 ## from intake to the earliest of exit date and 'max.date'

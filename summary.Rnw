@@ -61,6 +61,8 @@
 \maketitle
 \thispagestyle{empty}
 
+\pdfsuppresswarningpagegroup=1
+
 % R code "chunk" format: 
 %   <<chunk options>>= R code @
 % where in chunk options, avoid line breaks and spaces within option settings
@@ -137,19 +139,6 @@ with(daily, segments(0, user.index, pmax(study.day), col = "grey"))
 with(subset(daily, !connect),
      points(study.day, user.index, pch = 20, col = "darkgrey"))
 @
-
-#' <<suggest-avail, results="asis">>=
-#' d <- with(suggest,
-#'           table(avail + 2*snooze.status + 3*(!snooze.status & intransit),
-#'                 !is.na(response) | (!intransit & !snooze.status & is.randomized),
-#'                 useNA = "ifany"))
-#' rownames(d) <- c("Available", "Snooze enabled", "Snooze disabled, in transit",
-#'                  "Disconnected")
-#' colnames(d) <- c("Don't send", "Send or responded", "Disconnected")
-#' print(xtable(d, digits = 0, align = rep("r", ncol(d) + 1)),
-#'       floating = FALSE, booktabs = TRUE, sanitize.text.function = identity)
-#' @
-
 
 We can similarly depict the momentary decision points for which there are no corresponding records in Momentary{\_}Decision or Response.
 <<inactive, fig.height=3>>=

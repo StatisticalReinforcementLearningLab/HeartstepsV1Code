@@ -1,0 +1,85 @@
+\documentclass[11pt]{article}
+\usepackage[T1]{fontenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{setspace}
+% wrap table text
+\usepackage{ragged2e,array}
+\usepackage{hyperref}
+\usepackage[capitalize]{cleveref}
+\usepackage{graphicx}
+\IfFileExists{MinionPro.sty}
+  {\usepackage[lf,italicgreek]{MinionPro}
+   \usepackage{microtype}
+   \DisableLigatures[T]{encoding={T1}}
+   \usepackage[toc,enum,bib,lineno,eqno]{tabfigures}}
+  {\makeatletter\let\figureversion\@gobble\makeatother
+   \usepackage{amsmath,amssymb}}
+% environment hooks
+\usepackage{etoolbox}
+
+% make smallcaps/figures searchable
+\input{glyphtounicode}
+\pdfgentounicode=1
+
+% correct Acrobat distortion with opacity
+\pdfpageattr{/Group <</S /Transparency /I true /CS /DeviceRGB>>}
+
+\hypersetup{breaklinks,colorlinks,allcolors=blue,pdfpagemode=UseNone}
+
+\BeforeBeginEnvironment{tabular}{\begin{center}\figureversion{tab}}
+\AfterEndEnvironment{tabular}{\end{center}}
+\AtBeginEnvironment{tabular}{\small\hyphenpenalty=10000}
+\AtBeginEnvironment{knitrout}{\figureversion{lf}}
+
+\newcolumntype{L}[1]{>{\RaggedRight\hspace{0pt}}p{#1}}
+\newcolumntype{R}[1]{>{\RaggedLeft\hspace{0pt}}p{#1}}
+\setlength{\tabcolsep}{6pt}
+
+\setlist{leftmargin=\parindent,rightmargin=\parindent}
+
+\linespread{1.125}
+\raggedbottom
+\allowdisplaybreaks
+
+\title{\bfseries HeartSteps Preliminary Analysis Details}
+\author{}
+\date{\vskip -2em\normalsize\today}
+
+\begin{document}
+\maketitle
+\thispagestyle{empty}
+
+<<setup, include = FALSE, cache = FALSE>>=
+opts_chunk$set(fig.align="center", dev="tikz", dev.args=list(pointsize=11), echo=FALSE, fig.width=6.5, fig.show="hold", par=TRUE)
+knit_hooks$set(par=function(before, options, envir){
+  if (before && options$fig.show!="none")
+    par(mar=c(3,3,1,0)+0.5, mgp=c(2,0.5,0), oma=rep(0,4), las=1, tcl=0.25)})
+knit_hooks$set(inline = function(x){if (is.numeric(x)) round(x, 2) else x})
+@
+
+<<data, echo = FALSE, include = FALSE>>=
+source("init.R")
+setwd(sys.var$mbox.data)
+load("csv.RData")
+load("analysis.RData")
+setwd(sys.var$repo)
+color <- "chartreuse"
+color.name <- "green"
+@
+
+\section{Participants Excluded}
+
+A total of \Sexpr{length(unique(users$user))} participants were recruited. Of those, we are excluding all data from \Sexpr{length(with(users, user[exclude == T]))}.
+
+\begin{enumerate}
+\item \Sexpr{v <- as.character(with(timezone, unique(user[en.locale == F]))); ifelse(length(v) > 1, paste("Participants", paste(v[1:length(v) - 1], collapse = ", ", sep = ""), "and", v[length(v)], "were", collapse = ",", sep = " "), paste("Participant", v, "was", collapse = ",", sep = " "))} %
+excluded because their phones were not set to an English locale. This resulted in timezone data being reported to the HeartSteps server in a way that could not be understood in English.
+
+\item Participants \Sexpr{v <- with(users, user[days <= 7]); paste(paste(v[1:length(v) - 1], collapse = ", ", sep = ""), "and", v[length(v)], collapse = ",", sep = " ")} dropped out of the study after 7 or fewer days. (Participant \Sexpr{v[1]} was on-study for \Sexpr{with(users, days[user == v[1]])} days; participant \Sexpr{v[2]} for \Sexpr{with(users, days[user == v[2]])} day; participant \Sexpr{v[3]} for \Sexpr{with(users, days[user == v[3]])} days.) 
+
+\end{enumerate}
+
+
+\end{document}
