@@ -73,13 +73,53 @@ color.name <- "green"
 
 A total of \Sexpr{length(unique(users$user))} participants were recruited. Of those, we are excluding all data from \Sexpr{length(with(users, user[exclude == T]))}.
 
-\begin{enumerate}
+\begin{itemize}
 \item \Sexpr{v <- as.character(with(timezone, unique(user[en.locale == F]))); ifelse(length(v) > 1, paste("Participants", paste(v[1:length(v) - 1], collapse = ", ", sep = ""), "and", v[length(v)], "were", collapse = ",", sep = " "), paste("Participant", v, "was", collapse = ",", sep = " "))} %
 excluded because their phones were not set to an English locale. This resulted in timezone data being reported to the HeartSteps server in a way that could not be understood in English.
 
-\item Participants \Sexpr{v <- with(users, user[days <= 7]); paste(paste(v[1:length(v) - 1], collapse = ", ", sep = ""), "and", v[length(v)], collapse = ",", sep = " ")} dropped out of the study after 7 or fewer days. (Participant \Sexpr{v[1]} was on-study for \Sexpr{with(users, days[user == v[1]])} days; participant \Sexpr{v[2]} for \Sexpr{with(users, days[user == v[2]])} day; participant \Sexpr{v[3]} for \Sexpr{with(users, days[user == v[3]])} days.) 
+\item Participants \Sexpr{v <- with(users, user[days <= 7]); paste(paste(v[1:length(v) - 1], collapse = ", ", sep = ""), "and", v[length(v)], collapse = ",", sep = " ")} dropped out of the study after 7 or fewer days. (Participant \Sexpr{v[1]} was on-study for \Sexpr{with(users, days[user == v[1]])} days; participant \Sexpr{v[2]} for \Sexpr{with(users, days[user == v[2]])} day; participant \Sexpr{v[3]} for \Sexpr{with(users, days[user == v[3]])} days.) Participants \Sexpr{paste(v[2:3], collapse = " and ")} left the study because they were too uncomfortable using a study phone.
 
+\end{itemize}
+
+\noindent The total sample size is \textbf{\Sexpr{sum(!users$exclude)}}.
+
+\section{Availability}
+Our operationalized definition of availability is as follows: A participant is available if
+\begin{enumerate}
+  \item she is not currently in a car,
+  \item she is not currently walking, and
+  \item her phone is connected to the internet.
 \end{enumerate}
+
+Regarding the connection issue, see the following excerpt from the original summary:
+
+\begin{quote}
+  The anticipated data for each user-designated notification time slot is sometimes entirely missing. For example around the EMA notification time slot for a given user, we might find no corresponding records in the EMA-related tables. This presumably arises when the user's phone is in one of the following states:
+\begin{enumerate}
+\item connected to a network, but not authorized to send data\footnote{HeartSteps did not follow any handshake protocol prior, so in this scenario the device would send and discard data without ensuring that it was actually sent to the server.};
+\item turned off; or
+\item has no network access over extended periods of time.
+\end{enumerate}
+\end{quote}
+
+The following rules create a proxy to determine whether an individual is connected:
+\begin{enumerate}
+\item For EMAs, we are \textit{completely missing} the context in which the EMA notification was delivered to the user, the context in which the user viewed the EMA, and the user's response to the EMA. If any of these are present, the user is treated as connected.
+\item For suggestions, we have no data about whether or not the suggestion was delivered, or the context in which it was delivered. 
+\end{enumerate}
+
+\section{Data Excluded}
+Two participants (IDs 3 and 6) reported periods of international travel during which they were unable to engage with HeartSteps due to lack of connectivity outside the United States. Three participants (IDs 1, 15, and 39) experienced technical issues over an extended period of time which prevented them from engaging. Additional details are below.
+\begin{enumerate}
+\item The Jawbone given to participant 1 failed for \Sexpr{sum(daily$travel[daily$user == 1])} days; her study was extended for 2 weeks to accomodate this.
+\item Participant 3 traveled internationally for \Sexpr{sum(daily$travel[daily$user == 3])} days; her study was extended for 1 week.
+\item Participant 6 traveled internationally for \Sexpr{sum(daily$travel[daily$user == 6])} days; his study was extended for 10 days.
+\item Participant 15 experienced extended technical issues stemming from her disabling connectivity on her phone (e.g., Bluetooth, location, etc.). Her study was extended by 12 days.
+\item Participant 17 reported technical and reception (both cellular and wifi) issues during the study (her office is in a basement). Her study was extended by 1 week.
+\item Participant 39 lost his Jawbone. Additionally, the device may have been faulty or the participant disabled connectivity: Audrey and Nick noticed his Jawbone data was not being uploaded for some time. His study was extended by 3 weeks.
+\end{enumerate}
+
+After removing travel dates, 
 
 
 \end{document}

@@ -14,9 +14,10 @@ max.day <- 42
 ## hour threshold for which we can presume that the device is actively being used
 max.device.since <- 1
 
-##### user data #####
+##### User data #####
 
 ## slot of update time, last notification
+
 
 ## infer intake date-time from first selection of notification time slots
 users <- with(subset(timeslot[with(timeslot, order(user, utime.updated)), ],
@@ -30,7 +31,13 @@ users <- with(subset(timeslot[with(timeslot, order(user, utime.updated)), ],
                          intake.min = time.updated.min,
                          intake.slot = slot.updated))
 
+## Add travel and dropout dates
+temp0 <- with(participants[participants$user != 43, ], 
+              data.frame(user, travel.start, travel.end, dropout.date))
+
 ## infer exit date-time from last notification
+## NOTE: This does not necessarily work; some participants still had
+## app installed post-exit
 temp <- rbind(with(decision,
                    data.frame(user,
                               last.date = date.stamp,
@@ -50,7 +57,16 @@ temp <- rbind(with(decision,
                               last.hour = notified.time.hour,
                               last.min = notified.time.min)))
 temp <- temp[with(temp, order(user, -as.numeric(last.utime))), ]
+users <- merge(users, temp0, by = "user", all = TRUE)
 users <- merge(users, subset(temp, !duplicated(user)), by = "user", all = TRUE)
+rm(temp0)
+
+## Update last.date to be the actual last day on study
+users$last.date <- with(users,
+                        as.Date(sapply(1:length(unique(user)), 
+                                       function(x) min(last.date[x], 
+                                                       dropout.date[x],
+                                                       na.rm = T))))
 
 ## odd user id implies that HeartSteps is installed on own phone
 users$own.phone <- users$user %% 2 != 0
@@ -73,7 +89,7 @@ users$exclude <- with(users, !en.locale | intake.date >= max.date | days < 7 |
 users$user.index <- cumsum(!users$exclude)
 users$user.index[users$exclude] <- NA
 
-##### daily data #####
+##### Daily data #####
 
 ## evaluate user-date combinations, by generating a sequence of dates
 ## from intake to the earliest of exit date and 'max.date'
@@ -90,9 +106,29 @@ daily <- data.frame(users[match(temp[, 1], users$user), ],
 daily <- subset(daily, select = c(user, user.index, intake.date:last.slot,
                                   study.date, own.phone))
 
+## Add indicator for travel time
+daily$travel <- with(daily, study.date >= travel.start & study.date <= travel.end)
+daily$travel[is.na(daily$travel)] <- FALSE
+
 ## add index day on study, starting from zero
 daily$study.day <-
   with(daily, as.numeric(difftime(study.date, intake.date, units = "days")))
+
+## Modify index to exclude travel time
+daily$study.day.nogap <- with(daily, ifelse(travel, NA, study.day))
+daily$study.day.nogap[!daily$travel] <-
+  unlist(sapply(unique(daily$user), 
+         function(x) {
+           r <- with(daily, rle(travel[user == x]))
+           if (length(r$lengths) > 1) {
+             with(daily[daily$user == x & !daily$travel, ], 
+                c(study.day[1:r$lengths[1]], seq(sum(r$lengths[1:2]) + 1, sum(r$lengths))
+                  - r$lengths[2] - 1))
+           }
+           else daily$study.day[daily$user == x]
+           },
+         simplify = T))
+
 
 ## add *intended* EMA notification time
 ## nb: take latest time if user updated the EMA slot repeatedly in one day
@@ -224,7 +260,7 @@ names(daily)[ncol(daily)] <- "gfsteps"
 
 daily <- daily[with(daily, order(user, study.day)), ]
 
-## --- suggestion data
+##### Suggestion data #####
 
 ## number of suggestion decision points in a given day
 k <- length(slots) - 1
@@ -273,6 +309,12 @@ suggest <- merge(suggest,
 suggest$decision.index <-
   do.call("c", sapply(table(suggest$user) - 1, seq, from = 0, by = 1,
                       simplify = FALSE))
+
+suggest$last.date <- with(suggest,
+                        as.Date(sapply(1:dim(suggest)[1], 
+                                       function(x) min(last.date[x], 
+                                                       dropout.date[x],
+                                                       na.rm = T))))
 
 ## expand user-designated times into day-slot level...
 temp <-

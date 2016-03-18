@@ -13,6 +13,8 @@ participants$intake.interview.date <-
 participants$exit.interview.date <-
   char2date(participants$exit.interview.date, "%m/%d/%Y")
 participants$dropout.date <- char2date(participants$dropout.date, "%m/%d/%Y") 
+participants$travel.start <- char2date(participants$travel.start, "%m/%d/%Y") 
+participants$travel.end   <- char2date(participants$travel.end,   "%m/%d/%Y") 
 
 ## intake interviews
 ## FIXME: IPAQ allows "unsure" answers only for minutes of activity;
@@ -551,7 +553,8 @@ jawbone <- read.data(c("jawbone_step_count_data_07-15.csv",
                        "jawbone_step_count_data_10-15.csv",
                        "jawbone_step_count_data_11-15.csv",
                        "jawbone_step_count_data_12-15.csv",
-                       "jawbone_step_count_data_01-16.csv"),
+                       "jawbone_step_count_data_01-16.csv",
+                       "jawbone_step_count_data_02-16.csv"),
                      list(user, end.utime))
 dup.jawbone <- check.dup(jawbone, "checks/dup_jawbone.csv", user, end.utime)
 jawbone <- jawbone[!dup.jawbone$is.dup, ]
@@ -565,7 +568,8 @@ googlefit <- read.data(c("google_fit_data_07-15.csv",
                          "google_fit_data_10-15.csv",
                          "google_fit_data_11-15.csv",
                          "google_fit_data_12-15.csv",
-                         "google_fit_data_01-16.csv"),
+                         "google_fit_data_01-16.csv",
+                         "google_fit_data_02-16.csv"),
                        list(user, end.utime))
 dup.googlefit <- check.dup(googlefit, "checks/dup_googlefit.csv",
                            user, end.utime)
