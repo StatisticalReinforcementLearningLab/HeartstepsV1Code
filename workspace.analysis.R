@@ -31,9 +31,13 @@ users <- with(subset(timeslot[with(timeslot, order(user, utime.updated)), ],
                          intake.min = time.updated.min,
                          intake.slot = slot.updated))
 
-## Add travel and dropout dates
-temp0 <- with(participants[participants$user != 43, ], 
-              data.frame(user, travel.start, travel.end, dropout.date))
+## Add travel, exit, and dropout dates
+temp0 <- with(participants, 
+              data.frame(user,
+                         travel.start,
+                         travel.end,
+                         exit.date = exit.interview.date,
+                         dropout.date))
 
 ## infer exit date-time from last notification
 ## NOTE: This does not necessarily work; some participants still had
@@ -62,13 +66,16 @@ users <- merge(users, subset(temp, !duplicated(user)), by = "user", all = TRUE)
 rm(temp0)
 
 ## Update last.date to be the actual last day on study
-users$last.date <- with(users,
-                        as.Date(sapply(1:length(unique(user)), 
-                                       function(x) min(last.date[x], 
-                                                       dropout.date[x],
-                                                       na.rm = T))))
+# Compare last.date computed above using notification times to dropout date
+users$last.date <-
+  with(users,
+       as.Date(sapply(1:length(unique(user)), 
+                      function(x) min(last.date[x], 
+                                      min(exit.date[x], dropout.date[x], na.rm = T),
+                                      na.rm = T))))
 
 ## odd user id implies that HeartSteps is installed on own phone
+# NB: NOT ALWAYS THE CASE
 users$own.phone <- users$user %% 2 != 0
 
 ## device locale is (most likely) US English

@@ -121,5 +121,50 @@ Two participants (IDs 3 and 6) reported periods of international travel during w
 
 After removing travel dates, 
 
+<<dailysteps, fig.height=2>>=
+nogap <- subset(daily, !(is.na(daily$study.day.nogap)))
+nogap$last.jbsteps <- with(nogap, delay(user, study.day.nogap, jbsteps))
+nogap$next.jbsteps <- with(nogap, delay(user, study.day.nogap, jbsteps, -1))
+nogap$seg.jbsteps <- with(nogap, !is.na(jbsteps) & !is.na(next.jbsteps))
+nogap$last.gfsteps <- with(nogap, delay(user, study.day.nogap, gfsteps))
+nogap$next.gfsteps <- with(nogap, delay(user, study.day.nogap, gfsteps, -1))
+nogap$seg.gfsteps <- with(nogap, !is.na(gfsteps) & !is.na(next.gfsteps))
+nogap$plan <- nogap$planning %in% c("structured", "unstructured")
+plot.daily.steps <- function(u) {
+  d <- subset(nogap, user == u)
+  maxs <- max(1, d$jbsteps, d$gfsteps, na.rm = TRUE)
+  maxd <- max(d$study.day.nogap)
+  slwd <- 2
+  plot(NULL, xlim = c(0, max(maxd, max.day)), ylim = c(0, maxs),
+       xlab = "", ylab = "", main = "", axes = FALSE, frame.plot = FALSE)
+  mtext(paste(u), 2, line = 2.75)
+  apply(subset(d, is.na(ema.set.length) & study.day.nogap < maxd,
+               select = c(study.day.nogap, connect)), 1,
+        function(x) abline(v = x[1], col = "lightgrey",
+                           lty = c("dotted", "solid")[x[2] + 1]))
+  meanjb <- mean(d$jbsteps, na.rm = TRUE)
+  segments(0, meanjb, max(maxd, max.day * (d$last.date[1] > max.date)),
+           meanjb, col = "lightgrey")
+  with(subset(d, !plan & seg.gfsteps),
+       segments(study.day.nogap, gfsteps, study.day.nogap + 1, next.gfsteps,
+                lty = "dotted", lwd = slwd))
+  with(subset(d, plan & seg.gfsteps),
+       segments(study.day.nogap, gfsteps, study.day.nogap + 1, next.gfsteps,
+                lty = "dotted", col = color, lwd = slwd))
+  with(subset(d, !plan & seg.jbsteps),
+       segments(study.day.nogap, jbsteps, study.day.nogap + 1, next.jbsteps, lwd = slwd))
+  with(subset(d, plan & seg.jbsteps),
+       segments(study.day.nogap, jbsteps, study.day.nogap + 1, next.jbsteps,
+                col = color, lwd = slwd))
+  at <- with(d, c(0, study.day.nogap[is.na(jbsteps) & !is.na(last.jbsteps)] - 1,
+                  study.day.nogap[!is.na(jbsteps) & is.na(last.jbsteps)], maxd,
+                  max.day))
+  axis(1, at = sort(unique(at)))
+  axis(2, at = round(c(0, meanjb, maxs)))
+}
+invisible(sapply(with(subset(nogap, !is.na(jbsteps)), unique(user)),
+                 plot.daily.steps))
+@
+
 
 \end{document}
