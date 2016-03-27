@@ -59,6 +59,35 @@ match.option <- function(x, y, l = rep(TRUE, length(y)), prefix = "",
 }
 
 ## like merge, but "proximally" in the named variables;
+## bring y into x, such that id.x = id.y and the largest var.y >= var.x
+merge.first <- function(x, y, id, var, id.x = id, id.y = id, var.x = var,
+                       var.y = var, ...) {
+  by.x <- c(id.x, var.x)
+  by.y <- c(id.y, var.y)
+  ## merge all x and y
+  d <- merge(x[, names(x) %in% by.x], y, by.x = by.x, by.y = by.y, all = TRUE)
+  j <- !(names(d) %in% names(x))
+  ## Create variable v which is equal to var.x only when there's data in y
+  ## (we're recreating var.y, which we used to merge on)
+  v <- d[[var.x]]
+  v[is.na(d[, j, drop = FALSE][, 1])] <- NA
+  d <- cbind(d, v)
+  names(d)[ncol(d)] <- var.y
+  j <- c(j, TRUE)
+  ## LOCF-impute values for records only found in y
+  if (any(duplicated(d[, 1:2]))) {
+    o <- rep(1, nrow(d))
+    o <- unlist(tapply(o, d[, 1], cumsum))
+  } else
+    o <- d[, 2]
+  d[, j] <- do.call("data.frame", lapply(d[, j, drop = FALSE],
+                                         impute, id = d[, 1], time = o, 
+                                         fromLast = TRUE))
+  print(nrow(d <- merge(x, d, by = by.x, all.x = TRUE, ...)))
+  d
+}
+
+## like merge, but "proximally" in the named variables;
 ## bring y into x, such that id.x = id.y and the largest var.y <= var.x
 merge.last <- function(x, y, id, var, id.x = id, id.y = id, var.x = var,
                        var.y = var, ...) {
@@ -76,9 +105,9 @@ merge.last <- function(x, y, id, var, id.x = id, id.y = id, var.x = var,
   if (any(duplicated(d[, 1:2]))) {
     o <- rep(1, nrow(d))
     o <- unlist(tapply(o, d[, 1], cumsum))
-  }
-  else
+  } else
     o <- d[, 2]
+  ## 
   d[, j] <- do.call("data.frame", lapply(d[, j, drop = FALSE],
                                          impute, id = d[, 1], time = o))
   print(nrow(d <- merge(x, d, by = by.x, all.x = TRUE, ...)))

@@ -273,7 +273,7 @@ daily <- daily[with(daily, order(user, study.day)), ]
 k <- length(slots) - 1
 
 ## expand daily data to level of the decision points
-suggest <- data.frame(subset(daily, select = user:study.day),
+suggest <- data.frame(subset(daily, select = user:study.day.nogap),
                       slot = rep(1:k, nrow(daily)), row.names = NULL)
 
 ## discard decision points that take place before intake or after exit
@@ -316,6 +316,11 @@ suggest <- merge(suggest,
 suggest$decision.index <-
   do.call("c", sapply(table(suggest$user) - 1, seq, from = 0, by = 1,
                       simplify = FALSE))
+
+suggest$decision.index.nogap <- NA
+suggest$decision.index.nogap[!is.na(suggest$study.day.nogap)] <- 
+  do.call("c", sapply(table(suggest$user[!is.na(suggest$study.day.nogap)]) - 1,
+                      seq, from = 0, by = 1, simplify = FALSE))
 
 suggest$last.date <- with(suggest,
                         as.Date(sapply(1:dim(suggest)[1], 
@@ -392,11 +397,22 @@ jbslot <- merge.last(subset(jawbone,
                             end.utime >= intake.utime & end.utime <= last.utime),
                      subset(suggest,
                             select = c(user, user.index, slot, decision.utime,
-                                       study.date, study.day, decision.index,
+                                       study.date, study.day, study.day.nogap,
+                                       decision.index, decision.index.nogap,
                                        connect, avail, send)),
                      id = "user", var.x = "end.utime", var.y = "decision.utime")
 jbslot <- subset(jbslot, !is.na(slot))
 jbslot <- jbslot[with(jbslot, order(user, end.utime)), ]
+jbslotpre <- merge.first(subset(jawbone,
+                            end.utime >= intake.utime & end.utime <= last.utime),
+                     subset(suggest,
+                            select = c(user, user.index, slot, decision.utime,
+                                       study.date, study.day, study.day.nogap,
+                                       decision.index, decision.index.nogap,
+                                       connect, avail, send)),
+                     id = "user", var.x = "end.utime", var.y = "decision.utime")
+jbslotpre <- subset(jbslotpre, !is.na(slot))
+jbslotpre <- jbslot[with(jbslotpre, order(user, end.utime)), ]
 
 gfslot <- merge.last(subset(googlefit,
                             end.utime >= intake.utime & end.utime <= last.utime),
@@ -408,14 +424,43 @@ gfslot <- merge.last(subset(googlefit,
 gfslot <- subset(gfslot, !is.na(slot))
 gfslot <- gfslot[with(gfslot, order(user, end.utime)), ]
 
-## --- add step counts 30 and 60 minute following each decision point
+gfslotpre <- merge.first(subset(googlefit,
+                            end.utime >= intake.utime & end.utime <= last.utime),
+                     subset(suggest,
+                            select = c(user, user.index, slot, decision.utime,
+                                       study.date, study.day, decision.index,
+                                       connect, avail, send)),
+                     id = "user", var.x = "end.utime", var.y = "decision.utime")
+gfslotpre <- subset(gfslotpre, !is.na(slot))
+gfslotpre <- gfslotpre[with(gfslotpre, order(user, end.utime)), ]
+
+## --- add step counts 30 and 60 minute FOLLOWING each decision point
 
 temp <- with(jbslot, end.utime - decision.utime)
 suggest <- merge(suggest,
                  aggregate(cbind(mins30 = temp <= 30 * 60,
-                                 steps30 = steps * (temp <= 30 * 60),
+                                 jbsteps30 = steps * (temp <= 30 * 60),
                                  mins60 = temp <= 60 * 60,
-                                 steps60 = steps * (temp <= 60 * 60))
+                                 jbsteps60 = steps * (temp <= 60 * 60))
+                           ~ decision.index + user, data = jbslot, FUN = sum),
+                 by = c("user", "decision.index"), all.x = TRUE)
+
+temp <- with(gfslot, end.utime - decision.utime)
+suggest <- merge(suggest,
+                 aggregate(cbind(mins30 = temp <= 30 * 60,
+                                 gfsteps30 = steps * (temp <= 30 * 60),
+                                 mins60 = temp <= 60 * 60,
+                                 gfsteps60 = steps * (temp <= 60 * 60))
+                           ~ decision.index + user, data = gfslot, FUN = sum),
+                 by = c("user", "decision.index"), all.x = TRUE)
+
+## --- add steps counts 30 and 60 minutes PRIOR TO each decision point
+temp <- with(jbslotpre, end.utime - decision.utime)
+suggest <- merge(suggest,
+                 aggregate(cbind(mins30pre = (temp <= 30 * 60),
+                                 steps30pre = steps * (temp <= 30 * 60),
+                                 mins60pre = (temp <= 60 * 60),
+                                 steps60pre = steps * (temp <= 60 * 60))
                            ~ decision.index + user, data = jbslot, FUN = sum),
                  by = c("user", "decision.index"), all.x = TRUE)
 
