@@ -458,15 +458,25 @@ suggest <- merge(suggest,
 temp <- with(jbslotpre, end.utime - decision.utime)
 suggest <- merge(suggest,
                  aggregate(cbind(mins30pre = (temp <= 30 * 60),
-                                 steps30pre = steps * (temp <= 30 * 60),
+                                 jbsteps30pre = steps * (temp <= 30 * 60),
                                  mins60pre = (temp <= 60 * 60),
-                                 steps60pre = steps * (temp <= 60 * 60))
-                           ~ decision.index + user, data = jbslot, FUN = sum),
+                                 jbsteps60pre = steps * (temp <= 60 * 60))
+                           ~ decision.index + user, data = jbslotpre, FUN = sum),
+                 by = c("user", "decision.index"), all.x = TRUE)
+temp <- with(gfslotpre, end.utime - decision.utime)
+suggest <- merge(suggest,
+                 aggregate(cbind(mins30 = temp <= 30 * 60,
+                                 gfsteps30pre = steps * (temp <= 30 * 60),
+                                 mins60 = temp <= 60 * 60,
+                                 gfsteps60pre = steps * (temp <= 60 * 60))
+                           ~ decision.index + user, data = gfslotpre, FUN = sum),
                  by = c("user", "decision.index"), all.x = TRUE)
 
-suggest$steps30.spl <- with(suggest, impute(user, decision.index, steps30,
+
+
+suggest$steps30.spl <- with(suggest, impute(user, decision.index, jbsteps30,
                                             fun = na.spline))
-suggest$steps60.spl <- with(suggest, impute(user, decision.index, steps60,
+suggest$steps60.spl <- with(suggest, impute(user, decision.index, jbsteps60,
                                             fun = na.spline))
 
 save(max.day, max.date, users, daily, suggest, jbslot, gfslot,
