@@ -279,12 +279,12 @@ decision <- read.data("Momentary_Decision.csv",
                       list(user, utime.stamp, is.prefetch, notify != "True",
                            valid != "valid"))
 decision$returned.message <- normalize.text(decision$returned.message)
-decision$is.prefetch <- decision$is.prefetch == "true"
-decision$notify <- decision$notify == "True"
-decision$is.randomized <- decision$is.randomized == "true"
-decision$valid <- decision$valid == "valid"
-decision$snooze.status <- decision$snooze.status == "true"
-decision$slot <- match(decision$time.slot, slots)
+decision$is.prefetch      <- decision$is.prefetch    == "true"
+decision$notify           <- decision$notify         == "True"
+decision$is.randomized    <- decision$is.randomized  == "true"
+decision$valid            <- decision$valid          == "valid"
+decision$snooze.status    <- decision$snooze.status  == "true"
+decision$slot             <- match(decision$time.slot, slots)
 
 ## missing day of week (just record in case this affects contextualization)
 write.data(subset(decision, day.of.week == ""), "checks/decision_nowkday.csv")
@@ -308,7 +308,7 @@ response$notification.message <- normalize.text(response$notification.message)
 
 ## finish assembling user time zones
 timezone <- rbind(subset(timezone, select = -contextid),
-                  set.unames(usage, "start.time"),
+                  set.unames(usage,    "start.time"),
                   set.unames(timeslot, "time.updated"),
                   set.unames(decision, "time.stamp"),
                   set.unames(response, "responded.time"))
@@ -548,12 +548,24 @@ write.data(with(subset(tracker, !(user %in% user[!en.locale])),
 ## nb: step counts provided in one minute windows for now;
 ##     might eventually be more granular depending on server load
 jawbone <- read.data(c("jawbone_step_count_data_07-15.csv",
-                       "jawbone_step_count_data_08-15.csv",
-                       "jawbone_step_count_data_09-15.csv",
-                       "jawbone_step_count_data_10-15.csv",
-                       "jawbone_step_count_data_11-15.csv",
-                       "jawbone_step_count_data_12-15.csv",
-                       "jawbone_step_count_data_01-16.csv",
+                       "jawbone_step_count_data_07-31-15_08-15-15.csv",
+                       "jawbone_step_count_data_08-14-15_09-01-15.csv",
+                       "jawbone_step_count_data_08-31-15_09-15-15.csv",
+                       "jawbone_step_count_data_09-14-15_10-01-15.csv",
+                       "jawbone_step_count_data_09-30-15_10-15-15.csv",
+                       "jawbone_step_count_data_10-14-15_11-01-15.csv",
+                       "jawbone_step_count_data_10-31-15_11-15-15.csv",
+                       "jawbone_step_count_data_11-14-15_12-01-15.csv",
+                       "jawbone_step_count_data_11-30-15_12-15-15.csv",
+                       "jawbone_step_count_data_12-14-15_01-01-16.csv",
+                       "jawbone_step_count_data_12-31-15_01-15-16.csv",
+                       "jawbone_step_count_data_01-14-16_02-01-16.csv",
+#                        "jawbone_step_count_data_08-15.csv",
+#                        "jawbone_step_count_data_09-15.csv",
+#                        "jawbone_step_count_data_10-15.csv",
+#                        "jawbone_step_count_data_11-15.csv",
+#                        "jawbone_step_count_data_12-15.csv",
+#                        "jawbone_step_count_data_01-16.csv",
                        "jawbone_step_count_data_02-16.csv"),
                      list(user, end.utime))
 dup.jawbone <- check.dup(jawbone, "checks/dup_jawbone.csv", user, end.utime)

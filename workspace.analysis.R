@@ -436,6 +436,7 @@ gfslotpre <- subset(gfslotpre, !is.na(slot))
 gfslotpre <- gfslotpre[with(gfslotpre, order(user, end.utime)), ]
 
 ## --- add step counts 30 and 60 minute FOLLOWING each decision point
+## NB: We impute 0 steps when there is no record in the Jawbone data
 
 temp <- with(jbslot, end.utime - decision.utime)
 suggest <- merge(suggest,
@@ -455,6 +456,15 @@ suggest <- merge(suggest,
                            ~ decision.index + user, data = gfslot, FUN = sum),
                  by = c("user", "decision.index"), all.x = TRUE)
 
+# Aggregate returns NA when study.date is not in the user's Jawbone data (e.g., if 
+# the user just didn't wear the Jawbone for a whole day, or if she was traveling 
+# internationally and left the tracker at home). We impute zeros.
+suggest$jbsteps30.zero <- suggest$jbsteps30
+suggest$jbsteps60.zero <- suggest$jbsteps60
+suggest$jbsteps30.zero[is.na(suggest$jbsteps30)] <- 0
+suggest$jbsteps60.zero[is.na(suggest$jbsteps60)] <- 0
+
+
 ## --- add steps counts 30 and 60 minutes PRIOR TO each decision point
 temp <- with(jbslotpre, decision.utime - end.utime)
 suggest <- merge(suggest,
@@ -462,7 +472,8 @@ suggest <- merge(suggest,
                                  jbsteps30pre = steps * (temp <= 30 * 60),
                                  mins60pre = (temp <= 60 * 60),
                                  jbsteps60pre = steps * (temp <= 60 * 60))
-                           ~ decision.index + user, data = jbslotpre, FUN = sum),
+                           ~ decision.index + user, data = jbslotpre, FUN = sum,
+                           na.rm = TRUE),
                  by = c("user", "decision.index"), all.x = TRUE)
 
 temp <- with(gfslotpre, end.utime - decision.utime)
@@ -471,9 +482,15 @@ suggest <- merge(suggest,
                                  gfsteps30pre = steps * (temp <= 30 * 60),
                                  mins60 = temp <= 60 * 60,
                                  gfsteps60pre = steps * (temp <= 60 * 60))
-                           ~ decision.index + user, data = gfslotpre, FUN = sum),
+                           ~ decision.index + user, data = gfslotpre, FUN = sum,
+                           na.rm = TRUE),
                  by = c("user", "decision.index"), all.x = TRUE)
 
+## As above, impute zeros whenever missing
+suggest$jbsteps30pre.zero <- suggest$jbsteps30pre
+suggest$jbsteps60pre.zero <- suggest$jbsteps60pre
+suggest$jbsteps30pre.zero[is.na(suggest$jbsteps30pre)] <- 0
+suggest$jbsteps60pre.zero[is.na(suggest$jbsteps60pre)] <- 0
 
 
 suggest$steps30.spl <- with(suggest, impute(user, decision.index, jbsteps30,

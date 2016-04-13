@@ -96,6 +96,8 @@ merge.last <- function(x, y, id, var, id.x = id, id.y = id, var.x = var,
   ## merge all x and y
   d <- merge(x[, names(x) %in% by.x], y, by.x = by.x, by.y = by.y, all = TRUE)
   j <- !(names(d) %in% names(x))
+  ## Create variable v which is equal to var.x only when there's data in y
+  ## (we're recreating var.y, which we used to merge on)
   v <- d[[var.x]]
   v[is.na(d[, j, drop = FALSE][, 1])] <- NA
   d <- cbind(d, v)

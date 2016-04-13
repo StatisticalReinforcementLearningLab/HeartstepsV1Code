@@ -55,7 +55,7 @@
 opts_chunk$set(fig.align="center", dev="tikz", dev.args=list(pointsize=11), echo=FALSE, fig.width=6.5, fig.show="hold", par=TRUE)
 knit_hooks$set(par=function(before, options, envir){
   if (before && options$fig.show!="none")
-    par(mar=c(3,3,1,0)+0.5, mgp=c(2,0.5,0), oma=rep(0,4), las=1, tcl=0.25)})
+    par(mar = c(3,3,1,0)+0.5, mgp = c(2,0.5,0), oma = rep(0,4), las=1, tcl=0.25)})
 knit_hooks$set(inline = function(x){if (is.numeric(x)) round(x, 2) else x})
 @
 
@@ -119,6 +119,8 @@ Two participants (IDs 3 and 6) reported periods of international travel during w
 \item Participant 39 lost his Jawbone. Additionally, the device may have been faulty or the participant disabled connectivity: Audrey and Nick noticed his Jawbone data was not being uploaded for some time. His study was extended by 3 weeks.
 \end{enumerate}
 
+We call a decision ``valid'' if it occurred within an intended timeslot (e.g., morning commute, etc.) and was not duplicated. In total, there were \Sexpr{dim(suggest)[1]} ``valid'' decisions made throughout the study. Of those, we eliminate \Sexpr{table(suggest$avail, suggest$send)[1,2]} which occrred while the participant should have been marked as unavailable according to the above definition. 
+
 The following plot depicts the number of users on-study at each decision point, after removing travel dates:
 <<decisionplot>>=
 # plot(table(suggest$decision.index.nogap), axes = FALSE)
@@ -130,9 +132,9 @@ The following plot depicts the number of users on-study at each decision point, 
 @
 
 
-After removing travel dates, we plot daily step counts below:
+% After removing travel dates, we plot daily step counts below:
 
-<<dailysteps, fig.height=2>>=
+<<dailysteps, fig.height=2, include = F>>=
 nogap <- subset(daily, !(is.na(daily$study.day.nogap)))
 nogap$last.jbsteps <- with(nogap, delay(user, study.day.nogap, jbsteps))
 nogap$next.jbsteps <- with(nogap, delay(user, study.day.nogap, jbsteps, -1))
@@ -173,11 +175,11 @@ plot.daily.steps <- function(u) {
   axis(1, at = sort(unique(at)))
   axis(2, at = round(c(0, meanjb, maxs)))
 }
-invisible(sapply(with(subset(nogap, !is.na(jbsteps)), unique(user)),
-                 plot.daily.steps))
+# invisible(sapply(with(subset(nogap, !is.na(jbsteps)), unique(user)),
+#                  plot.daily.steps))
 @
 
-<<slotsteps, fig.height=2>>=
+<<slotsteps, fig.height=2, include = F>>=
 plot.slot.steps <- function(u, d, mins = 60) {
   d <- subset(d, user == u & (end.utime - decision.utime) <= mins * 60)
   d$sum.steps <- with(d, roll(decision.index, end.utime, steps, FUN = sum,
@@ -206,26 +208,46 @@ plot.slot.steps <- function(u, d, mins = 60) {
   axis(1, at = c(minu, maxu), labels = format(c(minu, maxu), "%d %b"))
   axis(2, at = round(c(0, means, maxs)))
 }
-invisible(sapply(unique(jbslot$user), function(u) plot.slot.steps(u, jbslot)))
+# invisible(sapply(unique(jbslot$user), function(u) plot.slot.steps(u, jbslot)))
 @
+
+
+\section{Preliminary Analysis}
+We first regress step count in the 30 minutes following a decision point against a centered treatment indicator, controlling for step count in the 30 minutes prior to the decision point. 
+
+<<step-descriptives, include = FALSE>>=
+user.days <- aggregate(start.udate ~ user, data = jawbone, FUN = unique)
+ids <- unique(suggest$user)
+sapply(ids, function(x) {
+  sum(!(unique(suggest$study.date[suggest$user == x & suggest$travel == F]) %in% 
+          user.days$start.udate[[ifelse(x < 10, paste('0', x, sep = ""), paste(x))]]))
+})
+@
+
+\begin{itemize}
+  \item Step count in the 30 minutes following a decision point is missing for \Sexpr{sum(is.na(suggest$jbsteps30))} out of \Sexpr{dim(suggest)[1]} treatment occasions (\Sexpr{round(sum(is.na(suggest$jbsteps30) / dim(suggest)[1]), 3) * 100}\% missing).
+  \item Step count in the 30 minutes prior to a decision point is missing for \Sexpr{sum(is.na(suggest$jbsteps30pre))} out of \Sexpr{dim(suggest)[1]} treatment occasions (\Sexpr{round(sum(is.na(suggest$jbsteps30pre) / dim(suggest)[1]), 3) * 100}\% missing).
+  \item 
+\end{itemize}
 
 <<stepsfit, echo = FALSE, include = FALSE>>=
 # days <- 1:42
-# ids <- with(suggest, unique(user[study.day == rev(days)[1]]))
 # fit <- function(y) {
-#   d <- subset(suggest, user %in% ids & study.day %in% days)
+#   d <- subset(suggest, study.day.nogap %in% days)
 #   y <- substitute(y)
 #   y <- eval(y, d)
-#   ids <- with(subset(suggest, !is.na(y)), user[study.day == rev(days)[1]])
-#   fit <- geeglm(y ~ (send - .6) * factor(study.day), id = user,
-#                 weights = pmax(avail, send), data = d, scale.fix = TRUE)
+#   d <- d[!is.na(y), ]
+#   d$send.cent <- as.factor(as.numeric(d$send) - .6)
+#   # ids <- with(subset(suggest, !is.na(y)))
+#   fit <- geeglm(y ~ jbsteps30pre + send.cent, id = user,
+#                 weights = as.numeric(avail), data = d, scale.fix = TRUE)
 #   combos <- do.call("rbind",
 #                     lapply(days,
-#                            function(x) grepl(paste("^sendTRUE(|.+\\)", x, ")$",
-#                                                    sep = ""), names(fit$coef))))
+#                            function(x) grepl(paste("^send.cent0.4(|.+\\)", x, ")$",
+#                                                    sep = ""), names(fit1$coef))))
 #   list(est = estimate(fit, combos), n = length(fit$geese$clusz))
 # }
-# f30 <- fit(steps30.spl)
+# f30 <- fit(jbsteps30)
 # f60 <- fit(steps60.spl)
 @ 
 
