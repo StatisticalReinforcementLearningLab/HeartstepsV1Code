@@ -43,7 +43,7 @@
 \raggedbottom
 \allowdisplaybreaks
 
-\title{\bfseries HeartSteps Preliminary Analysis Details}
+\title{\bfseries HeartSteps Main Effects Analysis}
 \author{}
 \date{\vskip -2em\normalsize\today}
 
@@ -69,6 +69,11 @@ color <- "chartreuse"
 color.name <- "green"
 @
 
+<<inclusion-parameters>>=
+days <- 0:41
+ids <- with(suggest, unique(user[study.day.nogap == rev(days)[1]]))
+@
+
 \section{Participants Excluded}
 
 A total of \Sexpr{length(unique(users$user))} participants were recruited. Of those, we are excluding all data from \Sexpr{length(with(users, user[exclude == T]))}.
@@ -78,10 +83,9 @@ A total of \Sexpr{length(unique(users$user))} participants were recruited. Of th
 excluded because their phones were not set to an English locale. This resulted in timezone data being reported to the HeartSteps server in a way that could not be understood in English.
 
 \item Participants \Sexpr{v <- with(users, user[days <= 7]); paste(paste(v[1:length(v) - 1], collapse = ", ", sep = ""), "and", v[length(v)], collapse = ",", sep = " ")} dropped out of the study after 7 or fewer days. (Participant \Sexpr{v[1]} was on-study for \Sexpr{with(users, days[user == v[1]])} days; participant \Sexpr{v[2]} for \Sexpr{with(users, days[user == v[2]])} day; participant \Sexpr{v[3]} for \Sexpr{with(users, days[user == v[3]])} days.) Participants \Sexpr{paste(v[2:3], collapse = " and ")} left the study because they were too uncomfortable using a study phone.
-
 \end{itemize}
 
-\noindent The total sample size is \textbf{\Sexpr{sum(!users$exclude)}}.
+\noindent After eliminating the above individuals, \Sexpr{sum(!users$exclude)} remain in the sample. Of those, \Sexpr{length(ids)} were on-study for at least \Sexpr{max(days) + 1} days. The total sample size is \textbf{\Sexpr{length(ids)}}.
 
 \section{Availability}
 Our operationalized definition of availability is as follows: A participant is available if
@@ -115,13 +119,14 @@ Two participants (IDs 3 and 6) reported periods of international travel during w
 \item Participant 3 traveled internationally for \Sexpr{sum(daily$travel[daily$user == 3])} days; her study was extended for 1 week.
 \item Participant 6 traveled internationally for \Sexpr{sum(daily$travel[daily$user == 6])} days; his study was extended for 10 days.
 \item Participant 15 experienced extended technical issues stemming from her disabling connectivity on her phone (e.g., Bluetooth, location, etc.). Her study was extended by 12 days.
-\item Participant 17 reported technical and reception (both cellular and wifi) issues during the study (her office is in a basement). Her study was extended by 1 week.
+\item Participant 17 reported technical and reception (both cellular and Wi-Fi) issues during the study (her office is in a basement). Her study was extended by 1 week.
 \item Participant 39 lost his Jawbone. Additionally, the device may have been faulty or the participant disabled connectivity: Audrey and Nick noticed his Jawbone data was not being uploaded for some time. His study was extended by 3 weeks.
 \end{enumerate}
 
-We call a decision ``valid'' if it occurred within an intended timeslot (e.g., morning commute, etc.) and was not duplicated. In total, there were \Sexpr{dim(suggest)[1]} ``valid'' decisions made throughout the study. Of those, we eliminate \Sexpr{table(suggest$avail, suggest$send)[1,2]} which occrred while the participant should have been marked as unavailable according to the above definition. 
+We call a decision ``valid'' if it occurred within an intended timeslot (e.g., morning commute, etc.) and was not duplicated. In total, there were \Sexpr{dim(suggest)[1]} ``valid'' decisions made throughout the study. Of those, we eliminate \Sexpr{table(suggest$avail, suggest$send)[1,2]} which occurred while the participant should have been marked as unavailable according to the above definition. 
 
-The following plot depicts the number of users on-study at each decision point, after removing travel dates:
+After removing travel dates, participant time series were spliced together. For example, if a user was on vacation starting on day 10 and ending after day 15, what would have been day 16 is relabeled as day 10.
+
 <<decisionplot>>=
 # plot(table(suggest$decision.index.nogap), axes = FALSE)
 # axis(side = 1, at = seq(0:max(suggest$decision.index.nogap), by = 5), 
@@ -212,44 +217,104 @@ plot.slot.steps <- function(u, d, mins = 60) {
 @
 
 
-\section{Preliminary Analysis}
-We first regress step count in the 30 minutes following a decision point against a centered treatment indicator, controlling for step count in the 30 minutes prior to the decision point. 
+\section{Jawbone Step Count}
+We wish to regress step count in the 30 minutes following a decision point against a centered treatment indicator, controlling for step count in the 30 minutes prior to the decision point. Before we do this, we summarize features of and missingness in these variables.
 
 <<step-descriptives, include = FALSE>>=
 user.days <- aggregate(start.udate ~ user, data = jawbone, FUN = unique)
 ids <- unique(suggest$user)
-sapply(ids, function(x) {
+user.nojb <- sapply(ids, function(x) {
+  index <- which(user.days$user == x)
   sum(!(unique(suggest$study.date[suggest$user == x & suggest$travel == F]) %in% 
-          user.days$start.udate[[ifelse(x < 10, paste('0', x, sep = ""), paste(x))]]))
+          user.days$start.udate[[ifelse(index < 10, paste('0', index, sep = ""), paste(index))]]))
 })
 @
 
 \begin{itemize}
   \item Step count in the 30 minutes following a decision point is missing for \Sexpr{sum(is.na(suggest$jbsteps30))} out of \Sexpr{dim(suggest)[1]} treatment occasions (\Sexpr{round(sum(is.na(suggest$jbsteps30) / dim(suggest)[1]), 3) * 100}\% missing).
   \item Step count in the 30 minutes prior to a decision point is missing for \Sexpr{sum(is.na(suggest$jbsteps30pre))} out of \Sexpr{dim(suggest)[1]} treatment occasions (\Sexpr{round(sum(is.na(suggest$jbsteps30pre) / dim(suggest)[1]), 3) * 100}\% missing).
-  \item 
 \end{itemize}
 
-<<stepsfit, echo = FALSE, include = FALSE>>=
-# days <- 1:42
-# fit <- function(y) {
-#   d <- subset(suggest, study.day.nogap %in% days)
-#   y <- substitute(y)
-#   y <- eval(y, d)
-#   d <- d[!is.na(y), ]
-#   d$send.cent <- as.factor(as.numeric(d$send) - .6)
-#   # ids <- with(subset(suggest, !is.na(y)))
-#   fit <- geeglm(y ~ jbsteps30pre + send.cent, id = user,
-#                 weights = as.numeric(avail), data = d, scale.fix = TRUE)
-#   combos <- do.call("rbind",
-#                     lapply(days,
-#                            function(x) grepl(paste("^send.cent0.4(|.+\\)", x, ")$",
-#                                                    sep = ""), names(fit1$coef))))
-#   list(est = estimate(fit, combos), n = length(fit$geese$clusz))
-# }
-# f30 <- fit(jbsteps30)
-# f60 <- fit(steps60.spl)
-@ 
+When step count is missing, we impute zero.
 
+The following plot shows the number of days on which step count is \textit{completely} missing for each user. Bar labels give the percentage of missing days relative to total days on-study (excluding travel). Overall, 
+\Sexpr{round(sum(user.nojb) / sum(aggregate(study.day.nogap ~ user, data = suggest, max, na.rm = T)), 3) * 100}\% of person-days are completely missing in Jawbone step count.
+<<missing-step-plot, fig.height=3>>=
+text(barplot(height = user.nojb, names.arg = ids, ylim = c(0, 27),
+             xlab = "User", ylab = "Days Missing Step Count"),
+     user.nojb + 1,
+     labels = round(user.nojb / 
+                      aggregate(study.day.nogap ~ user, data = suggest,
+                                FUN = max)$study.day.nogap * 100, 1), cex = .7)
+@
+We notice large spikes of missingness for users 14 and 35.
+\begin{itemize}
+  \item User 14 went on vacation to Hawaii, and the dates of this trip could not be confirmed by study organizers. It may be reasonable to believe that she did not wear the Jawbone while on this trip. 
+  \item User 35 has no Jawbone data after 18 days on-study. He dropped out of communication with study organizers; we believe this is due to a lost Jawbone. We do have Google Fit data which, when Jawbone data is available, is highly correlated with Jawbone step count 
+  ($\hat{\rho}$ = \Sexpr{with(suggest[suggest$user == 35 & !is.na(suggest$jbsteps30), ], round(cor(jbsteps30, gfsteps30), 3))}). 
+\end{itemize}
+
+\section{Modeling and Results}
+
+<<stepsmodel-setup, echo = FALSE>>=
+fit <- function(formula, combos = NULL) {
+  # d <- subset(suggest, user %in% ids & study.day.nogap %in% days)
+  d <- subset(suggest, study.day.nogap %in% days)
+  
+  d$send.center      <- as.factor(as.numeric(d$send) - .6)
+  d$jbsteps30.log    <- log(d$jbsteps30.zero + .5)
+  d$jbsteps30pre.log <- log(d$jbsteps30pre.zero + .5)
+  
+  formula <- substitute(formula)
+  
+  fit <- geeglm(formula = formula, id = user, weights = as.numeric(avail),
+                data = d, scale.fix = T)
+  
+  temp <- bread.geeglm(fit)
+  fit$var <- temp %*% meat.geeglm(fit, g = NULL, gn = NULL, small = TRUE) %*% t(temp)
+  fit
+}
+@
+
+Preliminary analysis using only participants on-study for at least \Sexpr{max(days) + 1} days ($n$ = \Sexpr{length(ids)}). 
+
+\subsection*{Model 1}
+\[
+  Y_{t+1} \sim \alpha_{0} + \alpha_{1} Z_{t} + \beta_{0}\left( A_{t} - 0.6 \right),
+\]
+where 
+\begin{itemize}
+  \item $Y_{t+1}$ is log-transformed total Jawbone step count in the 30 minutes following the $t^{\text{th}}$ treatment occasion,
+  \item $Z_{t}$ is log-transformed total Jawbone step count in the 30 minutes prior to the $t^{\text{th}}$ treatment occasion, and
+  \item $A_{t}$ is an indicator of whether or not treatment was provided at occasion $t$.
+\end{itemize}
+
+<<stepsmodel-0, results="asis">>=
+fit0 <- fit(jbsteps30.log ~ jbsteps30pre.log + send.center)
+names(fit0$coef) <- c("$\\alpha_{0}$", "$\\alpha_{1}$", "$\\beta_{0}$")
+print(xtable(estimate(fit0, ztest = FALSE), floating = FALSE, digits = 3), 
+      sanitize.rownames.function = identity)
+@
+
+\subsection*{Model 2}
+\[
+  Y_{t+1} \sim \alpha_{0} + \alpha_{1} d(t) + \alpha_{2} Z_{t} + \beta_{0} \left(A_{t} - 0.6\right) + \beta_{1} d(t) \left(A_{t} - 0.6\right),
+\]
+where
+\begin{itemize}
+  \item $Y_{t+1}$ is log-transformed total Jawbone step count in the 30 minutes following the $t^{\text{th}}$ treatment occasion,
+  \item $d(t)$ is the index of the day on which the $t^{\text{th}}$ treatment occasion occurred, ranging from 0 to 41,
+  \item $Z_{t}$ is log-transformed total Jawbone step count in the 30 minutes prior to the $t^{\text{th}}$ treatment occasion, and
+  \item $A_{t}$ is an indicator of whether or not treatment was provided at occasion $t$.
+\end{itemize}
+
+<<stepsmodel-1, results = "asis">>=
+fit1 <- fit(jbsteps30.log ~ study.day.nogap + jbsteps30pre.log + 
+              send.center + study.day.nogap:send.center)
+names(fit1$coef) <- c("$\\alpha_{0}$", "$\\alpha_{1}$", "$\\alpha_{2}$",
+                          "$\\beta_{0}$", "$\\beta_{1}$")
+print(xtable(estimate(fit1, ztest = FALSE), floating = FALSE, digits = 3), 
+      sanitize.rownames.function = identity)
+@
 
 \end{document}

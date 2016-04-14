@@ -455,10 +455,11 @@ fit <- function(y) {
                     lapply(days,
                            function(x) grepl(paste("^sendTRUE(|.+\\)", x, ")$",
                                                    sep = ""), names(fit$coef))))
-  list(est = estimate(fit, combos), n = length(fit$geese$clusz))
+  list(model = fit, est = estimate(fit, combos), n = length(fit$geese$clusz))
 }
-f30 <- fit(steps30.spl)
-f60 <- fit(steps60.spl)
+f30 <- fit(jbsteps30)
+# f30 <- fit(steps30.s)
+# f60 <- fit(steps60.spl)
 @ 
 A very rough assessment of the effect of sending a suggestion on the step count within 30 minutes of the decision time is depicted by study day below.  For a given study day, the $y$-value of point displayed corresponds to the additional number of steps achieved, on average, by sending a suggestion.  These results are based on \Sexpr{with(f30, n)} users over \Sexpr{rev(days)[1]} study days, omitting the day of intake and any days after the planned exit date.  We say ``very rough'' for a variety of reasons:
 \begin{itemize}
