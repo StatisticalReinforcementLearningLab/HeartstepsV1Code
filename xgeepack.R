@@ -322,7 +322,7 @@ estimate <- function(fit, combos = NULL, var = fit$var, ztest = TRUE,
   out <- cbind(est, lcl, ucl, se.est, pvalue)
   rownames(out) <- rownames(combos)
   colnames(out) <- c("Estimate", "95% LCL", "95% UCL", "SE", "p-value")
-  class(out) <- "estimate"
+  class(out) <- c("matrix", "estimate")
   out
 }
 
