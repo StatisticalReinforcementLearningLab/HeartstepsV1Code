@@ -258,8 +258,7 @@ We notice large spikes of missingness for users 14 and 35.
 
 <<stepsmodel-setup, echo = FALSE>>=
 fit <- function(formula, combos = NULL) {
-  # d <- subset(suggest, user %in% ids & study.day.nogap %in% days)
-  d <- subset(suggest, study.day.nogap %in% days)
+  d <- subset(suggest, !is.na(study.day.nogap) & user %in% ids)
   
   d$send.center      <- as.factor(as.numeric(d$send) - .6)
   d$jbsteps30.log    <- log(d$jbsteps30.zero + .5)
