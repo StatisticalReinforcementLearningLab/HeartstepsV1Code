@@ -222,8 +222,8 @@ We wish to regress step count in the 30 minutes following a decision point again
 
 <<step-descriptives, include = FALSE>>=
 user.days <- aggregate(start.udate ~ user, data = jawbone, FUN = unique)
-ids <- unique(suggest$user)
-user.nojb <- sapply(ids, function(x) {
+user.ids <- unique(suggest$user)
+user.nojb <- sapply(user.ids, function(x) {
   index <- which(user.days$user == x)
   sum(!(unique(suggest$study.date[suggest$user == x & suggest$travel == F]) %in% 
           user.days$start.udate[[ifelse(index < 10, paste('0', index, sep = ""), paste(index))]]))
