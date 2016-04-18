@@ -389,6 +389,11 @@ suggest$avail <- with(suggest, connect & !snooze.status & !intransit)
 ## send status; like 'notify', but corrected for prefetch issues
 suggest$send <- with(suggest, (avail & is.randomized) | !is.na(response))
 
+## Suggestion type: Active vs. Sedentary vs. None
+suggest$tag.sedentary <- !(suggest$tag.active)
+suggest$tag.active[is.na(suggest$tag.active)] <- FALSE
+suggest$tag.sedentary[is.na(suggest$tag.sedentary)] <- FALSE
+
 suggest <- suggest[with(suggest, order(user, decision.index)), ]
 
 ## --- step counts by slots, useful for constructing the proximal outcome
