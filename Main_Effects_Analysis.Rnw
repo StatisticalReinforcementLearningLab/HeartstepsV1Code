@@ -260,7 +260,7 @@ We notice large spikes of missingness for users 14 and 35.
 fit <- function(formula, combos = NULL) {
   d <- subset(suggest, !is.na(study.day.nogap) & user %in% ids)
   
-  d$send.center      <- as.factor(as.numeric(d$send) - .6)
+  d$send.center      <- as.numeric(d$send) - .6
   d$jbsteps30.log    <- log(d$jbsteps30.zero + .5)
   d$jbsteps30pre.log <- log(d$jbsteps30pre.zero + .5)
   
@@ -314,6 +314,15 @@ names(fit1$coef) <- c("$\\alpha_{0}$", "$\\alpha_{1}$", "$\\alpha_{2}$",
                           "$\\beta_{0}$", "$\\beta_{1}$")
 print(xtable(estimate(fit1, ztest = FALSE), floating = FALSE, digits = 3), 
       sanitize.rownames.function = identity)
+@
+
+<<stepsmodel-2, results = "asis">>=
+# fit2 <- fit(jbsteps30.log ~ study.day.nogap + jbsteps30pre.log + 
+#               send.center:tag.active + study.day.nogap:send.center)
+# names(fit1$coef) <- c("$\\alpha_{0}$", "$\\alpha_{1}$", "$\\alpha_{2}$",
+#                           "$\\beta_{0}$", "$\\beta_{1}$")
+# print(xtable(estimate(fit1, ztest = FALSE), floating = FALSE, digits = 3), 
+#       sanitize.rownames.function = identity)
 @
 
 \end{document}
