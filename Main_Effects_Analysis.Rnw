@@ -331,7 +331,6 @@ for (i in 1:length(bandwidth)) {
   title(main = paste("Bandwidth:", bandwidth[i]), cex = .3)
 }
 @
-@
 
 
 <<spaghettiplot, fig.cap="Mean difference in proximal step count following a suggestion vs. folllwing no suggestion, by particpant. The y-axis is truncated below at -3000 steps", fig.align = "H">>=
