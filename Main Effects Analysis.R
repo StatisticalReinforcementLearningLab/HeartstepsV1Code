@@ -1,16 +1,20 @@
 ### MAIN EFFECTS ANALYSIS FOR HEARTSTEPS ###
 
-#### Load helper functions and data frames ####
+##### Setup #####
+
+## Load helper functions and data frames
 source("init.R")
 setwd(sys.var$mbox.data)
 load("csv.RData")
 load("analysis.RData")
 setwd(sys.var$repo)
 
-# Formatting
+## Formatting choices
+par(mar = c(3, 3, 1, 0) + 0.5, mgp = c(2, 0.5, 0), oma = rep(0, 4), las = 1, tcl = 0.25)
 color <- "royalblue1"
 
-#### Time inclusion criteria ####
+##### Time inclusion criteria #####
+
 ## Decide minimum time on study for inclusion in analysis
 ## and subset data to exclude participants who don't meet the threshold. Note that 
 ## NOTE: to save memory, subsetting is always done on-the-fly: the data frame 
@@ -99,3 +103,72 @@ fit <- function(formula, combos = NULL, data = eval(d)) {
   fit
 }
 
+## Model 1: No time effect
+model1 <- fit(jbsteps30.log ~ jbsteps30pre.log + send.center)
+estimate(model1, ztest = FALSE)
+
+## Model 2: Linear day-on-study effect and interaction between linear 
+## day on study and centered treatment status
+model2 <- fit(jbsteps30.log ~ study.day.nogap + jbsteps30pre.log + 
+                send.center + study.day.nogap:send.center,
+              data = subset(eval(d), jbsteps30 != 0 & jbsteps30pre != 0))
+estimate(model2, ztest = FALSE)
+
+
+##### Time Trend Analysis #####
+
+## Minimal model: intercept and step count in prior 30 minutes. First, use all
+## participants, then split by treated/untreated
+minmod       <- fit(jbsteps30.log ~ jbsteps30pre.log)
+minmod.send0 <- fit(jbsteps30.log ~ jbsteps30pre.log, 
+                    data = subset(eval(d), send == F))
+minmod.send1 <- fit(jbsteps30.log ~ jbsteps30pre.log,
+                    data = subset(eval(d), send == T))
+
+#### LOESS plots
+span <- c(.09, .3)
+sample <- sample(1:length(minmod$residuals), ceiling(.5 * length(minmod$residuals)))
+par(mfrow = c(1, length(span)), mar = c(0, 0, 2, 0), oma = c(4, 4, 1, 1), 
+    mgp = c(2, 0.6, 0), font.main = 1)
+
+## Main effect of day on study
+for (i in 1:length(span)) {
+  plot(minmod$residuals[sample] ~ eval(d)$study.day.nogap[sample], axes = F,
+       xlab = "", ylab = "", main = "", type = "p", xlim = c(0, 41))
+  box(col = "grey40")
+  axis(side = 1, outer = T, cex = .6)
+  lines(with(subset(eval(d), avail == T), 
+             predict(loess(minmod$residuals[eval(d)$avail == T] ~ study.day.nogap,
+                           span = span[i]))),
+        col = color, lwd = 6)
+  if (i == 1) {
+    axis(side = 2, outer = T, cex = .6)
+    title(ylab = "Residual", outer = T)
+    mtext("Study Day", side = 1, outer = T, line = 2.5)
+  }
+  title(main = paste("Span:", span[i]), cex = .3)
+}
+
+## Interaction of day on study with treatment
+for (i in 1:length(span)) {
+  plot(minmod$residuals[sample] ~ eval(d)$study.day.nogap[sample], axes = F,
+       xlab = "", ylab = "", main = "", type = "p", xlim = c(0, 41))
+  box(col = "grey40")
+  axis(side = 1, outer = T, cex = .6)
+  lines(with(subset(eval(d), avail == T), 
+             predict(loess(minmod.send1$residuals[send == T] ~ 
+                             study.day.nogap[send == T & avail == T],
+                           span = span[i]),
+                     newdata = seq(0, 41)) - 
+               predict(loess(minmod.send0$residuals[send == F] ~
+                               study.day.nogap[send == F & avail == T],
+                             span = span[i]),
+                       newdata = seq(0, 41))),
+        col = color, lwd = 6)
+  if (i == 1) {
+    axis(side = 2, outer = T, cex = .6)
+    title(ylab = "Residual", outer = T)
+    mtext("Study Day", side = 1, outer = T, line = 2.5)
+  }
+  title(main = paste("Span:", span[i]), cex = .3)
+}
