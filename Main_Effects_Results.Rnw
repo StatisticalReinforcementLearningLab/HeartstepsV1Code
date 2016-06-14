@@ -53,7 +53,7 @@
 \thispagestyle{empty}
 
 <<setup, include = FALSE, cache = FALSE>>=
-opts_chunk$set(fig.align="center", dev="tikz", dev.args=list(pointsize=11), echo=FALSE, fig.width=6.5, fig.height = 3.5, fig.show="hold", par=TRUE)
+opts_chunk$set(fig.align = "center", dev = "tikz", dev.args = list(pointsize=11), echo = FALSE, fig.width = 6.5, fig.height = 3.5, fig.show = "hold", par = TRUE)
 knit_hooks$set(par = function(before, options, envir){
   if (before && options$fig.show != "none")
     par(mar = c(3, 3, 1, 0) + 0.5, mgp = c(2, 0.5, 0), oma = rep(0, 4), las = 1, tcl = 0.25)})
@@ -61,20 +61,8 @@ knit_hooks$set(inline = function(x){if (is.numeric(x)) round(x, 2) else x})
 @
 
 <<data, echo = FALSE, include = FALSE>>=
-source("init.R")
-setwd(sys.var$mbox.data)
-load("csv.RData")
-load("analysis.RData")
-setwd(sys.var$repo)
-color <- "royalblue1"
+source("Main Effects Analysis.R")
 color.name <- "blue"
-@
-
-<<inclusion-parameters>>=
-days <- 0:35
-ids  <- unique(suggest$user[suggest$study.day.nogap == rev(days)[1] &
-                              !is.na(suggest$study.day.nogap)])
-d    <- quote(subset(suggest, !is.na(study.day.nogap) & user %in% ids))
 @
 
 \section{Participants Excluded}
@@ -134,16 +122,6 @@ After removing travel dates, participant time series were spliced together. For 
 \section{Jawbone Step Count}
 We wish to regress step count in the 30 minutes following a decision point against a centered treatment indicator, controlling for step count in the 30 minutes prior to the decision point. Before we do this, we summarize features of and missingness in these variables.
 
-<<step-descriptives, include = FALSE>>=
-user.days <- aggregate(start.udate ~ user, data = jawbone, FUN = unique)
-user.ids <- unique(suggest$user)
-user.nojb <- sapply(user.ids, function(x) {
-  index <- which(user.days$user == x)
-  sum(!(unique(suggest$study.date[suggest$user == x & suggest$travel == F]) %in% 
-          user.days$start.udate[[ifelse(index < 10, paste('0', index, sep = ""), paste(index))]]))
-})
-@
-
 \begin{itemize}
   \item Step count in the 30 minutes following a decision point is missing for \Sexpr{sum(is.na(suggest$jbsteps30))} out of \Sexpr{dim(suggest)[1]} treatment occasions (\Sexpr{round(sum(is.na(suggest$jbsteps30) / dim(suggest)[1]), 3) * 100}\% missing).
   \item Step count in the 30 minutes prior to a decision point is missing for \Sexpr{sum(is.na(suggest$jbsteps30pre))} out of \Sexpr{dim(suggest)[1]} treatment occasions (\Sexpr{round(sum(is.na(suggest$jbsteps30pre) / dim(suggest)[1]), 3) * 100}\% missing).
@@ -154,14 +132,7 @@ When step count is missing, we impute zero.
 The following plot shows the number of days on which step count is \textit{completely} missing for each user. Bar labels give the percentage of missing days relative to total days on-study (excluding travel). Overall, 
 \Sexpr{round(sum(user.nojb) / sum(aggregate(study.day.nogap ~ user, data = suggest, max, na.rm = T)), 3) * 100}\% of person-days are completely missing in Jawbone step count.
 <<missing-step-plot, fig.height=3, out.width="\\textwidth">>=
-text(barplot(height = user.nojb, names.arg = user.ids, ylim = c(0, 27),
-             xlab = "User", ylab = "Days Missing Step Count"),
-     user.nojb + 1,
-     labels = sapply(as.character(round(user.nojb / 
-                      aggregate(study.day.nogap ~ user, data = suggest,
-                                FUN = max)$study.day.nogap * 100, 1)),
-                     function(x) ifelse(x != "0", paste0(x, "\\%"), "")),
-     cex = .6)
+replayPlot(missing.step.plot)
 @
 We notice large spikes of missingness for users 14 and 35.
 \begin{itemize}
@@ -171,26 +142,6 @@ We notice large spikes of missingness for users 14 and 35.
 \end{itemize}
 
 \section{Modeling and Results}
-
-<<fitfunction, echo = FALSE>>=
-fit <- function(formula, combos = NULL, data = eval(d)) {
-  d <- data
-  
-  d$send.center        <- as.numeric(d$send) - .6
-  d$jbsteps30.log      <- log(d$jbsteps30.zero + .5)
-  d$jbsteps30pre.log   <- log(d$jbsteps30pre.zero + .5)
-  d$study.day.nogap.sq <- d$study.day.nogap ^ 2
-  
-  formula <- substitute(formula)
-
-  fit <- geeglm(formula = formula, id = user, weights = as.numeric(avail),
-                data = d, scale.fix = T)
-  
-  temp <- bread.geeglm(fit)
-  fit$var <- temp %*% meat.geeglm(fit, g = NULL, gn = NULL, small = TRUE) %*% t(temp)
-  fit
-}
-@
 
 Preliminary analysis using only participants on-study for at least \Sexpr{max(days) + 1} days ($n$ = \Sexpr{length(ids)}). 
 
@@ -206,10 +157,9 @@ where
   \item $A_{t}$ is an indicator of whether or not treatment was provided at occasion $t$.
 \end{itemize}
 
-<<stepsmodel-0, results = "asis", cache = T>>=
-fit0 <- fit(jbsteps30.log ~ jbsteps30pre.log + send.center)
-names(fit0$coef) <- c("$\\alpha_{0}$", "$\\alpha_{1}$", "$\\beta_{0}$")
-print(xtable(estimate(fit0, ztest = FALSE), floating = FALSE, digits = 3), 
+<<model1-no_time_effect, results = "asis", cache = T>>=
+names(model1$coef) <- c("$\\alpha_{0}$", "$\\alpha_{1}$", "$\\beta_{0}$")
+print(xtable(estimate(model1, ztest = FALSE), floating = FALSE, digits = 3), 
       sanitize.rownames.function = identity)
 @
 
@@ -226,12 +176,10 @@ where
   \item $A_{t}$ is an indicator of whether or not treatment was provided at occasion $t$.
 \end{itemize}
 
-<<stepsmodel-1, results = "asis", cache = T>>=
-fit1 <- fit(jbsteps30.log ~ study.day.nogap + jbsteps30pre.log + 
-              send.center + study.day.nogap:send.center)
-names(fit1$coef) <- c("$\\alpha_{0}$", "$\\alpha_{1}$", "$\\alpha_{2}$",
-                          "$\\beta_{0}$", "$\\beta_{1}$")
-print(xtable(estimate(fit1, ztest = FALSE), floating = FALSE, digits = 3), 
+<<model2-time_effect, results = "asis", cache = T>>=
+names(model2$coef) <- c("$\\alpha_{0}$", "$\\alpha_{1}$", "$\\alpha_{2}$",
+                        "$\\beta_{0}$", "$\\beta_{1}$")
+print(xtable(estimate(model2, ztest = FALSE), floating = FALSE, digits = 3), 
       sanitize.rownames.function = identity)
 @
 
@@ -255,139 +203,52 @@ where
 As always, we weight by availability. Below we present plots of the residuals versus time, with a LOESS smoother drawn in \Sexpr{color.name} for different, small bandwidths.
 
 <<timemodel, results = "asis", cache = T>>=
-timefit1 <- fit(jbsteps30.log ~ jbsteps30pre.log)
-names(timefit1$coef) <- c("$\\alpha_{0}$", "$\\alpha_{1}$")
-print(xtable(estimate(timefit1, ztest = FALSE), floating = FALSE, digits = 3,
+names(minmod$coef) <- c("$\\alpha_{0}$", "$\\alpha_{1}$")
+print(xtable(estimate(minmod, ztest = FALSE), floating = FALSE, digits = 3,
              caption = "Fitted Coefficients for Model~\\ref{eqn:resid-model}"), 
       sanitize.rownames.function = identity)
 @
 
 <<timemodel-resid, fig.cap = "Plot of Residuals vs. Study Day with Loess Smoothers with Varying, Small Bandwidths ", fig.pos="H">>=
-bandwidth <- c(.071, .3)
-sample <- sample(1:length(timefit1$residuals), ceiling(.35 * length(timefit1$residuals)))
-
-par(mfrow = c(1, length(bandwidth)), mar = c(0, 0, 2, 0), oma = c(4, 4, 1, 1), 
+par(mfrow = c(1, length(span)), mar = c(0, 0, 2, 0), oma = c(4, 4, 1, 1), 
     mgp = c(2, 0.6, 0), font.main = 1)
-
-for (i in 1:length(bandwidth)) {
-  plot(timefit1$residuals[sample] ~ eval(d)$study.day.nogap[sample], axes = F,
-       xlab = "", ylab = "", main = "", type = "p")
-  box(col = "grey40")
-  axis(side = 1, outer = T, cex = .6)
-  lines(with(eval(d), 
-             predict(loess(timefit1$residuals ~ study.day.nogap,
-                span = bandwidth[i]))),
-        col = color, lwd = 6)
-  if (i == 1) {
-    axis(side = 2, outer = T, cex = .6)
-    title(ylab = "Residual", outer = T)
-    mtext("Study Day", side = 1, outer = T, line = 2.5)
-  }
-  title(main = paste("Bandwidth:", bandwidth[i]), cex = .3)
-}
+replayPlot(loess.plot.main)
 @
 
 There may be a small amount of curvature in the loess smoothers, indicating a quadratic effect; however, the degree of curvature is so slight as to likely be negligible.
 
 \subsection{Interaction with Treatment}
-Here, we again run model~\ref{eqn:resid-model}, first using only availble times for which $A_{t} = 1$ and then again using available times for which $A_{t} = 0$. We use LOESS smoothing on the residuals from each model separately, then take the difference to inform the functional form of the time-treatment interaction.
+Here, we again run model~\ref{eqn:resid-model}, first using only availble times for which $A_{t} = 1$ and then again using available times for which $A_{t} = 0$. We use LOESS smoothing on the residuals from each model separately (using only residuals from available decision points), then take the difference to inform the functional form of the time-treatment interaction.
 
 <<timemodel-interaction, results = "asis", cache = T>>=
-timefit2 <- fit(jbsteps30.log ~ jbsteps30pre.log, data = subset(eval(d), send == T))
-names(timefit2$coef) <- c("$\\alpha_{0}$", "$\\alpha_{1}$")
-print(xtable(estimate(timefit2, ztest = FALSE), floating = FALSE, digits = 3,
+names(minmod.send0$coef) <- c("$\\alpha_{0}$", "$\\alpha_{1}$")
+print(xtable(estimate(minmod.send0, ztest = FALSE), floating = FALSE, digits = 3,
              caption = "Fitted Coefficients for Model~\\ref{eqn:resid-model} when $A_{t} = 1$"), 
       sanitize.rownames.function = identity)
 
-timefit3 <- fit(jbsteps30.log ~ jbsteps30pre.log, data = subset(eval(d), send == F))
-names(timefit3$coef) <- c("$\\alpha_{0}$", "$\\alpha_{1}$")
-print(xtable(estimate(timefit3, ztest = FALSE), floating = FALSE, digits = 3,
+names(minmod.send1$coef) <- c("$\\alpha_{0}$", "$\\alpha_{1}$")
+print(xtable(estimate(minmod.send1, ztest = FALSE), floating = FALSE, digits = 3,
              caption = "Fitted Coefficients for Model~\\ref{eqn:resid-model} when $A_{t} = 0$"), 
       sanitize.rownames.function = identity)
 @
 
-<<timemodel-interaction-resid-1, fig.pos = "H", include = F>>=
-sample <- sample(1:length(timefit2$residuals), ceiling(.35 * length(timefit2$residuals)))
-
-par(mfrow = c(1, length(bandwidth)), mar = c(0, 0, 2, 0), oma = c(4, 4, 1, 1), 
+<<timemodel-interaction-resid-1, fig.pos = "H">>=
+par(mfrow = c(1, length(span)), mar = c(0, 0, 2, 0), oma = c(4, 4, 1, 1),
     mgp = c(2, 0.6, 0), font.main = 1)
 
-for (i in 1:length(bandwidth)) {
-  plot(timefit2$residuals[sample] ~ eval(d)$study.day.nogap[eval(d)$send == T][sample], axes = F,
-       xlab = "", ylab = "", main = "", type = "n")
-  box(col = "grey40")
-  axis(side = 1, outer = T, cex = .6)
-  lines(with(eval(d), 
-             predict(loess(timefit2$residuals ~ study.day.nogap[send == T],
-                span = bandwidth[i])) - 
-               predict(loess(timefit3$residuals ~ study.day.nogap[send == F],
-                span = bandwidth[i]))),
-        col = color, lwd = 6)
-  if (i == 1) {
-    axis(side = 2, outer = T, cex = .6)
-    title(ylab = "Residual", outer = T)
-    mtext("Study Day", side = 1, outer = T, line = 2.5)
-  }
-  title(main = paste("Bandwidth:", bandwidth[i]), cex = .3)
-}
+replayPlot(loess.plot.intr)
 @
-
 
 <<spaghettiplot, fig.cap="Mean difference in proximal step count following a suggestion vs. folllwing no suggestion, by particpant. The y-axis is truncated below at -3000 steps", fig.align = "H">>=
-x <- aggregate(jbsteps30.zero ~ send + study.day.nogap + user,
-               data = subset(suggest, !is.na(study.day.nogap) & study.day.nogap <= 41 &
-                               user %in% ids),
-               FUN = mean)
-y <- aggregate(jbsteps30.zero ~ study.day.nogap + user, data = x, FUN = diff)
-
-with(y[which(sapply(y$jbsteps30.zero, length) == 1), ],
-     interaction.plot(x.factor = study.day.nogap, trace.factor = user,
-                      response = as.numeric(jbsteps30.zero),
-                      ylim = c(-3000, 3000), legend = F, cex.axis = .6, 
-                      xlab = "Study Day (excluding travel)",
-                      ylab = "Mean Difference in Proximal Step Count"))
-
-## Compute number of person-days on which either a suggestion was sent
-## at every available decision time or no suggestions were sent 
-## z is "NaN" if person was never available)
-z <- apply(y[which(sapply(y$jbsteps30.zero, length) == 0), ], 1,
-           function(x){
-             sum(with(suggest, 
-                      send[study.day.nogap == x[1] & user == x[2] & avail == T]), na.rm = T) /
-             sum(with(suggest, avail[study.day.nogap == x[1] & user == x[2]]), na.rm = T)
-             })
-rm(x, y, z)
+replayPlot(spaghetti.plot)
 @
 
-
-<<availplot, out.width=".7\\textwidth">>=
-# Create plot of percent unavailability at each decision point
-## Count number of people available at each decision index 
-y <- aggregate(avail ~ decision.index.nogap,  data = eval(d), FUN = sum)
-## Count number of people currently walking at each decision index and merge with above
-y <- merge(y, aggregate(recognized.activity ~ decision.index.nogap,
-                        data = eval(d), FUN = function(x) sum(x == "ON_FOOT")),
-           by = "decision.index.nogap")
-## Merge above with total number of people on-study at each decision point
-y <- merge(y, as.data.frame(table(eval(d)$decision.index.nogap)),
-           by.x = "decision.index.nogap", by.y = "Var1")
-## Compute percent unavailable and percent walking (latter is only among unavailable people)
-y <- cbind(y, "percent.unavail" = 1 - y$avail / y$Freq, "percent.intransit" = y$recognized.activity / y$Freq)
-
-plot(y$percent.unavail ~ y$decision.index.nogap, type = "l",
-     xlim = c(0, 209), lwd = 2,
-     xlab = "Decision Point", ylab = "Proportion of Participants")
-lines(y$percent.intransit ~ y$decision.index.nogap, type = "l", xlim = c(0,209), col = color)
-legend("topright", legend = c("Any-Cause Unavailability", "Unavailbility due to Walking"), 
-       lwd = c(2, 1), col = c("black", color))
-rm(y)
+<<spaghettiplot-mean, fig.cap="Mean difference in proximal step count following a suggestion vs. folllwing no suggestion, averaged over all particpants, and smoothed using LOESS.", fig.align = "H">>=
+replayPlot(spaghetti.mean.plot)
 @
 
-<<activesedmod, include = F>>=
-suggfit <- fit(jbsteps30.log ~ jbsteps30pre.log )
-names(timefit1$coef) <- c("$\\alpha_{0}$", "$\\alpha_{1}$")
-print(xtable(estimate(timefit1, ztest = FALSE), floating = FALSE, digits = 3), 
-      sanitize.rownames.function = identity)
+<<availplot>>=
+replayPlot(avail.plot)
 @
 
 \end{document}

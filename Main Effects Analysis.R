@@ -54,6 +54,7 @@ text(barplot(height = user.nojb, names.arg = unique(suggest$user), ylim = c(0, 2
                                                     FUN = max)$study.day.nogap * 100, 1)),
                      function(x) ifelse(x != "0", paste0(x, "\\%"), "")),
      cex = .6)
+missing.step.plot <- recordPlot()
 
 ## Average proximal step counts by day, user, and whether or not a suggestion
 ## was delivered (only for six weeks, and only among available times)
@@ -62,23 +63,63 @@ x <- aggregate(jbsteps30.zero ~ send + study.day.nogap + user,
                                user %in% ids & avail == T),
                FUN = mean)
 x <- x[with(x, order(user, study.day.nogap, send)), ]
+x$jbsteps30.log <- log(x$jbsteps30.zero + .5)
+y <- aggregate(jbsteps30.zero ~ study.day.nogap + user, data = x, FUN = diff)
+y1 <- aggregate(jbsteps30.log ~ study.day.nogap + user, data = x, FUN = diff)
 
-x1$jbsteps30.zero <- log(x1$jbsteps30.zero + .5)
-y <- aggregate(jbsteps30.zero ~ study.day.nogap + user, data = x1, FUN = diff)
-
+## Spaghetti plot of mean difference in proximal step count 
+## (send vs. no send) by user
 with(y[which(sapply(y$jbsteps30.zero, length) == 1), ],
      interaction.plot(x.factor = study.day.nogap, trace.factor = user,
                       response = as.numeric(jbsteps30.zero),
-                      ylim = c(-1000, 1000), legend = F, cex.axis = .6, 
+                      ylim = c(-3000, 3000), legend = F, cex.axis = .6, 
                       xlab = "Study Day (excluding travel)",
                       ylab = "Mean Difference in Proximal Step Count"))
+spaghetti.plot <- recordPlot()
 
-y1 <- aggregate(as.numeric(jbsteps30.zero) ~ study.day.nogap, data = y, FUN = mean)
+## Plot of mean difference in proximal step count (send vs. no send) averaged
+## over all users
+y1 <- aggregate(as.numeric(jbsteps30.log) ~ study.day.nogap, data = y1, FUN = mean)
 names(y1) <- c("day", "step.diff")
 with(y1, scatter.smooth(step.diff ~ day, type = "l", span = 2/3,
                         xlab = "Study Day (excluding travel)",
                         ylab = "Mean Difference in Log of Proximal Step Count",
                         lpars = list(lwd = 2, col = color)))
+spaghetti.mean.plot <- recordPlot()
+
+## Compute number of person-days on which either a suggestion was sent
+## at every available decision time or no suggestions were sent 
+## z is "NaN" if person was never available)
+z <- apply(y[which(sapply(y$jbsteps30.zero, length) == 0), ], 1,
+           function(x){
+             sum(with(suggest, 
+                      send[study.day.nogap == x[1] & user == x[2] & avail == T]), na.rm = T) /
+               sum(with(suggest, avail[study.day.nogap == x[1] & user == x[2]]), na.rm = T)
+           })
+
+rm(x, y, y1, z)
+
+# Create plot of percent unavailability at each decision point
+## Count number of people available at each decision index 
+y <- aggregate(avail ~ decision.index.nogap,  data = eval(d), FUN = sum)
+## Count number of people currently walking at each decision index and merge with above
+y <- merge(y, aggregate(recognized.activity ~ decision.index.nogap,
+                        data = eval(d), FUN = function(x) sum(x == "ON_FOOT")),
+           by = "decision.index.nogap")
+## Merge above with total number of people on-study at each decision point
+y <- merge(y, as.data.frame(table(eval(d)$decision.index.nogap)),
+           by.x = "decision.index.nogap", by.y = "Var1")
+## Compute percent unavailable and percent walking (latter is only among unavailable people)
+y <- cbind(y, "percent.unavail" = 1 - y$avail / y$Freq, "percent.intransit" = y$recognized.activity / y$Freq)
+
+plot(y$percent.unavail ~ y$decision.index.nogap, type = "l",
+     xlim = c(0, 209), lwd = 2,
+     xlab = "Decision Point", ylab = "Proportion of Participants")
+lines(y$percent.intransit ~ y$decision.index.nogap, type = "l", xlim = c(0,209), col = color)
+legend("topright", legend = c("Any-Cause Unavailability", "Unavailbility due to Walking"), 
+       lwd = c(2, 1), col = c("black", color))
+avail.plot <- recordPlot()
+rm(y)
 
 
 ##### Model Fitting #####
@@ -148,6 +189,7 @@ for (i in 1:length(span)) {
   }
   title(main = paste("Span:", span[i]), cex = .3)
 }
+loess.plot.main <- recordPlot()
 
 ## Interaction of day on study with treatment
 for (i in 1:length(span)) {
@@ -172,3 +214,4 @@ for (i in 1:length(span)) {
   }
   title(main = paste("Span:", span[i]), cex = .3)
 }
+loess.plot.intr <- recordPlot()
