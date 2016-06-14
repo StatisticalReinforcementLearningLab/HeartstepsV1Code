@@ -7,7 +7,7 @@ setwd(sys.var$mbox.data)
 ## --- administrative and interview data
 
 ## participant/user list
-participants <- read.data("HeartSteps Participant Directory.csv", list(user))
+participants <- read.data("Participant Directory.csv", list(user))
 participants$intake.interview.date <-
   char2date(participants$intake.interview.date, "%m/%d/%Y")
 participants$exit.interview.date <-
