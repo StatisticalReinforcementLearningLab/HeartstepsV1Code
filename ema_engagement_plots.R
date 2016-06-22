@@ -4,8 +4,6 @@ library(dplyr)
 library(gridExtra)
 library(grid)
 
-### ema_plots.R
-### Author: Brook Luers
 ### Plots the frequency of EMA engagements using the 'engage' data frame
 ### Creates 3 PDF files:
 ###     freq_engagements_heat.pdf   heatmap of relative freq. of engagements by user
