@@ -13,7 +13,7 @@ File | Description
 [workspace.analysis.R](workspace.analysis.R) | Create a workspace file containing data frames for summary and analysis. Loads csv.RData and analysis.RData, the R workspace files created respectively by [workspace.csv.R](workspace.csv.R) and [workspace.analysis.R](workspace.analysis.R).
 [workspace.csv.R](workspace.csv.R) | Create a R workspace file containing data frames for the source data files
 [xzoo.R](xzoo.R) | Extensions for the time series R package zoo. Loaded by [init.R](init.R).
-[ema_plots.R](ema_plots.R) | Create plots of EMA engagements. 
+[ema_engagement_plots.R](ema_engagement_plots.R) | Create plots of EMA engagements. 
 
 #### Getting started
 
