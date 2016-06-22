@@ -390,9 +390,8 @@ suggest$avail <- with(suggest, connect & !snooze.status & !intransit)
 suggest$send <- with(suggest, (avail & is.randomized) | !is.na(response))
 
 ## Suggestion type: Active vs. Sedentary vs. None
-suggest$tag.sedentary <- !(suggest$tag.active)
-suggest$tag.active[is.na(suggest$tag.active)] <- FALSE
-suggest$tag.sedentary[is.na(suggest$tag.sedentary)] <- FALSE
+suggest$send.active    <- (suggest$send & suggest$tag.active)
+suggest$send.sedentary <- (suggest$send & !suggest$tag.active)
 
 suggest <- suggest[with(suggest, order(user, decision.index)), ]
 
