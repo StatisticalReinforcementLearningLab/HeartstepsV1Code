@@ -1,3 +1,6 @@
+
+## This is the sloppy code I'm using to start messing around with time scales
+
 ## First I need to follow directions on github i.e. I need to run the two scripts to update the mbox files, always make sure I'm in the right directory first
 setwd("/tnecamp/Desktop/heartstep_personal/heartstepsdata")
 setwd("heartstepsdata")
