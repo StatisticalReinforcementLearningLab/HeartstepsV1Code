@@ -91,7 +91,7 @@ users <- merge(users,
 ## indicate users that just enrolled or dropped out,
 ## don't have their locale set to English
 users$days <- with(users, as.numeric(difftime(last.date, intake.date, "days")))
-users$exclude <- with(users, !en.locale | intake.date >= max.date | days < 7 |
+users$exclude <- with(users, !en.locale | intake.date >= max.date | days < 13 |
                              (intake.date + 42 < max.date & days < 10))
 users$user.index <- cumsum(!users$exclude)
 users$user.index[users$exclude] <- NA
@@ -444,18 +444,18 @@ gfslotpre <- gfslotpre[with(gfslotpre, order(user, end.utime)), ]
 
 temp <- with(jbslot, end.utime - decision.utime)
 suggest <- merge(suggest,
-                 aggregate(cbind(mins30 = temp <= 30 * 60,
+                 aggregate(cbind(jbmins30 = temp <= 30 * 60,
                                  jbsteps30 = steps * (temp <= 30 * 60),
-                                 mins60 = temp <= 60 * 60,
+                                 jbmins60 = temp <= 60 * 60,
                                  jbsteps60 = steps * (temp <= 60 * 60))
                            ~ decision.index + user, data = jbslot, FUN = sum),
                  by = c("user", "decision.index"), all.x = TRUE)
 
 temp <- with(gfslot, end.utime - decision.utime)
 suggest <- merge(suggest,
-                 aggregate(cbind(mins30 = temp <= 30 * 60,
+                 aggregate(cbind(gfmins30 = temp <= 30 * 60,
                                  gfsteps30 = steps * (temp <= 30 * 60),
-                                 mins60 = temp <= 60 * 60,
+                                 gfmins60 = temp <= 60 * 60,
                                  gfsteps60 = steps * (temp <= 60 * 60))
                            ~ decision.index + user, data = gfslot, FUN = sum),
                  by = c("user", "decision.index"), all.x = TRUE)
@@ -472,9 +472,9 @@ suggest$jbsteps60.zero[is.na(suggest$jbsteps60)] <- 0
 ## --- add steps counts 30 and 60 minutes PRIOR TO each decision point
 temp <- with(jbslotpre, decision.utime - end.utime)
 suggest <- merge(suggest,
-                 aggregate(cbind(mins30pre = (temp <= 30 * 60),
+                 aggregate(cbind(jbmins30pre = (temp <= 30 * 60),
                                  jbsteps30pre = steps * (temp <= 30 * 60),
-                                 mins60pre = (temp <= 60 * 60),
+                                 jbmins60pre = (temp <= 60 * 60),
                                  jbsteps60pre = steps * (temp <= 60 * 60))
                            ~ decision.index + user, data = jbslotpre, FUN = sum,
                            na.rm = TRUE),
@@ -482,9 +482,9 @@ suggest <- merge(suggest,
 
 temp <- with(gfslotpre, end.utime - decision.utime)
 suggest <- merge(suggest,
-                 aggregate(cbind(mins30 = temp <= 30 * 60,
+                 aggregate(cbind(gfmins30pre = temp <= 30 * 60,
                                  gfsteps30pre = steps * (temp <= 30 * 60),
-                                 mins60 = temp <= 60 * 60,
+                                 gfmins60pre = temp <= 60 * 60,
                                  gfsteps60pre = steps * (temp <= 60 * 60))
                            ~ decision.index + user, data = gfslotpre, FUN = sum,
                            na.rm = TRUE),
