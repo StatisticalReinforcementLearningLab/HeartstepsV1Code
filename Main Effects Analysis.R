@@ -5,8 +5,9 @@
 ## Load helper functions and data frames
 source("init.R")
 setwd(sys.var$mbox.data)
-load("csv.RData")
-load("analysis.RData")
+# load("csv.RData")
+# load("analysis.RData")
+load("analysis-small.RData")
 setwd(sys.var$repo)
 
 ## Formatting choices
@@ -22,7 +23,8 @@ color <- "royalblue1"
 days <- 0:35
 ids  <- unique(suggest$user[suggest$study.day.nogap == rev(days)[1] &
                               !is.na(suggest$study.day.nogap)])
-d    <- quote(subset(suggest, !is.na(study.day.nogap) & user %in% ids))
+d    <- quote(subset(suggest, !is.na(study.day.nogap) & user %in% ids &
+                       !(avail == F & send == T)))
 
 
 #### Describe missingness of Jawbone data #####
@@ -34,7 +36,7 @@ user.days <- aggregate(start.udate ~ user, data = jawbone, FUN = unique)
 
 ## Find number of days (excluding travel) for which each user has no Jawbone data.
 ## Note that the names of objects in user.days$start.udate have a leading zero.
-user.nojb <- sapply(unique(suggest$user), function(x) {
+user.nojb <- sapply(ids, function(x) {
   index <- which(user.days$user == x)
   sum(!(unique(suggest$study.date[suggest$user == x & suggest$travel == F]) %in% 
           user.days$start.udate[[ifelse(index < 10, paste0('0', index), paste(index))]]))
@@ -46,11 +48,11 @@ user.nojb <- sapply(unique(suggest$user), function(x) {
 ## Bar chart for number of days on which step count is completely missing/zero for
 ## each participant. Height of bar is number of days with no step count data,
 ## bar labels are percent of total days on study.
-text(barplot(height = user.nojb, names.arg = unique(suggest$user), ylim = c(0, 27),
+text(barplot(height = user.nojb, names.arg = ids, ylim = c(0, 27),
              xlab = "User", ylab = "Days Missing Step Count"),
      user.nojb + 1,
      labels = sapply(as.character(round(user.nojb / 
-                                          aggregate(study.day.nogap ~ user, data = suggest,
+                                          aggregate(study.day.nogap ~ user, data = eval(d),
                                                     FUN = max)$study.day.nogap * 100, 1)),
                      function(x) ifelse(x != "0", paste0(x, "\\%"), "")),
      cex = .6)
@@ -85,6 +87,7 @@ with(y1, scatter.smooth(step.diff ~ day, type = "l", span = 2/3,
                         xlab = "Study Day (excluding travel)",
                         ylab = "Mean Difference in Log of Proximal Step Count",
                         lpars = list(lwd = 2, col = color)))
+abline(0, 0, col = "gray50")
 spaghetti.mean.plot <- recordPlot()
 
 ## Compute number of person-days on which either a suggestion was sent
@@ -110,7 +113,8 @@ y <- merge(y, aggregate(recognized.activity ~ decision.index.nogap,
 y <- merge(y, as.data.frame(table(eval(d)$decision.index.nogap)),
            by.x = "decision.index.nogap", by.y = "Var1")
 ## Compute percent unavailable and percent walking (latter is only among unavailable people)
-y <- cbind(y, "percent.unavail" = 1 - y$avail / y$Freq, "percent.intransit" = y$recognized.activity / y$Freq)
+y <- cbind(y, "percent.unavail" = 1 - y$avail / y$Freq, 
+           "percent.intransit" = y$recognized.activity / y$Freq)
 
 plot(y$percent.unavail ~ y$decision.index.nogap, type = "l",
      xlim = c(0, 209), lwd = 2,
@@ -118,6 +122,7 @@ plot(y$percent.unavail ~ y$decision.index.nogap, type = "l",
 lines(y$percent.intransit ~ y$decision.index.nogap, type = "l", xlim = c(0,209), col = color)
 legend("topright", legend = c("Any-Cause Unavailability", "Unavailbility due to Walking"), 
        lwd = c(2, 1), col = c("black", color))
+
 avail.plot <- recordPlot()
 rm(y)
 
@@ -129,10 +134,8 @@ rm(y)
 fit <- function(formula, combos = NULL, data = eval(d)) {
   d <- data
   
-  d$send.center        <- as.numeric(d$send) - .6
-  d$jbsteps30.log      <- log(d$jbsteps30.zero + .5)
-  d$jbsteps30pre.log   <- log(d$jbsteps30pre.zero + .5)
-  d$study.day.nogap.sq <- d$study.day.nogap ^ 2
+  d$jbsteps30.log    <- log(d$jbsteps30.zero + .5)
+  d$jbsteps30pre.log <- log(d$jbsteps30pre.zero + .5)
   
   formula <- substitute(formula)
   
@@ -145,14 +148,13 @@ fit <- function(formula, combos = NULL, data = eval(d)) {
 }
 
 ## Model 1: No time effect
-model1 <- fit(jbsteps30.log ~ jbsteps30pre.log + send.center)
+model1 <- fit(jbsteps30.log ~ jbsteps30pre.log + I(send - .6))
 estimate(model1, ztest = FALSE)
 
 ## Model 2: Linear day-on-study effect and interaction between linear 
 ## day on study and centered treatment status
-model2 <- fit(jbsteps30.log ~ study.day.nogap + jbsteps30pre.log + 
-                send.center + study.day.nogap:send.center,
-              data = subset(eval(d), jbsteps30 != 0 & jbsteps30pre != 0))
+model2 <- fit(jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
+                I(send - .6) + study.day.nogap:I(send - .6))
 estimate(model2, ztest = FALSE)
 
 
@@ -166,9 +168,10 @@ minmod.send0 <- fit(jbsteps30.log ~ jbsteps30pre.log,
 minmod.send1 <- fit(jbsteps30.log ~ jbsteps30pre.log,
                     data = subset(eval(d), send == T))
 
-#### LOESS plots
+### LOESS plots: Raw residuals
+
 span <- c(.09, .3)
-sample <- sample(1:length(minmod$residuals), ceiling(.5 * length(minmod$residuals)))
+sample <- sample(1:length(minmod$residuals), ceiling(.4 * length(minmod$residuals)))
 par(mfrow = c(1, length(span)), mar = c(0, 0, 2, 0), oma = c(4, 4, 1, 1), 
     mgp = c(2, 0.6, 0), font.main = 1)
 
@@ -178,8 +181,8 @@ for (i in 1:length(span)) {
        xlab = "", ylab = "", main = "", type = "p", xlim = c(0, 41))
   box(col = "grey40")
   axis(side = 1, outer = T, cex = .6)
-  lines(with(subset(eval(d), avail == T), 
-             predict(loess(minmod$residuals[eval(d)$avail == T] ~ study.day.nogap,
+  lines(with(subset(eval(d)), 
+             predict(loess(minmod$residuals ~ study.day.nogap,
                            span = span[i]))),
         col = color, lwd = 6)
   if (i == 1) {
@@ -192,21 +195,24 @@ for (i in 1:length(span)) {
 loess.plot.main <- recordPlot()
 
 ## Interaction of day on study with treatment
+par(mfrow = c(1, length(span)), mar = c(0, 0, 2, 0), oma = c(4, 4, 1, 1), 
+    mgp = c(2, 0.6, 0), font.main = 1)
 for (i in 1:length(span)) {
   plot(minmod$residuals[sample] ~ eval(d)$study.day.nogap[sample], axes = F,
        xlab = "", ylab = "", main = "", type = "p", xlim = c(0, 41))
   box(col = "grey40")
   axis(side = 1, outer = T, cex = .6)
-  lines(with(subset(eval(d), avail == T), 
-             predict(loess(minmod.send1$residuals[send == T] ~ 
-                             study.day.nogap[send == T & avail == T],
+  lines(with(subset(eval(d)), 
+             predict(loess(minmod.send1$residuals ~ 
+                             study.day.nogap[eval(d)$send == T],
                            span = span[i]),
                      newdata = seq(0, 41)) - 
-               predict(loess(minmod.send0$residuals[send == F] ~
-                               study.day.nogap[send == F & avail == T],
+               predict(loess(minmod.send0$residuals ~
+                               study.day.nogap[eval(d)$send == F],
                              span = span[i]),
                        newdata = seq(0, 41))),
         col = color, lwd = 6)
+  abline(0, 0, col = "red", lwd = 2)
   if (i == 1) {
     axis(side = 2, outer = T, cex = .6)
     title(ylab = "Residual", outer = T)
@@ -215,3 +221,52 @@ for (i in 1:length(span)) {
   title(main = paste("Span:", span[i]), cex = .3)
 }
 loess.plot.intr <- recordPlot()
+
+### LOESS Plots: Mean residuals
+par(mfrow = c(1, 1), mar = c(3, 3, 1, 0) + 0.5, mgp = c(2, 0.5, 0),
+    oma = rep(0, 4), las = 1, tcl = 0.25)
+
+resids <- subset(eval(d), select = c("jbsteps30.zero", "jbsteps30pre.zero",
+                                     "study.day.nogap", "send", "avail"))
+
+resids$resid.full <- with(resids, log(jbsteps30.zero + .5) - coef(minmod)[1] -
+                            coef(minmod)[2] * log(jbsteps30pre.zero + .5))
+
+resids$resid.send <- NA
+resids$resid.send[resids$send == T] <- 
+  with(subset(resids, send == T), log(jbsteps30.zero + .5) - coef(minmod.send1)[1] -
+         coef(minmod.send1)[2] * log(jbsteps30pre.zero + .5))
+resids$resid.send[resids$send == F] <- 
+  with(subset(resids, send == F), log(jbsteps30.zero + .5) - coef(minmod.send0)[1] -
+         coef(minmod.send0)[2] * log(jbsteps30pre.zero + .5))
+
+y <- aggregate(resid.full ~ study.day.nogap,
+               data = subset(resids, avail == T & study.day.nogap <= 41),
+               FUN = mean)
+with(y, scatter.smooth(resid.full ~ study.day.nogap, type = "l", span = 1/3,
+                       xlab = "Study Day (excluding travel)",
+                       ylab = "Mean Residual",
+                       lpars = list(lwd = 2, col = color)))
+abline(0, 0, col = "grey50")
+
+mean.resid.main.effect <- recordPlot()
+
+x <- aggregate(resid.send ~ send + study.day.nogap, 
+               data = subset(resids, avail == T), FUN = mean)
+y <- aggregate(resid.send ~ study.day.nogap, 
+               data = subset(x, study.day.nogap <= 41), FUN = diff)
+
+with(y, scatter.smooth(resid.send ~ study.day.nogap, type = "l", span = 1/3,
+                       xlab = "Study Day (excluding travel)",
+                       ylab = "Mean Difference in Residual",
+                       lpars = list(lwd = 2, col = color)))
+abline(0, 0, col = "grey50")
+
+mean.resid.interaction <- recordPlot()
+
+##### Active vs. Sedentary Suggestions #####
+model3 <- fit(jbsteps30.log ~ jbsteps30pre.log + study.day.nogap + 
+                I(send.active - 0.3) + I(send.sedentary - 0.3) + 
+                study.day.nogap:I(send.active - 0.3) + 
+                study.day.nogap:I(send.sedentary - 0.3),
+              data = subset(eval(d), !is.na(send.active)))

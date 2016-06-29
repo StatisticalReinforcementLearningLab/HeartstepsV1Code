@@ -103,6 +103,10 @@ The following rules create a proxy to determine whether an individual is connect
 \item For suggestions, we have no data about whether or not the suggestion was delivered, or the context in which it was delivered. 
 \end{enumerate}
 
+<<availplot, fig.pos = "H", fig.cap = "Proportion of participants unavailable vs. decision point, either due to any cause or specifically due to walking.">>=
+replayPlot(avail.plot)
+@
+
 \section{Data Excluded}
 Two participants (IDs 3 and 6) reported periods of international travel during which they were unable to engage with HeartSteps due to lack of connectivity outside the United States. Three participants (IDs 1, 15, and 39) experienced technical issues over an extended period of time which prevented them from engaging. Additional details are below.
 \begin{enumerate}
@@ -122,18 +126,57 @@ After removing travel dates, participant time series were spliced together. For 
 \section{Jawbone Step Count}
 We wish to regress step count in the 30 minutes following a decision point against a centered treatment indicator, controlling for step count in the 30 minutes prior to the decision point. Before we do this, we summarize features of and missingness in these variables.
 
-\begin{itemize}
-  \item Step count in the 30 minutes following a decision point is missing for \Sexpr{sum(is.na(suggest$jbsteps30))} out of \Sexpr{dim(suggest)[1]} treatment occasions (\Sexpr{round(sum(is.na(suggest$jbsteps30) / dim(suggest)[1]), 3) * 100}\% missing).
-  \item Step count in the 30 minutes prior to a decision point is missing for \Sexpr{sum(is.na(suggest$jbsteps30pre))} out of \Sexpr{dim(suggest)[1]} treatment occasions (\Sexpr{round(sum(is.na(suggest$jbsteps30pre) / dim(suggest)[1]), 3) * 100}\% missing).
-\end{itemize}
+Jawbone step count is left-truncated at zero: the device does not record zeroes when it is not moving or the battery is dead. Becasue of this, we cannot determine whether the participant was truly sedentary or if she is not wearing the device, for example. We can identify three distinct scenarios in which we do not have Jawbone step count data.
+\begin{enumerate}
+  \item There is no step count data in the 30 minutes following a decision point, but there is data in the 60 minutes following. For example, if there is a decision at 2:00 PM, there are no step counts from 2:00 - 2:30, but there is data from 2:30 - 3:00. This happens for
+  \begin{enumerate}
+      \item \Sexpr{with(eval(d), sum(jbsteps30 == 0 & jbsteps60 != 0, na.rm = T))} of \Sexpr{dim(eval(d))[1]} included decision points (\Sexpr{100 * with(eval(d), sum(jbsteps30 == 0 & jbsteps60 != 0, na.rm = T)) / dim(eval(d))[1]}\%)
+    \item \Sexpr{with(subset(eval(d), avail == T), sum(jbsteps30 == 0 & jbsteps60 != 0, na.rm = T))} of \Sexpr{sum(eval(d)$avail == T)} decision points at which the particpant was available (\Sexpr{100 * with(subset(eval(d), avail == T), sum(jbsteps30 == 0 & jbsteps60 != 0, na.rm = T)) / sum(eval(d)$avail == T)}\%).
+  \end{enumerate}
+  
+  \item There is no step count data in the 60 minutes following a decision point, but there is data before the next decision point. For example, if there are decisions at 2:00 PM and 5:00 PM, there are no step counts from 2:00 - 3:00, but data from 3:00 to 5:00. This happens for
+  \begin{enumerate}
+      \item \Sexpr{with(eval(d), sum(jbsteps30 == 0 & jbsteps60 == 0, na.rm = T))} of \Sexpr{dim(eval(d))[1]} included decision points (\Sexpr{100 * with(eval(d), sum(jbsteps30 == 0 & jbsteps60 == 0, na.rm = T)) / dim(eval(d))[1]}\%)
+    \item \Sexpr{with(subset(eval(d), avail == T), sum(jbsteps30 == 0 & jbsteps60 == 0, na.rm = T))} of \Sexpr{sum(eval(d)$avail == T)} decision points at which the particpant was available (\Sexpr{100 * with(subset(eval(d), avail == T), sum(jbsteps30 == 0 & jbsteps60 == 0, na.rm = T)) / sum(eval(d)$avail == T)}\%).
+  \end{enumerate}
+  
+  \item There is no step count data in the entire period between decision points. For example, if there are decision points at 2:00 PM and 5:00 PM, there is no step count from 2:00 - 5:00, but data starting at 5:00. This happens for
+  \begin{enumerate}
+      \item \Sexpr{sum(is.na(suggest$jbsteps30))} of \Sexpr{dim(eval(d))[1]} included decision points (\Sexpr{100 * with(eval(d), sum(is.na(jbsteps30))) / dim(eval(d))[1]}\%)
+    \item \Sexpr{with(subset(eval(d), avail == T), sum(is.na(jbsteps30)))} of \Sexpr{sum(eval(d)$avail == T)} decision points at which the particpant was available (\Sexpr{100 * with(subset(eval(d), avail == T), sum(is.na(jbsteps30))) / sum(eval(d)$avail == T)}\%).
+  \end{enumerate}
+\end{enumerate}
+
+We observe similar scenarios in the measurements of step count before a decision point.
+\begin{enumerate}
+  \item There is no step count data in the 30 minutes prior to a decision point, but there is data in the 60 minutes prior. This happens for
+  \begin{enumerate}
+    \item \Sexpr{with(eval(d), sum(jbsteps30pre == 0 & jbsteps60pre != 0, na.rm = T))} of \Sexpr{dim(eval(d))[1]} included decision points (\Sexpr{100 * with(eval(d), sum(jbsteps30pre == 0 & jbsteps60pre != 0, na.rm = T)) / dim(eval(d))[1]}\%)
+    \item \Sexpr{with(subset(eval(d), avail == T), sum(jbsteps30pre == 0 & jbsteps60pre != 0, na.rm = T))} of \Sexpr{sum(eval(d)$avail == T)} included decision points (\Sexpr{100 * with(subset(eval(d), avail == T), sum(jbsteps30pre == 0 & jbsteps60pre != 0, na.rm = T)) / sum(eval(d)$avail == T)}\%).
+  \end{enumerate}
+  
+  \item There is no step count data in the 60 minutes prior to a decision point, but there was data collected since the last decision point. This happens for
+  \begin{enumerate}
+    \item \Sexpr{with(eval(d), sum(jbsteps30pre == 0 & jbsteps60pre == 0, na.rm = T))} of \Sexpr{dim(eval(d))[1]} included decision points (\Sexpr{100 * with(eval(d), sum(jbsteps30pre == 0 & jbsteps60pre == 0, na.rm = T)) / dim(eval(d))[1]}\%)
+    \item \Sexpr{with(subset(eval(d), avail == T), sum(jbsteps30pre == 0 & jbsteps60pre == 0, na.rm = T))} of \Sexpr{sum(eval(d)$avail == T)} included decision points (\Sexpr{100 * with(subset(eval(d), avail == T), sum(jbsteps30pre == 0 & jbsteps60pre == 0, na.rm = T)) / sum(eval(d)$avail == T)}\%).
+  \end{enumerate}
+  
+  \item There is no step count data between the previous decision point and the current decision point. This happens for
+  \begin{enumerate}
+      \item \Sexpr{sum(is.na(suggest$jbsteps30))} of \Sexpr{dim(eval(d))[1]} included decision points (\Sexpr{100 * with(eval(d), sum(is.na(jbsteps30))) / dim(eval(d))[1]}\%)
+    \item \Sexpr{with(subset(eval(d), avail == T), sum(is.na(jbsteps30)))} of \Sexpr{sum(eval(d)$avail == T)} decision points at which the particpant was available (\Sexpr{100 * with(subset(eval(d), avail == T), sum(is.na(jbsteps30))) / sum(eval(d)$avail == T)}\%).
+  \end{enumerate}
+\end{enumerate}
 
 When step count is missing, we impute zero.
 
 The following plot shows the number of days on which step count is \textit{completely} missing for each user. Bar labels give the percentage of missing days relative to total days on-study (excluding travel). Overall, 
 \Sexpr{round(sum(user.nojb) / sum(aggregate(study.day.nogap ~ user, data = suggest, max, na.rm = T)), 3) * 100}\% of person-days are completely missing in Jawbone step count.
-<<missing-step-plot, fig.height=3, out.width="\\textwidth">>=
+
+<<missing-step-plot, fig.height=3, out.width="\\textwidth", fig.cap = "Bar plot of number of days on which step count is completely missing for each user (excluding travel), labeled with the percent of days on study for which step count is missing.">>=
 replayPlot(missing.step.plot)
 @
+
 We notice large spikes of missingness for users 14 and 35.
 \begin{itemize}
   \item User 14 went on vacation to Hawaii, and the dates of this trip could not be confirmed by study organizers. It may be reasonable to believe that she did not wear the Jawbone while on this trip. 
@@ -157,7 +200,7 @@ where
   \item $A_{t}$ is an indicator of whether or not treatment was provided at occasion $t$.
 \end{itemize}
 
-<<model1-no_time_effect, results = "asis", cache = T>>=
+<<model1-no_time_effect, results = "asis">>=
 names(model1$coef) <- c("$\\alpha_{0}$", "$\\alpha_{1}$", "$\\beta_{0}$")
 print(xtable(estimate(model1, ztest = FALSE), floating = FALSE, digits = 3), 
       sanitize.rownames.function = identity)
@@ -165,24 +208,31 @@ print(xtable(estimate(model1, ztest = FALSE), floating = FALSE, digits = 3),
 
 \subsection*{Model 2}
 \begin{equation}
-  Y_{t+1} \sim \alpha_{0} + \alpha_{1} d(t) + \alpha_{2} Z_{t} + \beta_{0} \left(A_{t} - 0.6\right) + \beta_{1} d(t) \left(A_{t} - 0.6\right), \quad \text{if } I_{t} = 1,
+  Y_{t+1} \sim \alpha_{0} + \alpha_{1} Z_{t} + \alpha_{2} d(t) + \beta_{0} \left(A_{t} - 0.6\right) + \beta_{1} d(t) \left(A_{t} - 0.6\right), \quad \text{if } I_{t} = 1,
   \label{eqn:model-with-day-effect}
 \end{equation}
 where
 \begin{itemize}
   \item $Y_{t+1}$ is log-transformed total Jawbone step count in the 30 minutes following the $t^{\text{th}}$ treatment occasion,
-  \item $d(t)$ is the index of the day on which the $t^{\text{th}}$ treatment occasion occurred, ranging from 0 to 41,
-  \item $Z_{t}$ is log-transformed total Jawbone step count in the 30 minutes prior to the $t^{\text{th}}$ treatment occasion, and
+  \item $Z_{t}$ is log-transformed total Jawbone step count in the 30 minutes prior to the $t^{\text{th}}$ treatment occasion,
+   \item $d(t)$ is the index of the day on which the $t^{\text{th}}$ treatment occasion occurred, ranging from 0 to 41, and
   \item $A_{t}$ is an indicator of whether or not treatment was provided at occasion $t$.
 \end{itemize}
 
-<<model2-time_effect, results = "asis", cache = T>>=
+<<model2-time_effect, results = "asis">>=
 names(model2$coef) <- c("$\\alpha_{0}$", "$\\alpha_{1}$", "$\\alpha_{2}$",
                         "$\\beta_{0}$", "$\\beta_{1}$")
 print(xtable(estimate(model2, ztest = FALSE), floating = FALSE, digits = 3), 
       sanitize.rownames.function = identity)
 @
 
+<<spaghettiplot, fig.cap="Mean difference in proximal step count following a suggestion vs. folllwing no suggestion, by particpant. The y-axis is truncated below at -3000 steps", fig.pos = "H">>=
+replayPlot(spaghetti.plot)
+@
+
+<<spaghettiplot-mean, fig.cap="Mean difference in proximal step count following a suggestion vs. folllwing no suggestion, averaged over all particpants, and smoothed using LOESS.", fig.pos = "H">>=
+replayPlot(spaghetti.mean.plot)
+@
 
 \section{Time Trend Analysis}
 
@@ -202,17 +252,17 @@ where
 \end{itemize}
 As always, we weight by availability. Below we present plots of the residuals versus time, with a LOESS smoother drawn in \Sexpr{color.name} for different, small bandwidths.
 
-<<timemodel, results = "asis", cache = T>>=
+<<timemodel, results = "asis">>=
 names(minmod$coef) <- c("$\\alpha_{0}$", "$\\alpha_{1}$")
 print(xtable(estimate(minmod, ztest = FALSE), floating = FALSE, digits = 3,
              caption = "Fitted Coefficients for Model~\\ref{eqn:resid-model}"), 
       sanitize.rownames.function = identity)
 @
 
-<<timemodel-resid, fig.cap = "Plot of Residuals vs. Study Day with Loess Smoothers with Varying, Small Bandwidths ", fig.pos="H">>=
+<<timemodel-resid, fig.cap = "Plot of mean residuals from Model~\\ref{eqn:resid-model} averaged over study day vs. time on study in days. The black line connects mean residuals, the blue is a loess smoother with span 1/3.", fig.pos="H">>=
 par(mfrow = c(1, length(span)), mar = c(0, 0, 2, 0), oma = c(4, 4, 1, 1), 
     mgp = c(2, 0.6, 0), font.main = 1)
-replayPlot(loess.plot.main)
+replayPlot(mean.resid.main.effect)
 @
 
 There may be a small amount of curvature in the loess smoothers, indicating a quadratic effect; however, the degree of curvature is so slight as to likely be negligible.
@@ -220,7 +270,7 @@ There may be a small amount of curvature in the loess smoothers, indicating a qu
 \subsection{Interaction with Treatment}
 Here, we again run model~\ref{eqn:resid-model}, first using only availble times for which $A_{t} = 1$ and then again using available times for which $A_{t} = 0$. We use LOESS smoothing on the residuals from each model separately (using only residuals from available decision points), then take the difference to inform the functional form of the time-treatment interaction.
 
-<<timemodel-interaction, results = "asis", cache = T>>=
+<<timemodel-interaction, results = "asis">>=
 names(minmod.send0$coef) <- c("$\\alpha_{0}$", "$\\alpha_{1}$")
 print(xtable(estimate(minmod.send0, ztest = FALSE), floating = FALSE, digits = 3,
              caption = "Fitted Coefficients for Model~\\ref{eqn:resid-model} when $A_{t} = 1$"), 
@@ -232,23 +282,40 @@ print(xtable(estimate(minmod.send1, ztest = FALSE), floating = FALSE, digits = 3
       sanitize.rownames.function = identity)
 @
 
-<<timemodel-interaction-resid-1, fig.pos = "H">>=
+<<timemodel-interaction-resid-1, fig.cap = "Mean difference in residuals from Model~\\ref{eqn:resid-model} when $A_{t} = 1$ and $A_{t} = 0$ vs. time on study in days. The black line connects the mean differences in residuals, the blue is a loess smoother with span 1/3.", fig.pos = "H">>=
 par(mfrow = c(1, length(span)), mar = c(0, 0, 2, 0), oma = c(4, 4, 1, 1),
     mgp = c(2, 0.6, 0), font.main = 1)
 
-replayPlot(loess.plot.intr)
+replayPlot(mean.resid.interaction)
 @
 
-<<spaghettiplot, fig.cap="Mean difference in proximal step count following a suggestion vs. folllwing no suggestion, by particpant. The y-axis is truncated below at -3000 steps", fig.align = "H">>=
-replayPlot(spaghetti.plot)
-@
 
-<<spaghettiplot-mean, fig.cap="Mean difference in proximal step count following a suggestion vs. folllwing no suggestion, averaged over all particpants, and smoothed using LOESS.", fig.align = "H">>=
-replayPlot(spaghetti.mean.plot)
-@
 
-<<availplot>>=
-replayPlot(avail.plot)
-@
+\section{Secondary Analyses}
+\subsection{Active vs. Sedentary Suggestions}
+Suggestions delivered to a participant's phone could be either ``active'' or ``sedentary''. The former category encouraged participants to take the stairs, walk around the office, or go for an evening stroll; the latter included suggestions to stand and stretch, for example. We examine the proximal effect of each type of suggestion on step count using model~\ref{eqn:actsed-model}.
+\begin{equation}
+	\begin{split}
+		\label{eqn:actsed-model}
+		Y_{t+1} &\sim \alpha_{0} + \alpha_{1} Z_{t} + \alpha_{2} d(t) + \beta_{1} \left(A_{1, t} - 0.3\right) + \beta_{2} \left(A_{2, t} - 0.3\right) \\  &\quad + \beta_{3} \left(A_{1, t} - 0.3\right) d(t) + \beta_{4} \left(A_{2, t} - 0.3\right) d(t),
+	\end{split}
+\end{equation}
+where 
+\begin{itemize}
+  \item $Y_{t+1}$ is log-transformed total Jawbone step count in the 30 minutes following the $t^{\text{th}}$ treatment occasion,
+  \item $Z_{t}$ is log-transformed total Jawbone step count in the 30 minutes prior to the $t^{\text{th}}$ treatment occasion,
+  \item $d(t)$ is the index of the day on which the $t^{\text{th}}$ treatment occasion occurred, ranging from 0 to 41,
+  \item $A_{1, t}$ is an indicator of whether or not a sedentary suggestion was provided at occasion $t$, and 
+  \item $A_{2, t}$ is an indicator of whether or not an active suggestion was provided at occasion $t$.
+\end{itemize}
 
+Note that $A_{1, t} = A_{2, t} = 0$ when no treatment was provided. Results are presented in~\Cref{tab:actsed-model-results}.
+<<active-sedentary-model, results = "asis">>=
+names(model3$coef) <- c("$\\alpha_{0}$", "$\\alpha_{1}$", "$\\alpha_{2}$", 
+                        "$\\beta_{1}$", "$\\beta_{2}$", "$\\beta_{3}$", "$\\beta_{4}$")
+print(xtable(estimate(model3, ztest = FALSE), floating = FALSE, digits = 3,
+             caption = "Fitted Coefficients for Model~\\ref{eqn:actsed-model}",
+             label = "tab:actsed-model-results"), 
+      sanitize.rownames.function = identity)
+@
 \end{document}
