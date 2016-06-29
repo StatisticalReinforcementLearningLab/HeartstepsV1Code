@@ -5,33 +5,20 @@ library(gridExtra)
 library(grid)
 library(reshape2)
 ### 
-### Creates 5 PDF files:
-###     freq_engagements_hist.pdf       histogram of # engagements by user
-###     avg_engagements_time.pdf        average engagements by day 
-###                                     of study (averaged over users)
-###     freq_engagements_resp_hist.pdf  histogram of # engagements by user and
-###                                       # responses
-###     days_respond_no_engage.pdf      proportion of study days without engagement 
-###                                     records but >0 responses for each user
-###     days_missing_EMA.pdf            proportion of study days without any 
-###                                     EMA-related records
-###     engagement_scenarios.pdf        plot of user-day timelines with different combinations
-###                                     of EMA notifications, responses,
-###                                     and engagements
-###                                       The timelines are labeled with the number
-###                                       of engagements (not engagement records)
-###                                       This plot gives the definition of "engagement"
-###                                       used in the other plots
-###                                                                             
-###     
+### Creates plots of EMA issues
+### 
 
+## To do: 
+## use daily$connect to count instances without any EMA information
+## count number of days with engagement records received before notificaiton records
+## create .Rnw and .pdf uploaded to box folder
 
 ###
 # user.ema.problems 
 # has one row per user-ema.date combination for every ema date with at least one 
 # notification, engagement, or response record
 
-
+#
 source("init.R")
 setwd(sys.var$mbox.data)
 load("csv.RData")
@@ -63,7 +50,7 @@ select(daily, user, study.date, study.day, last.date) %>%
 user.ema.records %>%
   group_by(user) %>%
   summarise(n_days = n(),
-            n_noEMA = sum(n_notify ==0 & n_engage==0 & n_response==0),
+            n_noEMA = sum(n_notify==0 & n_engage==0 & n_response==0),
             prop_noEMA = n_noEMA / n_days) -> user.missing.ema
 
 # Days with responses but zero engagements
@@ -305,29 +292,3 @@ select(daily, user, study.day) %>%
   scale_y_continuous(breaks=c(0,15,30,45), labels=c(' 0',' 15', ' 30', ' 45')) +
   xlab('Day in study') + ylab('Users remaining') -> plot.nusers
 
-
-### Create PDFs of plots
-pdf('avg_engagements_time.pdf', width=(16/9)* 5, height=5)
-grid.arrange(plot.avg.eng.time.fixed + xlab('') +
-               scale_x_continuous(breaks=c(0,25,50)) +
-               ylab('Average Engagements'),
-             plot.nusers +
-               scale_x_continuous(breaks=c(0,25,50)),
-             nrow = 2
-)
-dev.off()
-
-ggsave('freq_engagements_hist.pdf', 
-       plot.hist.eng.fixed, width=(4/3) * 7, height=7, units='in')
-
-ggsave('freq_engagements_resp_hist.pdf',
-       plot.hist.eng.resp.fixed, width=(4/3) * 8, height=8, units='in')
-
-ggsave('days_missing_EMA.pdf',
-       plot.missing.ema, height = 9.5, width=5, units='in')
-
-ggsave('days_respond_no_engage.pdf',
-       plot.resp.no.engage, height= 9.5, width=5, units='in')
-
-ggsave('engagement_scenarios.pdf',
-       plot.eng.scenarios + xlab('UTC Time'), height=9, width=11, units='in')
