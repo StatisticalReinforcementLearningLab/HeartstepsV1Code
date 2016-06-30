@@ -19,14 +19,15 @@ library(reshape2)
 # notification, engagement, or response record
 
 #
-source("init.R")
-setwd(sys.var$mbox.data)
-load("csv.RData")
-load("analysis.RData")
-setwd(sys.var$repo)
+if (!exists('sys.var')) {source("init.R")}
+load(paste(sys.var$mbox.data,'csv.RData',sep=''))
+load(paste(sys.var$mbox.data,"analysis.RData",sep=''))
+
+keep_users <- users$user[!users$exclude]
+daily.analysis <- filter(daily, user %in% keep_users & !travel)
 
 # Count each type of EMA record (engagement, notification, response)
-select(daily, user, study.date, study.day, last.date) %>%
+daily.analysis %>%
   left_join(
     select(notify, user, ema.date) %>% 
       group_by(user, ema.date) %>% 
@@ -43,21 +44,21 @@ select(daily, user, study.date, study.day, last.date) %>%
       summarise(n_response = n()),
     by=c('user'='user','study.date'='ema.date')
   ) %>% filter(study.date <= last.date) %>%
-  mutate_each(funs(ifelse(is.na(.), 0, .)), contains("n_")) ->user.ema.records
+  mutate_each(funs(ifelse(is.na(.), 0, .)), contains("n_")) -> daily.analysis
 
 
 # Days without any EMA records
-user.ema.records %>%
+daily.analysis %>%
   group_by(user) %>%
   summarise(n_days = n(),
-            n_noEMA = sum(n_notify==0 & n_engage==0 & n_response==0),
+            n_noEMA = sum(!connect), # connect indicates day without EMA information
             prop_noEMA = n_noEMA / n_days) -> user.missing.ema
 
 # Days with responses but zero engagements
-user.ema.records %>%
+daily.analysis %>%
   group_by(user) %>%
   summarise(n_days = n(),
-            n_resp_no_engage = sum(n_engage==0 & n_response >0),
+            n_resp_no_engage = sum(n_engage==0 & n_response > 0),
             prop_resp_no_engage = n_resp_no_engage / n_days) -> user.resp.no.engage
   
 # Plot the proportion of days without any EMA records
@@ -74,7 +75,7 @@ user.missing.ema %>%
   theme_bw() + theme(panel.grid.major.y=element_blank(),
                      panel.grid.minor.y=element_blank(),
                      panel.grid.major.x=element_line(linetype='dashed')) +
-  ggtitle('Proportion of days without any EMA records\n(notification, response, or engagement)')+
+  ggtitle('Proportion of days without any EMA records\n(notification, response, engagement, planning)')+
   xlab('') +
   ylab('') -> plot.missing.ema
   
@@ -101,7 +102,7 @@ bind_rows(Notification = select(notify, user, ema.date, utime = notified.utime),
           Engagement = select(engage, user, ema.date, utime = engaged.utime),
           Response = select(ema, user, ema.date, utime = utime.stamp),
           .id = 'Type') %>% 
-  left_join(select(daily, user, study.date, study.day, last.date)
+  left_join(select(daily.analysis, user, study.date, study.day, last.date)
             , by=c('user' = 'user', 'ema.date' = 'study.date')) %>%
   arrange(user, ema.date, utime) %>% 
   filter(user %in% users$user[!users$exclude], ema.date <= last.date) %>%
@@ -231,44 +232,8 @@ user.ema.problems %>%
         legend.justification=c(1,0)) +
   ggtitle('EMA engagements\nby user') -> plot.hist.eng.fixed
 
-# the same histogram but broken down by the number of responses
-user.ema.problems %>% 
-  select(user, study.day, n_engage_fixed, n_response) %>% 
-  group_by(user, n_engage_fixed, n_response) %>% summarise(count= n()) %>% 
-  group_by(user) %>% mutate(count_all = sum(count))  %>%
-  mutate(rfreq = count / count_all) %>%
-  ungroup %>% mutate(
-    user = factor(user, levels=rev(user.byengage.fixed),
-                  labels=paste(c(rep('', length(unique(user))-1), 'User '),
-                               rev(user.byengage.fixed), sep='')),
-    n_response = factor(n_response, levels=sort(unique(n_response)),
-                        labels=c('0','1','2','3','4','5','6','7','8 responses'))
-  ) %>% 
-  ggplot(aes(x=n_engage_fixed, y=rfreq)) +
-  geom_bar(aes(fill=n_response), stat='identity',
-           color='black', size=0.2) + 
-  facet_wrap(~user, nrow = 5) + xlab('') +
-  ylab('Proportion of EMAs') + 
-  scale_y_continuous(breaks=c(0,0.5,1)) +
-  scale_x_continuous(breaks=c(0,2,8),
-                     labels=c(0,2,'8\nengagements')) +
-  scale_fill_brewer(palette='PuBuGn',
-                    guide=guide_legend(label.position='bottom',
-                                       label.hjust=0.5,
-                                       nrow=1),
-                    name='Responses',
-                    breaks=c('0','1','2','3','4','5','6','7','8 responses'),
-                    labels=c('0','','','','','','','','8')) +
-  theme(panel.grid=element_blank(),
-        strip.background=element_rect(fill=NA, color='white'),
-        panel.background=element_rect(color='grey', fill=NA),
-        strip.text=element_text(size=9),
-        axis.text=element_text(size=9),
-        axis.line=element_blank(),
-        legend.position='bottom',#c(1,0),
-        legend.direction='horizontal') +
-  ggtitle('EMA engagements\nby user and # responses') -> plot.hist.eng.resp.fixed
-
+# Plot of average engagements over time (day in study)
+# Probably incorrect, should use study.day.nogap
 user.ema.problems %>% 
   ggplot(aes(x=study.day, y=n_engage_fixed)) + 
   stat_summary(geom='line', fun.y=mean) +
@@ -279,10 +244,10 @@ user.ema.problems %>%
   scale_y_continuous(breaks=c(0,0.5,1,1.5)) +
   xlab('Day in study') + ylab("Average # engagements") -> plot.avg.eng.time.fixed
 
-select(daily, user, study.day) %>% 
-  group_by(study.day) %>% 
+select(daily.analysis, user, study.day.nogap) %>% 
+  group_by(study.day.nogap) %>% 
   summarise(n_users = n()) %>%
-  ggplot(aes(x=study.day, y=n_users)) + 
+  ggplot(aes(x=study.day.nogap, y=n_users)) + 
   geom_line() +
   theme(strip.background=element_rect(fill=NA),
       panel.background=element_rect(fill=NA, color='grey'),

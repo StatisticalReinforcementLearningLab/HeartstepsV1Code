@@ -1,0 +1,68 @@
+\documentclass[11pt]{article}
+\usepackage[T1]{fontenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{setspace}
+\usepackage{float}
+\usepackage{ragged2e,array}
+\usepackage{hyperref}
+\usepackage[capitalize]{cleveref}
+\usepackage{graphicx}
+
+\title{Summary of EMA engagement}
+
+\begin{document}
+\maketitle
+<<setup, echo=FALSE, warning=FALSE, results='hide', cache=FALSE, message=FALSE>>=
+opts_chunk$set(fig.align = "center")
+source('../init.R', chdir=TRUE)
+source('ema_problems.R')
+library(xtable)
+
+@
+ 
+ In all of the following, there are \Sexpr{nrow(daily.analysis)} person-days and \Sexpr{with(daily.analysis, length(unique(user)))} users considered.
+\section{How often are people answering the EMA?}
+<<tab_n_response, echo=FALSE, results='asis'>>=
+tt <- with(daily.analysis, table(n_notify, n_response))
+tt <- cbind(tt, margin.table(tt, 1))
+tt <- rbind(tt, margin.table(tt, 2))
+
+colnames(tt) <- paste(c('Responses: ', rep('', ncol(tt)-1)), colnames(tt), sep='')
+colnames(tt)[ncol(tt)] <- '  '
+rownames(tt)[which(rownames(tt)=='0')] <- 'No notification'
+rownames(tt)[which(rownames(tt)=='1')] <- 'Notified'
+rownames(tt)[nrow(tt)] <- ' '
+
+print(xtable(tt, align=paste(c(rep('r',ncol(tt)), '|', 'r'), collapse=''),
+             caption='Tabulation of person-days by number of responses and notifications.',
+             label='tab:resp_notif'),
+      hline.after=nrow(tt)-1,
+      table.position='H',
+      booktabs=TRUE)
+
+n_notif_0resp <- tt["Notified","Responses: 0"] 
+n_notif <- tt["Notified",ncol(tt)]
+prop_notif_0resp <- n_notif_0resp / n_notif
+
+@
+\begin{itemize}
+\item The number of \emph{asked} EMA questions cannot be reliably counted due to race conditions.
+\item About \Sexpr{round(100*prop_notif_0resp)} percent of the person-days when a notification context was recorded did not have any EMA responses ($\Sexpr{n_notif_0resp} / \Sexpr{n_notif}$).
+\end{itemize}
+
+\section{Days without any EMA information}
+<<noEMA,echo=FALSE>>=
+n_noEMA <- sum(!daily.analysis$connect)
+n_persondays <- nrow(daily.analysis)
+@
+Overall, there are \Sexpr{n_noEMA} person-days (out of \Sexpr{n_persondays}) without any recorded EMA information (notifications, responses, engagements, or planning responses).
+
+<<missing_EMA, echo=FALSE, fig.cap='Proportion of days with missing EMAs by user.', fig.width=3.5, fig.height=5, out.width='0.4\\textwidth'>>=
+plot.missing.ema
+@
+
+
+
+\end{document}
