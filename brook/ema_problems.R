@@ -131,7 +131,36 @@ user.ema.times %>% group_by(user, ema.date) %>%
             ]),
             study.day = unique(study.day)) -> user.ema.problems
 
+# Time between notification and response, 
+# on days when there are responses and
+# there is a notification
+daily.analysis %>%
+  left_join(
+    filter(user.ema.problems, n_notify > 0 & n_response > 0) %>%
+      mutate(time_bt_notify_respond = as.difftime(utime_first_respond - utime_first_notify,
+                                                  units='mins')) %>%
+      select(user, ema.date, time_bt_notify_respond),
+    by = c('user'='user', 'study.date'='ema.date')
+  ) -> daily.analysis
 
+select(daily.analysis, user, study.date, n_notify, 
+       n_response, time_bt_notify_respond) %>%
+  filter(n_notify >0 & n_response > 0) %>%
+  group_by(user) %>% summarise(mean_time_resp = mean(time_bt_notify_respond)) %>%
+  arrange(mean_time_resp) %>%
+  mutate(user = factor(user, levels=unique(user),
+                       labels=paste(c(rep('',length(unique(user))-1), 'User '),
+                                      unique(user), sep=''))) %>% 
+  ggplot(aes(x=as.numeric(mean_time_resp), y=user)) +
+  geom_segment(aes(xend=0, yend=user), linetype='dotted',
+             color='grey') +
+  geom_point() + 
+  theme_bw() + theme(panel.grid.major.y=element_blank(),
+                     panel.grid.minor.y=element_blank(),
+                     panel.grid.major.x=element_line(linetype='dashed')) +
+  xlab('Average seconds between\nnotification and first response') +
+  ylab('') -> plot.user.resp.time
+  
 # Fix the n_engage count
 # Responses but no engagement records should count as an engagement
 user.ema.problems %>% ungroup %>%
@@ -142,7 +171,7 @@ user.ema.problems %>% ungroup %>%
 
 # Function to plot timeline of notifcation, engagement, response 
 # for each user-day
-plot_ema_times <- function(dat, facet = TRUE){
+plot_ema_times <- function(dat, facet = TRUE, count = TRUE){
   dat %>% ungroup %>%
   mutate(user = factor(user, levels=unique(user), 
                        labels=paste('User',unique(user))),
@@ -152,8 +181,10 @@ plot_ema_times <- function(dat, facet = TRUE){
   dat %>%
   ggplot(aes(x=as.POSIXlt(utime_inday, 'EST'), y=user)) +
     geom_point(aes(shape=Type, color=Type),
-               position=position_jitter(height=0.2, width=0)) +
-    geom_label(aes(label=n_engage_fixed,
+               position=position_jitter(height=0.2, width=0)) -> ret
+  if (count){
+    ret <- ret +
+        geom_label(aes(label=n_engage_fixed,
                   x=as.POSIXct(format(utime_plot_engage, "%H:%M:%S"),
                                                      format="%H:%M:%S"),
                   y=user),
@@ -161,7 +192,9 @@ plot_ema_times <- function(dat, facet = TRUE){
                nudge_y=-0.25,
               data = dat %>% group_by(user, study.day) %>%
                 summarise(n_engage_fixed = unique(n_engage_fixed),
-                          utime_plot_engage = max(utime))) +
+                          utime_plot_engage = max(utime)))
+    }
+  ret <- ret +
     theme(strip.background=element_rect(fill=NA),
           panel.background=element_rect(fill=NA),
           panel.grid.major.y=element_line(color='grey',linetype='dashed'),
@@ -190,7 +223,11 @@ plot_ema_times <- function(dat, facet = TRUE){
 user.ema.problems %>% filter(study.day %in% c(14,25,1,29,11,12) &
                                user %in% c(46,35,4,14,28)) %>%
   inner_join(select(user.ema.times, -study.day), by=c('user','ema.date')) %>%
-  plot_ema_times -> plot.eng.scenarios
+  plot_ema_times(count=FALSE) -> plot.eng.scenarios
+
+filter(user.ema.problems, n_notify >0 & utime_first_engage < utime_first_notify) %>% 
+  inner_join(select(user.ema.times, -study.day), by=c('user','ema.date')) %>%
+  plot_ema_times(count=FALSE) -> plot.engage.before.notify
 
 # Sort users by mean number of engagements per EMA
 with(user.ema.problems %>% group_by(user) %>%
