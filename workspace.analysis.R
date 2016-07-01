@@ -280,7 +280,7 @@ suggest <- data.frame(subset(daily, select = user:study.day.nogap),
 suggest <- subset(suggest, !(study.date == intake.date & slot <= intake.slot)
                   & !(study.date == last.date & slot > last.slot))
 
-## add decision result by the *intended* time slot
+## add decision result and context by the *intended* time slot
 any(with(decision, duplicated(cbind(user, date.stamp, slot))))
 any(with(decision, duplicated(cbind(user, date.stamp, slot, tz, gmtoff))))
 suggest <- merge(suggest,
@@ -290,7 +290,11 @@ suggest <- merge(suggest,
                                    is.prefetch, slot, time.slot, time.stamp.slot,
                                    link, notify, is.randomized, snooze.status,
                                    recognized.activity, front.end.application,
-                                   returned.message, tag.active)),
+                                   returned.message, calendar, gps.coordinate,
+                                   home, work, city, location.exact, 
+                                   location.category, weather.condition,
+                                   temperature, windspeed, precipitation.chance,
+                                   snow, tag.active)),
                  by.x = c("user", "study.date", "slot"),
                  by.y = c("user", "date.stamp", "slot"), all.x = TRUE)
 
@@ -480,7 +484,7 @@ suggest <- merge(suggest,
                            na.rm = TRUE),
                  by = c("user", "decision.index"), all.x = TRUE)
 
-temp <- with(gfslotpre, end.utime - decision.utime)
+temp <- with(gfslotpre, decision.utime - end.utime)
 suggest <- merge(suggest,
                  aggregate(cbind(gfmins30pre = temp <= 30 * 60,
                                  gfsteps30pre = steps * (temp <= 30 * 60),
