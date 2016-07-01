@@ -21,10 +21,11 @@ color <- "royalblue1"
 ## NOTE: to save memory, subsetting is always done on-the-fly: the data frame 
 ## must be accessed using eval(d). 
 days <- 0:35
+max.day <- 41
 ids  <- unique(suggest$user[suggest$study.day.nogap == rev(days)[1] &
                               !is.na(suggest$study.day.nogap)])
 d    <- quote(subset(suggest, !is.na(study.day.nogap) & user %in% ids &
-                       !(avail == F & send == T)))
+                       !(avail == F & send == T) & study.day.nogap <= max.day))
 
 
 #### Describe missingness of Jawbone data #####
