@@ -4,28 +4,26 @@
 
 \title{\bfseries HeartSteps EMA summary}
 \begin{document}
-\SweaveOpts{concordance=TRUE}
+%\SweaveOpts{concordance=TRUE}
 \maketitle
 
 <<data, echo = FALSE, include = FALSE>>=
-sys.var_mbox.data = "Z:/HeartSteps/Data"
-sys.var_repo = "C:/Users/user/Documents/heartstepsdata"
-setwd(sys.var_repo)
+setwd("C:/Users/Hyesun/git/heartstepsdata")
 source("init.R")
-setwd(sys.var_mbox.data)
+setwd("Z:/HeartSteps/Data")
 load("csv.RData")
 load("analysis.RData")
-setwd(sys.var_repo)
+setwd("C:/Users/Hyesun/git/heartstepsdata")
 color <- "chartreuse"
 color.name <- "green"
 @
 
 \section{Individual EMA response}
 
-In this report, user 29 was delected because that user only remained 13 days. Analysis were done based on 37 samples\\
-Because of race condition, we recovered ema{\_}set{\_}today from EMA{\_}response. Even though people were traveling at that time, EMA were sent and answered. For simplicity and consistence, only study days except travel days were considered. Also, we can consider two types of engagement;respond which indicate whether people answered at least one of planning or EMA questions. view which indicate whether people responded at least one question or just turned on screen.\\
+Among 44 participants to the study, only 37 of them were chosen for analysis. User 29 was deleted because the user remained in the pool only for 13 days.\\
+Instead of using the original values for the variable ema{\_}set{\_}today which might have been corrupted due to the race condition, we recovered the values from EMA{\_}response variable. For simplicity and consistence, only the days when the subject was not travelling were considered as the study days. Here, we define 'responded' as a condition when the subject submitted at least one answer to either a planning message or any EMA questions during a day.\\
 
-<<my-label, echo=FALSE, eval=TRUE, fig.align='center',fig.height = 3, fig.cap='sdf' >>=
+<<proportion, echo=FALSE, eval=TRUE, fig.pos='htb!', fig.height = 3, fig.cap="sorted barplot of response proportion per individual">>=
 ## Included ema.set to daily to analyze ema.set
 daily <- merge(daily,
                aggregate(subset(ema, select = c(ema.set)),
@@ -34,124 +32,164 @@ daily <- merge(daily,
                by.x = c("user", "study.date"),
                by.y = paste("Group", 1:2, sep = "."), all.x = TRUE)
 
-
 temp=daily[!is.na(daily$study.day.nogap),]
-no.answer1 <- with(temp, respond )
-temp1 <- aggregate(no.answer1~user, data=temp ,mean)
-temp1=temp1[order(temp1$no.answer1),]
+temp1 <- aggregate(respond~user, data=temp ,mean)
+temp1=temp1[order(temp1$respond),]
 
-barplot(temp1[,2], names.arg =temp1$user , main="sorted barplot of respond proportion per individual",ylim=c(0,1),cex.names = 0.5)
-#tmp1=(respond.rate[,2]-respond.rate[,4])[(respond.rate[,2]-respond.rate[,4])!=0]
-#tmp2=(respond.rate[,2]-respond.rate[,3])[(respond.rate[,2]-respond.rate[,3])!=0]
+barplot(temp1[,2], names.arg = temp1$user, ylim=c(0,1), cex.names = 0.4)
 @
 
-<<respond-or-not, echo=FALSE, results="asis" >>=
-
+<<respond_or_not, echo=FALSE, results="asis" >>=
+##making table of responding and truly not responding and disconnected
+tmp=with(temp, table(respond, connect))
+tmp=c(sum(with(temp,respond & connect)),sum(with(temp,!respond & connect)),sum(with(temp,!respond & !connect)))
+tmp=as.table(c(tmp, sum(tmp)))
+rownames(tmp)=c("responded","connected but not responded", "disconnected", "Sum")
+print(xtable(tmp), include.colnames = FALSE, hline.after = c(-1,3,4))
 @
 
-
+In the dataset, there are $\Sexpr{nrow(temp)}$ total person-day datapoints obtained from 37 subjects for durations ranging from $\Sexpr{min(aggregate(study.day.nogap~user, data=daily, max)[,2])+1}$ to $\Sexpr{max(aggregate(study.day.nogap~user, data=daily, max)[,2])+1}$ days. Among those $\Sexpr{nrow(temp)}$ datapoints, only $\Sexpr{sum(temp$respond)}$ contained one or more responses to at least one of either planning message or EMA questions.\\
+Among person-data datapoints that were available to respond EMA, $\frac{\Sexpr{tmp[1]}}{\Sexpr{tmp[1]} + \Sexpr{tmp[2]}}$ = $\Sexpr{round(tmp[1]/(tmp[1]+tmp[2])*100 , digits=2)}$\% responded to EMA.
 
 \section{EMA completed status}
-We only know questions that were answered. Here, we investigated how many EMA sets are completely done, not partially.
+Here, we investigate how many EMA sets were completely, not partially, answered.
+
 <<howmany, echo=FALSE, results="asis" >>=
+
 tmp1=table(temp$ema.set.length, useNA =  "ifany")
 names(tmp1)[is.na(names(tmp1))]="NA"
-xtable(t(tmp1), auto = TRUE)
+tmp1=rbind(rownames(tmp1),tmp1)
+colnames(tmp1)=NULL
+rownames(tmp1)=c("Number of answers", "answered")
+print(xtable(tmp1, auto=T), include.rownames = TRUE, include.colnames = FALSE, hline.after = c(0,1,2))
+
 tmp2=temp$user[which(temp$ema.set.length %in% 1:6)]
+tmp <- with(temp,table(planning,!is.na(ema.set.length)))
 @
 
-If you look at the table above, only $\Sexpr{sum(tmp1[1:5])}$ cases(ema sets) were partially completed. User $\Sexpr{tmp2}$ did finish partial ema.set. Also, there is some possibility that `ema.set.length equals 7' doesn't mean complete ema.set since the number of complete ema.set questions is either 7 or 8. However, All ema1-4 were answered in `ema.set.length equals 7', which makes it more evidence they might be completed set.  
+As shown in the table above, only $\Sexpr{sum(as.numeric(tmp1[2,1:5]))}$ responses were partially completed. The users who submitted incomplete responses were users $\Sexpr{unique(tmp2)}$. It is possible that although the value of ema.set.length variable equals 7, since there were 8 EMA questions asked, the value does not indicate complete ema.set. However, the fact that all the first four EMA questsions were answered in the responses where `ema.set.length equals 7' suggests that it is highly likely that most of the responses were complete.
+Among $\Sexpr{sum(temp$respond)}$ person-day datapoints that included responses, $\Sexpr{sum(tmp[2:4,2])}$ included answers to EMA questions. Only $\Sexpr{sum(tmp[3:4,1])}$ responses included answers exclusively to the planning question.  
+\\
+\\
+\\
+\\
+\\
 
 \section{Overall EMA Response}
-<<overall ema, echo=FALSE, eval=TRUE , fig.height = 3>>=
-tmp=sort(unique(unlist(strsplit(temp$ema.set, ","))))
-k=do.call(rbind,lapply(strsplit(temp$ema.set, ","), function(x) tmp %in% unlist(x)))
-colnames(k)=sort(unique(unlist(strsplit(temp$ema.set, ","))))
-k=cbind(temp$user,temp$study.day.nogap,k)
-colnames(k)=c("user","study.day.nogap",sort(unique(unlist(strsplit(temp$ema.set, ",")))))
-a=apply(k,2,sum)
-barplot(a[3:13],names.arg = names(a)[3:13], main="The number of EMA responses for each question")
+
+<<overall_ema, echo=FALSE, eval=TRUE ,fig.pos='htb!', fig.height = 4, fig.cap="The total number of each EMA questions answered">>=
+##EMA responses 
+tmp1=sort(unique(unlist(strsplit(temp$ema.set, ","))))
+tmp2=do.call(rbind,lapply(strsplit(temp$ema.set, ","), function(x) tmp1 %in% unlist(x)))
+colnames(tmp2)=sort(unique(unlist(strsplit(temp$ema.set, ","))))
+tmp2=cbind(temp$user,temp$study.day.nogap,tmp2)
+colnames(tmp2)=c("user","study.day.nogap",sort(unique(unlist(strsplit(temp$ema.set, ",")))))
+a=apply(tmp2,2,sum)[3:13]
+names(a)[8:11]=c("R1","R2","R3","R4")
+xx=barplot(a,names.arg = names(a),ylim=c(0,max(a)+200))
+text(x = xx, y = a, label = a, pos = 1, cex = 1)
+
+temp1=with(temp, temp[!is.na(ema.set.length),])
 @
 
-<<overall-table,echo=FALSE, results="asis">>=
-xtable(t(as.table(a[3:9])), auto = TRUE)
-xtable(t(as.table(a[10:13])), auto = TRUE)
-@
-
-y-axis of all following boxplots are daily jbsteps. 
+In this section, the y-axes of all the following boxplots indicate daily jbsteps. 
 
 
-\subsection{EMA 1 : hecticness}
-How hectic was your day?(1-5, not all hectic-very hectic)
+\subsection{EMA 1: hecticness}
+How hectic was your day?(1-5, not at all hectic-very hectic)
 <<hectic, echo=FALSE, fig.align='center', fig.height = 3>>=
-d=table(temp$hectic)
-barplot(d,ylim=c(0,max(d)+100))
-with(temp,boxplot(jbsteps~hectic,main="hectic"))
+d=table(temp1$hectic, useNA="ifany")
+names(d)[is.na(names(d))]<-"NA"
+
+xx=barplot(d,names.arg=names(d),ylim=c(0,max(d)+200))
+text(x = xx, y = d, label = d, pos = 3, cex = 1)
+with(temp1,boxplot(jbsteps~hectic,main="hectic"))
 @
 
-\subsection{EMA2 : stressful}
-How stressful was your day today? (1-5, not all stressful-very stressful)
+
+\subsection{EMA 2: stressfulness}
+How stressful was your day today? (1-5, not at all stressful-very stressful)
 <<stressful,echo=FALSE, fig.align='center', fig.height = 3>>=
-d=table(temp$stressful)
-barplot(d,ylim=c(0,max(d)+100))
-with(temp,boxplot(jbsteps~stressful,main="stressful"))
+d=table(temp1$stressful, useNA="ifany")
+names(d)[is.na(names(d))]<-"NA"
+xx=barplot(d,ylim=c(0,max(d)+200), names.arg=names(d))
+text(x = xx, y = d, label = d, pos = 3, cex = 1)
+with(temp1,boxplot(jbsteps~stressful,main="stressful"))
 @
 
-
+Here is table of stressfulness/hecticness
 <<ema1-2 cor,echo=FALSE, results="asis">>=
-a=table(temp$stressful,temp$hectic)
-xtable(a, auto = TRUE)
+d=table(temp1$stressful,temp1$hectic)
+d=rbind(rownames(d),d)
+rownames(d)[rownames(d)==""]="S\\H"
+print(xtable(d,auto=T), include.colnames = FALSE)
 @
-colname is hectic. 
+The name of columns is hectic in this table. 
 
-\subsection{EMA3 : typical}
-How typical was today for a [Monday or Tuesday or Wednesday ... ]? 
+\subsection{EMA 3: typicalness}
+How typical was today for a [Monday or Tuesday or Wednesday ... ]? (1-5, not at all typical-Completely typical)
 <<typical,echo=FALSE, fig.align='center', fig.height = 3>>=
-d=table(temp$typical)
-barplot(d,ylim=c(0,max(d)+100))
-with(temp,boxplot(jbsteps~typical,main="typical"))
+d=table(temp1$typical, useNA="ifany")
+names(d)[is.na(names(d))]<-"NA"
+xx=barplot(d,ylim=c(0,max(d)+200), names.arg=names(d))
+text(x = xx, y = d, label = d, pos = 3, cex = 1)
+with(temp1,boxplot(jbsteps~typical,main="typical"))
 @
 
-\subsection{EMA4 : active}
+\subsection{EMA 4: activeness}
 Did you do any of the following today? (choose all that apply)
 <<active, echo=FALSE, fig.align='center', fig.height = 3>>=
-barplot(unlist(with(daily, list(sum(active.cardio,na.rm=T),sum(active.strength,na.rm=T),sum(active.flex,na.rm=T),sum(active.housework,na.rm=T),sum(active.none,na.rm=T), sum(is.na(active.housework))))),
-        names.arg=c("cardio","strength","flex", "housework","none", "NAs"))
-
+d=apply(subset(temp1,select=c(active.cardio:active.none)), 2, function(x) sum(x,na.rm=T))
+d=c(d,sum(is.na(temp1$active.housework)))
+xx=barplot(d, names.arg=c("cardio","strength","flex", "housework","none", "NA"), ylim=c(0,max(d)+200))
+text(x = xx, y = d, label = d, pos = 3, cex = 1)
 
 @
 
-\subsection{EMA5 : follow}
-last night you made the following plan to be active today: [plan from last night]. How did you do with it today?
+\subsection{EMA 5: plan follow}
+Last night you made the following plan to be active today: [plan from last night]. How did you do with it today?
+\begin{itemize}
+
+\end{itemize}
 <<follow,echo=FALSE, fig.align='center', fig.height = 3>>=
-barplot(table(temp$follow),names.arg = c("didn't; substitute","completely","in part","intentionally did another"))
-follow_msg_n=length(which(temp$planning %in% c("structured","unstructured")))
+d=table(temp1$follow)
+xx=barplot(table(temp1$follow),names.arg = c("A","B","C","D"), ylim=c(0,max(d)+200))
+text(x = xx, y = d, label = d, pos = 3, cex = 1)
+follow_msg_n=length(which(temp1$planning %in% c("structured","unstructured")))
 @
+\item A: \Sexpr{names(d)[1]}
+\item B: \Sexpr{names(d)[2]}
+\item C: \Sexpr{names(d)[3]}
+\item D: \Sexpr{names(d)[4]}
 
-$\Sexpr{follow_msg_n}$ times people got structured or unstructured planning messages. Like EMA, we only know the planning response once they respond.( 80 \% confidence) Among those people, $\Sexpr{a[7]}$ people responded to next day following EMA.
+
+EMA 5 is automatically generated if the participant responded to a planning question the previous day. There are $\Sexpr{follow_msg_n}$ responses to either structured or unstructured planning messages. Among the cases when the participant responded to the planning question, in only $\Sexpr{a[5]}$ cases the participant responded to EMA 5 on the following day.
 
 \subsection{EMA6 : thumbs-down}
 At [time], you received the suggestion [suggestion text] and rated it thumbs-down. Why did you rate it this way? (check all that apply)
 <<thumbs-down,echo=FALSE, fig.align='center', fig.height = 3>>=
-barplot(unlist(with(temp, list(sum(down.motivate,na.rm=T),sum(down.action,na.rm=T),sum(down.difficult,na.rm=T)
-                               ,sum(down.doable,na.rm=T),sum(down.time,na.rm=T),sum(down.active,na.rm=T)))),
-        names.arg=c("motivate","action","difficult", "doable","time", "active"))
+d=apply(subset(temp1,select=c(down.motivate:down.active)), 2, function(x) sum(x,na.rm=T))
+d=c(d,sum(with(temp1,!is.na(down.other) & down.other!="")), sum(with(temp1,is.na(down.other))))
+xx=barplot(d, names.arg=c(names(ema6),"other","NA"), ylim=c(0,max(d)+200))
+text(x = xx, y = d, label = d, pos = 3, cex = 1)
 @
-
 
 \subsection{EMA7 : thumbs-up}
 At [time], you received the suggestion [suggestion text] and rated it thumbs-up. Why did you rate it this way? (check all that apply) 
 <<thumbs-up,echo=FALSE, fig.align='center', fig.height = 3>>=
-barplot(unlist(with(temp, list(sum(up.motivate,na.rm=T),sum(up.easy,na.rm=T),sum(up.doable,na.rm=T)
-                               ,sum(up.interest,na.rm=T),sum(up.feel ,na.rm=T)))),
-        names.arg=c("motivate","easy", "doable","interest", "feel"))
+d=apply(subset(temp1,select=c(up.motivate:up.feel)), 2, function(x) sum(x,na.rm=T))
+d=c(d,sum(with(temp1,!is.na(up.other) & up.other!="")),sum(with(temp1,is.na(up.other))))
+xx=barplot(d, names.arg=c("motivate","easy", "doable","interest", "feel", "other","NA"), ylim=c(0,max(d)+200))
+text(x = xx, y = d, label = d, pos = 3, cex = 1)
 @
 
 \subsection{Research1 : barrier}
 Did any of the following make it difficult for you to be active today?
 <<barrier,echo=FALSE, fig.align='center', fig.height = 3>>=
-barplot(apply(subset(temp, select = c(barrier.weather:barrier.none)), 2, function(x) sum(x,na.rm=T)),
-        names.arg=names(research1), cex.names=0.6)
+d=apply(subset(temp1, select = c(barrier.weather:barrier.none)), 2, function(x) sum(x,na.rm=T))
+d=c(d,sum(with(temp1,!is.na(barrier.other) & barrier.other!="")),sum(with(temp1,is.na(barrier.other))))
+xx=barplot(d, names.arg=c(names(research1), "other","NA"), cex.names=0.6, ylim=c(0,max(d)+200))
+text(x = xx, y = d, label = d, pos = 3, cex = 1)
 @
 
 
@@ -159,8 +197,10 @@ barplot(apply(subset(temp, select = c(barrier.weather:barrier.none)), 2, functio
  Did any of the following make it easier for you to be active today?
  
 <<enabler,echo=FALSE, fig.align='center', fig.height = 3, fig.width = 7>>=
-barplot(apply(subset(temp, select = c(enabler.joined:enabler.none)),2,function(x) sum(x,na.rm=T)),
-        names.arg=names(research2), cex.names=0.7)
+d=apply(subset(temp1, select = c(enabler.joined:enabler.none)),2,function(x) sum(x,na.rm=T))
+d=c(d,sum(with(temp1,!is.na(enabler.other) & enabler.other!="")),sum(with(temp1,is.na(enabler.other))))
+xx=barplot(d, names.arg=c(names(research2), "other","NA"), cex.names=0.7, ylim=c(0,max(d)+200))
+text(x = xx, y = d, label = d, pos = 3, cex = 1)
 @
 
 
@@ -169,8 +209,11 @@ barplot(apply(subset(temp, select = c(enabler.joined:enabler.none)),2,function(x
 \subsection{Research3 : energetic}
 How energetic did you feel today?
 <<energetic,echo=FALSE, fig.align='center', fig.height = 3>>=
-barplot(table(temp$energetic))
-with(temp,boxplot(jbsteps~energetic,main="energetic"))
+d=table(temp1$energetic, useNA="ifany")
+names(d)[is.na(names(d))]<-"NA"
+xx=barplot(d, ylim=c(0,max(d)+200))
+text(x = xx, y = d, label = d, pos = 3, cex = 1)
+with(temp1,boxplot(jbsteps~energetic,main="energetic"))
 
 @
 
@@ -179,18 +222,24 @@ with(temp,boxplot(jbsteps~energetic,main="energetic"))
 \subsection{Research4 : urge}
 At least once today I felt an urge to get up and take a walk
 <<urge,echo=FALSE, fig.align='center', fig.height = 3>>=
-barplot(table(temp$urge, useNA =  "ifany"))
-with(temp,boxplot(jbsteps~urge,main="urge"))
+d=table(temp$urge, useNA =  "ifany")
+names(d)[is.na(names(d))]<-"NA"
+xx=barplot(d, ylim=c(0,max(d)+250))
+text(x = xx, y = d, label = d, pos = 3, cex = 1)
+with(temp1,boxplot(jbsteps~urge,main="urge"))
 @
+
+There is no one who checked degree 5.
 
 \section{Missing context}
+Among datapoints which contain respond==TRUE, the following number of contexts are missing. 
 <<missing context, echo=FALSE, results="asis" >>=
-tmp=apply(subset(temp, select = c(recognized.activity:snow)), 2, function(x) sum((is.na(x) & !is.na(temp$ema.set.length)),na.rm=T) )
+tmp=apply(subset(temp, select = c(recognized.activity:snow)), 2, function(x) sum((is.na(x) & temp$respond),na.rm=T) )
 tmp=as.table(tmp[3:14])
-xtable(t(as.table(tmp[1:5])), auto=TRUE)
-xtable(t(as.table(tmp[6:8])), auto=TRUE)
-xtable(t(as.table(tmp[9:11])), auto=TRUE)
+print(xtable(t(as.table(tmp[1:5])), auto=TRUE),include.rownames = F)
+print(xtable(t(as.table(tmp[6:8])), auto=TRUE),include.rownames = F)
+print(xtable(t(as.table(tmp[9:12])), auto=TRUE),include.rownames = F)
 @
-
+Overall, at most $\Sexpr{max(tmp)}$ contexts are missing.
 
 \end{document}

@@ -1,0 +1,100 @@
+\documentclass[11pt]{article}
+\usepackage[T1]{fontenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{setspace}
+\usepackage{float}
+\usepackage{ragged2e,array}
+\usepackage{hyperref}
+\usepackage[capitalize]{cleveref}
+\usepackage{graphicx}
+
+\title{Summary of EMA engagement}
+
+\begin{document}
+\maketitle
+<<setup, echo=FALSE, warning=FALSE, results='hide', cache=FALSE, message=FALSE>>=
+opts_chunk$set(fig.align = "center")
+source('../init.R', chdir=TRUE)
+source('ema_problems.R')
+library(xtable)
+
+@
+ 
+ In all of the following, there are \Sexpr{nrow(daily.analysis)} person-days and \Sexpr{with(daily.analysis, length(unique(user)))} people considered.
+\section{How often are people answering the EMA?}
+<<tab_n_response, echo=FALSE, results='asis'>>=
+tt <- with(daily.analysis, table(n_notify, n_response))
+tt <- cbind(tt, margin.table(tt, 1))
+tt <- rbind(tt, margin.table(tt, 2))
+
+colnames(tt) <- paste(c('Responses: ', rep('', ncol(tt)-1)), colnames(tt), sep='')
+colnames(tt)[ncol(tt)] <- '  '
+rownames(tt)[which(rownames(tt)=='0')] <- 'No notification'
+rownames(tt)[which(rownames(tt)=='1')] <- 'Notified'
+rownames(tt)[nrow(tt)] <- ' '
+
+print(xtable(tt, align=paste(c(rep('r',ncol(tt)), '|', 'r'), collapse=''),
+             caption='Tabulation of person-days by number of responses and notifications.',
+             label='tab:resp_notif'),
+      hline.after=nrow(tt)-1,
+      table.position='H',
+      booktabs=TRUE)
+
+n_notif_0resp <- tt["Notified","Responses: 0"] 
+n_notif <- tt["Notified",ncol(tt)]
+prop_notif_0resp <- n_notif_0resp / n_notif
+
+@
+\begin{itemize}
+\item The number of \emph{asked} EMA questions cannot be reliably counted due to race conditions.
+\item About \Sexpr{round(100*prop_notif_0resp)} percent of the person-days when a notification context was recorded did not have any EMA responses ($\Sexpr{n_notif_0resp} / \Sexpr{n_notif}$).
+\end{itemize}
+
+\section{Days without any EMA information}
+<<noEMA,echo=FALSE>>=
+n_noEMA <- sum(!daily.analysis$connect)
+n_persondays <- nrow(daily.analysis)
+@
+Overall, there are \Sexpr{n_noEMA} person-days (out of \Sexpr{n_persondays}) without any recorded EMA information (notifications, responses, engagements, or planning responses). See Figure \ref{fig:missing_EMA} for the proportion of such days by user.
+
+<<missing_EMA, echo=FALSE, fig.cap='Proportion of days with missing EMAs by user.', fig.width=3.5, fig.height=5, out.width='0.4\\textwidth', fig.pos='H'>>=
+plot.missing.ema + ggtitle('') + xlab('Proportion of days without any\nEMA or planning records')
+@
+
+\section{Time between EMA notification and EMA response}
+<<resp_time,echo=FALSE>>=
+
+avg_resp_time <- mean(daily.analysis$time_bt_notify_respond, na.rm=T)
+
+@
+For person-days with a notification record and response records, the average time between the notification and the first EMA response is \Sexpr{round(as.numeric(avg_resp_time),2)} seconds. See Figure \ref{fig:plot_resp_time} for the average response time by user.
+
+<<plot_resp_time, echo=FALSE, fig.width=3.5, fig.height=5, out.width='0.4\\textwidth', fig.cap='Response time by user for person-days when there was a notification and at least one EMA response. This does not include planning responses.', fig.pos='H'>>=
+plot.user.resp.time
+@
+
+\section{What do engagement records represent?}
+<<engagement_definition, echo=FALSE, results='hide'>>=
+daily.engage.before.notify <- filter(user.ema.problems, 
+       n_notify >0 & utime_first_engage < utime_first_notify)
+n_engage_before_notify <- nrow(daily.engage.before.notify)
+
+@
+Context information was pulled from the phone and stored in EMA\_Context\_Engaged if the user did not open the EMA notification for a while. No engagement record was created if the user opened the EMA quickly and answered all of the question. Figure \ref{fig:plot_scenarios} displays various time-ordered scenarios for EMA notification, engagement, and response records. 
+
+There is \Sexpr{n_engage_before_notify} person-day where an engagement was recorded before a notification (user \Sexpr{daily.engage.before.notify[["user"]]} on study day \Sexpr{daily.engage.before.notify[["study.day"]]}).
+
+<<plot_scenarios, echo=FALSE, fig.width=6.5,fig.height=5,out.width='\\textwidth',fig.cap="A selection of time-ordered scenarios for EMA-related records (notifications, engagements, and responses). Planning responses are not displayed.">>=
+plot.eng.scenarios
+@
+
+Figure \ref{fig:plot_engagements} attempts to count the number of user interactions per EMA for each user. This count excludes engagement records after the final response record and includes person-days where there is no engagement record but there are resopnses. For example, in Figure \ref{fig:plot_scenarios}, user 28 on study day 12 would have 2 "interactions" while user 4 on study day 1 would have 1 interaction. Engagement records are counted as interactions even when there are no responses. 
+
+<<plot_engagements, echo=FALSE, fig.width=6.5,fig.height=6,out.width='\\textwidth',fig.cap='Approximate distribution of the number of EMA interactions by user. The definition of interaction is given above.', fig.pos='H'>>=
+plot.hist.eng.fixed + ggtitle("EMA 'interactions' by user") + xlab('Interactions')
+@
+
+
+\end{document}
