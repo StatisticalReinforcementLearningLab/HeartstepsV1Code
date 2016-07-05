@@ -305,8 +305,8 @@ where
   \item $Y_{t+1}$ is log-transformed total Jawbone step count in the 30 minutes following the $t^{\text{th}}$ treatment occasion,
   \item $Z_{t}$ is log-transformed total Jawbone step count in the 30 minutes prior to the $t^{\text{th}}$ treatment occasion,
   \item $d(t)$ is the index of the day on which the $t^{\text{th}}$ treatment occasion occurred, ranging from 0 to 41,
-  \item $A_{1, t}$ is an indicator of whether or not a sedentary suggestion was provided at occasion $t$, and 
-  \item $A_{2, t}$ is an indicator of whether or not an active suggestion was provided at occasion $t$.
+  \item $A_{1, t}$ is an indicator of whether or not an active suggestion was provided at occasion $t$, and 
+  \item $A_{2, t}$ is an indicator of whether or not a sedentary suggestion was provided at occasion $t$.
 \end{itemize}
 
 Note that $A_{1, t} = A_{2, t} = 0$ when no treatment was provided. Results are presented in~\Cref{tab:actsed-model-results}.
