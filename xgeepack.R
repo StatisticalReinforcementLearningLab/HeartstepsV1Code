@@ -1,99 +1,126 @@
-### geepack extras
+## geepack and sandwich extras
 
-### like geese.fit, but dispense with scale estimation, limit correlation
-### structures and give output similar to geeglm
-geese.glm <-
-  function(x, y, id, offset = rep(0, N), soffset = rep(0, N),
-           weights = rep(1, N), waves = NULL, zsca = matrix(1, N, 1),
-           zcor = NULL, corp = NULL, control = geese.control(...), b = NULL,
-           alpha = NULL, gm = NULL, family = gaussian(), mean.link = NULL,
-           variance = NULL, cor.link = "identity", sca.link = "identity",
-           link.same = TRUE, scale.fix = TRUE, scale.value = 1,
-           corstr = c("independence", "ar1", "exchangeable", "fixed"), ...)
-{
-  corstr <- match.arg(corstr)
-  N <- length(id)
-  z <- list()
-  z$geese <- geese.fit(x = x, y = y, id = id, offset = offset, soffset = soffset,
-                       weights = weights, waves = waves, zsca = zsca,
-                       zcor = zcor, corp = corp, control, b = b, alpha = alpha,
-                       gm = gm, family = family, mean.link = mean.link,
-                       variance = variance, cor.link = cor.link,
-                       sca.link = sca.link, link.same = link.same,
-                       scale.fix = scale.fix, scale.value = scale.value,
-                       corstr = corstr, ...)
-  z$geese$X <- x
-  if (scale.fix) z$geese$gamma <- 1
-  z$y <- y
-  z$family <- family
-  ## second derivative of mean function (mu) wrt linear predictor (eta),
-  ## assuming binomial familly with logit link
-  z$family$mu.eta2 <- function(eta) (exp(eta) - exp(2 * eta)) / (1 + exp(eta))^3
-  z$id <- z$geese$id <- id
-  z$offset <- offset
-  z$weights <- weights
-  z$coefficients <- z$geese$beta
-  z$corstr <- corstr
-  if (is.null(z$offset))
-    z$linear.predictors <- z$geese$X %*% z$geese$beta
-  else z$linear.predictors <- z$offset + z$geese$X %*% z$geese$beta
-  z$fitted.values <- z$family$linkinv(z$linear.predictors)
-  z$residuals <- y - z$fitted.values
-  class(z$geese) <- "geese"
-  z
+library("Matrix")
+
+if (!"package:sandwich" %in% search()) {
+  bread <- function(x) UseMethod("bread")
+  estfun <- function(x) UseMethod("estfun")
 }
+meat.default <- sandwich::meat
+meat <- function(x) UseMethod("meat")
 
-### like mu.eta, but second derivative
-mu.eta2 <- list()
-mu.eta2$binomial <- function(eta) (exp(eta) - exp(2 * eta)) / (1 + exp(eta))^3
+## define function like 'family$mu.eta', but second derivative
+mu.eta2 <- function(link)
+  switch(link,
+         "identity" = function(eta) rep(0, length(eta)),
+         "logit" = function(eta) (exp(eta) - exp(2 * eta)) / (1 + exp(eta))^3,
+         function(eta) stop("Extend 'mu.eta2' to '", link, "' link function."))
 
-### evaluate link-based function at estimate
-mu.etahat <- function(x, order = 1) {
+## evaluate derivative of mean link function mu wrt linear predictor eta
+dot.mu <- function(x, order = 1) {
   fun <- if (order == 1) x$family$mu.eta
          else x$family$mu.eta2
   as.vector(fun(x$linear.predictors))
 }
 
-### extract geeglm's estimating function, returned as n by dim(beta) matrix
-estfun.geeglm <- function(x, wcovinv = NULL, small = FALSE, ...)
-{
-  if (is.null(wcovinv)) wcovinv <- working.covariance(x, invert = TRUE)
-  n <- length(unique(x$geese$id))
-  T <- length(x$y) / n
-  ## apply Mancl and DeRouen's (2001) small sample correction
-  lev <- if (small) leverage(x, wcovinv)
-         else lapply(1:n, function(i) matrix(0, T, T))
-  psi <- mapply(function(D, w, V, r, h)
-                t(D) %*% diag(w) %*% V %*% (solve(diag(1, T) - H) %*% r),
-                D = split.data.frame(x$geese$X * mu.etahat(x), x$geese$id),
-                w = split(as.vector(x$weights), x$geese$id),
-                V = wcovinv,
-                r = split(x$y - x$fitted.values, x$geese$id),
-                H = lev,
-                SIMPLIFY = FALSE)
-  do.call("rbind", lapply(psi, t))
+## like 'geese.fit', but dispense with scale estimation, limit correlation
+## structures and give output similar to 'geeglm'
+geese.glm <- function(x, y, id,
+                      offset = rep(0, N), soffset = rep(0, N),
+                      weights = rep(1, N),
+                      waves = NULL, zsca = matrix(1, N, 1),
+                      zcor = NULL, corp = NULL,
+                      control = geese.control(...),
+                      b = NULL, alpha = NULL, gm = NULL,
+                      family = gaussian(), mean.link = NULL,
+                      variance = NULL, cor.link = "identity",
+                      sca.link = "identity", link.same = TRUE,
+                      scale.fix = TRUE, scale.value = 1,
+                      corstr = c("independence", "ar1", "exchangeable",
+                                 "fixed"), ...) {
+  corstr <- match.arg(corstr)
+  N <- length(id)
+  z <- list()
+  z$geese <- geese.fit(x = x, y = y, id = id,
+                       offset = offset, soffset = soffset,
+                       weights = weights,
+                       waves = waves, zsca = zsca,
+                       zcor = zcor, corp = corp,
+                       control = control,
+                       b = b, alpha = alpha, gm = gm,
+                       family = family, mean.link = mean.link,
+                       variance = variance, cor.link = cor.link,
+                       sca.link = sca.link, link.same = link.same,
+                       scale.fix = scale.fix, scale.value = scale.value,
+                       corstr = corstr, ...)
+  if (scale.fix) z$geese$gamma <- 1
+  z$geese$X <- x
+  z$y <- y
+  z$family <- family
+  ## second derivative of mean function (mu) wrt linear predictor (eta),
+  z$family$mu.eta2 <- mu.eta2(family$link)
+  z$id <- z$geese$id <- id
+  z$offset <- offset
+  z$prior.weights <- weights
+  z$coefficients <- z$geese$beta
+  z$corstr <- corstr
+  z$linear.predictors <- if (is.null(z$offset)) z$geese$X %*% z$geese$beta
+                         else z$offset + z$geese$X %*% z$geese$beta
+  z$fitted <- z$family$linkinv(z$linear.predictors)
+  z$residuals <- y - z$fitted
+  class(z$geese) <- "geese"
+  class(z) <- c("geeglm", "gee", "glm")
+  z
 }
 
-leverage <- function(x, wcovinv = NULL)
-{
-  if (is.null(wcovinv)) wcovinv <- working.covariance(x, invert = TRUE)
-  b <- bread.geeglm(x, wcovinv)
-  mapply(function(D, w, V) D %*% b %*% t(D) %*% diag(w) %*% V,
-         D = split.data.frame(x$geese$X * mu.etahat(x), x$geese$id),
-         w = split(as.vector(x$weights), x$geese$id),
-         V = wcovinv,
-         SIMPLIFY = FALSE)
+## make an lm or glm object more like the geeglm class
+glm2gee <- function(x, id = 1:length(fitted(x))) {
+  x$id <- id
+  x$corstr <- "independence"
+  x$std.err <- "san.se"
+  if (is.null(x$y)) x$y <- x$model[, 1]
+  if (is.null(x$linear.predictors)) x$linear.predictors <- x$fitted.values
+  if (is.null(x$family)) x$family <- gaussian(link = "identity")
+  x$family$mu.eta2 <- mu.eta2(x$family$link)
+  z <- matrix(0, 1, 1)
+  b <- coef(x)
+  x$geese <- list(alpha = 0, beta = b, gamma = 1,
+                  vbeta = z, vbeta.ajs = z, vbeta.j1s = z, vbeta.fij = z,
+                  valpha = z, valpha.ajs = z, valpha.j1s = z, valpha.fij = z,
+                  vgamma = z, vgamma.ajs = z, vgamma.j1s = z, vgamma.fij = z,
+                  clusz = as.vector(table(id)),
+                  model = list(scale.fix = TRUE, corstr = x$corstr),
+                  call = x$call)
+  if (inherits(x, "glm")) {
+    s <- summary(x)
+    x$geese$model$scale.fix <- FALSE
+    x$geese$gamma <- 1 / s$dispersion
+  }
+  else if (!is.null(weights)) x$prior.weights <- x$weights
+  else x$prior.weights <- rep(1, length(id))
+  class(x$geese) <- "geese"
+  class(x) <- c("geeglm", "gee", "glm", "lm")
+  x
 }
 
-### extract bread from geeglm's sandwich variance estimator
-### nb: positive definite
-bread.geeglm <- function(x, wcovinv = NULL, sum = TRUE, invert = TRUE, ...)
-{
-  if (is.null(wcovinv))
-    wcovinv <- working.covariance(x, invert = TRUE)
-  b <- mapply(function(D, w, V) t(D) %*% diag(w) %*% V %*% D,
-              D = split.data.frame(x$geese$X * mu.etahat(x), x$geese$id),
-              w = split(as.vector(x$weights), x$geese$id),
+## return cluster sizes, with clusters identified via the 'id' argument
+cluster.size <- function(x) x$geese$clusz
+
+## return sample size
+cluster.number <- function(x) length(x$geese$clusz)
+
+## like 'bdiag', but make results similar to 'cbind' or 'rbind'
+block.diag <- function(...) {
+  l <- list(...)
+  as.matrix(do.call("bdiag", l[sapply(l, length) != 0]))
+}
+
+## extract bread from geeglm's sandwich variance estimator
+## nb: positive definite
+bread.geeglm <- function(x, wcovinv = NULL, sum = TRUE, invert = TRUE, ...) {
+  if (is.null(wcovinv)) wcovinv <- working.covariance(x, invert = TRUE)
+  b <- mapply(function(D, w, V) t(D) %*% V %*% D,
+              D = split.data.frame(model.matrix(x) * dot.mu(x), x$id),
               V = wcovinv,
               SIMPLIFY = FALSE)
   if (sum) b <- Reduce("+", b)
@@ -101,236 +128,156 @@ bread.geeglm <- function(x, wcovinv = NULL, sum = TRUE, invert = TRUE, ...)
   b
 }
 
-### like bdiag, but make results similar to cbind or rbind
-block.diag <- function(...)
-{
-  l <- list(...)
-  as.matrix(do.call("bdiag", l[sapply(l, length) != 0]))
+## extract projection matrices
+leverage <- function(x, wcovinv = NULL, invert = TRUE) {
+  if (is.null(wcovinv)) wcovinv <- working.covariance(x, invert = TRUE)
+  b <- bread.geeglm(x, wcovinv)
+  g <- if (invert) function(m) solve(diag(nrow(m)) - m)
+       else identity
+  mapply(function(D, w, V, k) g(D %*% b %*% t(D) %*% V),
+         D = split.data.frame(model.matrix(x) * dot.mu(x), x$id),
+         V = wcovinv,
+         SIMPLIFY = FALSE)
 }
 
-### extract meat from geeglm's sandwich variance estimator
-### 'x' is the lag ('lag' + 1) GEE for treatment effects
-### 'g' is the GEE for treatment probability given history
-### 'gn' is the GEE for treatment probability given history subset
-meat.geeglm <- function(x, g = NULL, gn = NULL, wcovinv = NULL, lag = 0,
-                        trtlabel = "", ...)
-{
-  if (is.null(wcovinv))
-    wcovinv <- working.covariance(x, invert = TRUE)
-  ## nb: any small sample correction enabled via '...' is applied
-  ## only to the original estimating function
+## extract geeglm's estimating function
+estfun.geeglm <- function(x, wcovinv = NULL, small = TRUE, ...) {
+  if (is.null(wcovinv)) wcovinv <- working.covariance(x, invert = TRUE)
+  ## apply Mancl and DeRouen's (2001) small sample correction
+  if (is.logical(small)) small <- small * 50
+  n <- cluster.number(x)
+  scale <- if (n <= small) leverage(x, wcovinv)
+           else lapply(cluster.size(x), function(k) diag(1, k))
+  e <- mapply(function(D, w, V, r, S) t(D) %*% V %*% (S %*% r),
+              D = split.data.frame(model.matrix(x) * dot.mu(x), x$id),
+              V = wcovinv,
+              r = split(x$y - x$fitted.values, x$id),
+              S = scale,
+              SIMPLIFY = FALSE)
+  do.call("rbind", lapply(e, t))
+}
+
+## return derivative of geeglm's estimating function wrt regression coefficients
+## nb: this form does not consider the asymptotic approximation (see last line in
+##     the Appendix of Liang and Zeger, 1986), possible when the model is
+##     correctly specified
+dot.estfun <- function(x, wcovinv = NULL, ...) {
+  if (is.null(wcovinv)) wcovinv <- working.covariance(x, invert = TRUE)
+  b <- bread.geeglm(x, wcovinv, sum = FALSE, invert = FALSE)
+  mapply(function(D, w, V, r, X) t(D) %*% V %*% diag(r) %*% X - b,
+         D = split.data.frame(model.matrix(x) * dot.mu(x, 2), x$id),
+         V = wcovinv,
+         r = split(x$y - x$fitted.values, x$id),
+         X = split.data.frame(model.matrix(x), x$id),
+         SIMPLIFY = FALSE)
+}
+
+## extract meat from geeglm's sandwich variance estimator, where:
+## 'x' is the model object for (lagged) treatment effects
+## 'denom' is the model object for the "denominator" treatment probability
+## 'num' is the model object for the "numerator" treatment probability
+## FIXME: insert code to correct for estimated probabilities
+meat.geeglm <- function(x, denom = NULL, num = NULL, lag = 0, wcovinv = NULL, 
+                        trtlabel = "", ...) {
+  if (is.null(wcovinv)) wcovinv <- working.covariance(x, invert = TRUE)
+  ## nb: small sample correction threshold can be set via '...'; no correction is
+  ##     applied to the estimating functions from 'denom' and 'num'
   psi <- estfun.geeglm(x, wcovinv = wcovinv, ...)
-  if (!is.null(g) | !is.null(gn)) {
-    ## presume 'x' is centered estimator if weights either zero or one
-    ## and no weight numerator model is provided
-    center <- all(unique(x$weights) %in% 0:1) & is.null(gn)
-    if (center) {
-      if (x$family$link != "identity")
-        stop("Centering is limited to the identity link")
-      if (trtlabel %in% attributes(x$terms)$term.labels)
-        x$trtcoef <-
-          c(0, with(attributes(x$terms),
-                    factors[which(rownames(factors) == trtlabel), ]))
-      if (is.null(x$trtcoef))
-        stop("Use 'trtlabel' to indicate the label of the main treatment effect")
-      gn <- NULL
-    }
-    if (!is.null(g)) {
-      if (length(unique(x$geese$id)) != length(unique(g$geese$id)))
-        stop("Models 'x' and 'g' should be based on the same sample")
-      if (!is.function(g$family$mu.eta2))
-        stop("Link derivative 'g$family$mu.eta2' is not a valid function")
-      if (!is.null(gn)
-          & length(unique(g$geese$id)) != length(unique(gn$geese$id)))
-        stop("Models 'g' and 'gn' should be based on the same data")
-      ## use fitted probabilities for decision points tbeg:tend,
-      ## to keep aligned with times in 'x'
-      tbeg <- as.vector(table(g$geese$id) - table(x$geese$id)) + 1 - lag
-      if (any(tbeg < 1))
-        stop("Too few measurements or clusters in model 'g'")
-      tend <- as.vector(table(g$geese$id)) - lag
-      wcovinv.g <- working.covariance(g, invert = TRUE)
-      ## derivative of 'g' estimating function
-      b.fit <-
-        mapply(function(D, w, V, r, X, b)
-          t(D) %*% diag(w) %*% V %*% diag(r) %*% X - b,
-          D = split.data.frame(g$geese$X * mu.etahat(g, 2), g$geese$id),
-          w = split(as.vector(g$weights), g$geese$id),
-          V = wcovinv.g,
-          r = split(g$y - g$fitted.values, g$geese$id),
-          X = split.data.frame(g$geese$X, g$geese$id),
-          b = bread.geeglm(g, wcovinv = wcovinv.g, sum = FALSE, invert = FALSE),
-          SIMPLIFY = FALSE)
-      psi.fit <- estfun.geeglm(g, wcovinv.g)
-      ## factor in derivative of 'x' estimating function wrt 'g' parameters
-      d.fit <-
-        if (center)
-          mapply(function(D, a, p) D / (a - p),
-                 D = split.data.frame(g$geese$X * mu.etahat(g), g$geese$id),
-                 a = split(g$y, g$geese$id),
-                 p = split(g$fitted.values, g$geese$id),
-                 SIMPLIFY = FALSE)
-        else
-          mapply(function(D, a, p) (-1)^a * D / (p^a * (1 - p)^(1 - a)),
-                 D = split.data.frame(g$geese$X * mu.etahat(g), g$geese$id),
-                 a = split(g$y, g$geese$id),
-                 p = split(g$fitted.values, g$geese$id),
-                 SIMPLIFY = FALSE)
-    }
-    else {
-      if (length(unique(x$geese$id)) != length(unique(gn$geese$id)))
-        stop("Models 'x' and 'gn' should be based on the same sample")
-      psi.fit <- numeric(0)
-      b.fit <- d.fit <- split(numeric(0), gn$geese$id)
-      tbeg <- as.vector(table(gn$geese$id) - table(x$geese$id)) + 1 - lag
-      if (any(tbeg < 1))
-        stop("Too few measurements or clusters in model 'gn'")
-      tend <- as.vector(table(gn$geese$id)) - lag
-    }
-    if (!is.null(gn)) {
-      if (!is.function(gn$family$mu.eta2))
-        stop("Link derivative 'gn$family$mu.eta2' is not a valid function")
-      wcovinv.gn <- working.covariance(gn, invert = TRUE)
-      ## derivative of 'gn' estimating function
-      b.fit <-
-        mapply(function(D, w, V, r, X, b, bp)
-          block.diag(t(D) %*% diag(w) %*% V %*% diag(r) %*% X - b, bp),
-          D = split.data.frame(gn$geese$X * mu.etahat(gn, 2), gn$geese$id),
-          w = split(as.vector(gn$weights), gn$geese$id),
-          V = wcovinv.gn,
-          r = split(gn$y - gn$fitted.values, gn$geese$id),
-          X = split.data.frame(gn$geese$X, gn$geese$id),
-          b = bread.geeglm(gn, wcovinv.gn, sum = FALSE, invert = FALSE),
-          bp = b.fit,
-          SIMPLIFY = FALSE)
-      psi.fit <- cbind(estfun.geeglm(gn, wcovinv.gn), psi.fit)
-      ## factor in derivative of 'x' estimating function wrt 'gn' parameters
-      d.fit <-
-        mapply(function(D, a, q, dq, dp)
-          cbind((-1)^(1 - a) * D / (q^a * (1 - q)^(1 - a)), dp),
-          D = split.data.frame(gn$geese$X * mu.etahat(gn), gn$geese$id),
-          a = split(gn$y, gn$geese$id),
-          q = split(gn$fitted.values, gn$geese$id),
-          dp = d.fit,
-          SIMPLIFY = FALSE)
-    }
-    b.fit <- solve(Reduce("+", b.fit))
-    tind <- mapply(function(i, j) i:j, tbeg, tend, SIMPLIFY = FALSE)
-    ## derivative of 'x' estimating function wrt 'g'/'gn' parameters
-    dpsi <-
-      if (center)
-        mapply(function(D, e, w, V, r, j, D.fit)
-          t(D - r * E) %*% V %*% diag(w * e) %*% D.fit[j, ],
-          D = split.data.frame(x$geese$X * mu.etahat(x), x$geese$id),
-          E = split.data.frame(matrix(x$trtcoef, nrow(x$geese$X),
-                                      ncol(x$geese$X), byrow = TRUE),
-                               x$geese$id),
-          e = split(as.vector(x$geese$X %*% (x$trtcoef * x$coefficients)),
-                    x$geese$id),
-          w = split(as.vector(x$weights), x$geese$id),
-          V = wcovinv,
-          r = split(x$y - x$fitted.values, x$geese$id),
-          j = tind,
-          D.fit = d.fit,
-          SIMPLIFY = FALSE)
-      else
-        mapply(function(D, w, V, r, j, D.fit)
-          t(D) %*% V %*% diag(w * r) %*% D.fit[j, ],
-          D = split.data.frame(x$geese$X * mu.etahat(x), x$geese$id),
-          w = split(as.vector(x$weights), x$geese$id),
-          V = wcovinv,
-          r = split(x$y - x$fitted.values, x$geese$id),
-          j = tind,
-          D.fit = d.fit,
-          SIMPLIFY = FALSE)
-    dpsi <- Reduce("+", dpsi)
-    ## meat here is the original estimating function, minus the product of
-    ## its derivative wrt weight parameters, bread of 'x', and estimating
-    ## function of 'x'
-    psi <- t(mapply(function(e, e.fit) e - dpsi %*% b.fit %*% e.fit,
-                    e = split(psi, 1:nrow(psi)),
-                    e.fit = split(psi.fit, 1:nrow(psi.fit))))
-  }
   Reduce("+", lapply(split(psi, 1:nrow(psi)), function(row) row %o% row))
 }
 
-### extract geeglm's working covariance matrix
-working.covariance <- function(x, invert = FALSE, wcor = NULL)
-{
-  if (is.null(wcor)) wcor <- working.correlation(x)
-  wcov <- mapply(function(a, R, phi) phi * diag(sqrt(a)) %*% R %*% diag(sqrt(a)),
-                 a = split(x$family$variance(x$fitted.values), x$geese$id),
-                 R = sapply(x$geese$clusz, function(k) wcor[1:k, 1:k],
-                            simplify = FALSE),
-                 phi = 1 / x$geese$gamma,
-                 SIMPLIFY = FALSE)
-  if (invert)
-    wcov <- lapply(wcov, solve)
-  wcov
+## extract geeglm's working covariance matrices
+## nb: like glm, the 'weights' argument specifies the prior weight for the
+##     scale parameter of the working variance function
+working.covariance <- function(x, invert = FALSE, wcor = NULL) {
+  if (is.null(wcor)) R <- working.correlation(x)
+  g <- if (invert) solve else identity
+  mapply(function(a, phi, w, k)
+           diag(w, k) %*% g(phi * diag(a, k) %*%
+                            R[1:k, 1:k, drop = FALSE] %*% diag(a, k)),
+         a = split(sqrt(x$family$variance(fitted(x))), x$id),
+         phi = x$geese$gamma^(x$geese$model$scale.fix - 1),
+         w = split(x$prior.weights, x$id),
+         k = cluster.size(x),
+         SIMPLIFY = FALSE)
 }
 
-### extract geeglm's working correlation matrix
-working.correlation <- function(x, ...)
-{
-  R <- x$working.correlation
-  if (is.null(R)) {
-    R <- diag(max(x$geese$clusz))
-    alpha <- x$geese$alpha
-    if (length(alpha))
-      R[lower.tri(R) | upper.tri(R)] <- alpha
-    if (x$corstr == "ar1")
-      R <- R^abs(col(R) - row(R))
-  }
+## extract geeglm's working correlation matrix
+working.correlation <- function(x, ...) {
+  R <- diag(max(cluster.size(x)))
+  alpha <- if (x$corstr == "independence") 0
+           else x$geese$alpha
+  if (length(alpha)) R[lower.tri(R) | upper.tri(R)] <- alpha
+  if (x$corstr == "ar1") R <- R^abs(col(R) - row(R))
   R
 }
 
-var.weighted <- function(x, g, gn)
-{
-  ## FIXME: account for other mean-link functions
-  if (g$family$family == "binomial")
-    g$family$mu.eta2 <- mu.eta2$binomial
-  if (gn$family$family == "binomial")
-    gn$family$mu.eta2 <- mu.eta2$binomial
-  b <- bread.geeglm(x)
-  m <- meat.geeglm(x, g, gn)
-  x$var <- b %*% m %*% t(b)
-  x$df <- with(x, length(unique(id)) - length(coef))
-  x
+## calculate the sandwich estimator of the covariance matrix for the regression
+## coefficients
+vcov.geeglm <- function(x, denom = NULL, num = NULL, ...) {
+  v <- x$vcov
+  if (is.null(v)) {
+    b <- bread(x)
+    m <- meat.geeglm(x, denom, num, ...)
+    v <- b %*% m %*% t(b)
+  }
+  v
 }
 
-### summarize linear combinations of regression coefficients
-estimate <- function(fit, combos = NULL, var = fit$var, ztest = TRUE,
-                     df = length(fit$id) - length(fit$coef))
-{
+## summarize linear combinations of regression coefficients, where:
+## 'combos' is a matrix whose rows give the linear combinations
+## 'null' is the value of each combintation under the null hypothesis
+## 'omnibus' indicates that the specified combinations should be tested
+##           simultaneously instead of individually
+estimate <- function(x, combos = NULL, omnibus = FALSE, null = 0, small = TRUE,
+                     conf.int = 0.95, normal = FALSE, ...) {
   if (is.null(combos)) {
-    combos <- diag(length(fit$coef))
-    rownames(combos) <- names(fit$coef)
+    combos <- diag(length(coef(x)))
+    rownames(combos) <- names(coef(x))
+    omnibus <- FALSE
   }
-  if (ztest) {
-    qfun <- qnorm
-    pfun <- function(q) pchisq(q, df = 1, lower.tail = FALSE)
+  est <- combos %*% coef(x)
+  if (nrow(est) != length(null)) null <- rep(null[1], nrow(est))
+  ## apply Mancl and DeRouen's (2001) small sample correction
+  if (is.logical(small)) small <- small * 50
+  n <- cluster.number(x)
+  d1 <- if (omnibus) nrow(combos)
+        else apply(combos != 0, 1, sum)
+  d2 <- n - length(coef)
+  ## apply Hotelling's T-squared test, following Liao et al. (2016)
+  if (n <= small & !normal) {
+    type <- "Hotelling"
+    adj <- d1 * (d1 + d2 - 1) / d2
+    qfun <- function(p) sqrt(adj * mapply(qf, p = p, df1 = d1, df2 = d2))
+    pfun <- function(q) 1 - mapply(pf, q = q / adj, df1 = d1, df2 = d2)
   }
   else {
-    qfun <- function(p) qt(p, df = df)
-    pfun <- function(q) pf(q, lower.tail = FALSE, df1 = 1, df2 = df)
+    type <- "Wald"
+    qfun <- if (normal) function(p) qnorm((1 + p) / 2)
+            else function(p) sqrt(adj * mapply(qf, p = p, df1 = d1, df2 = d2))
+    pfun <- if (normal) function(q) 1 - mapply(pchisq, q = q, df = d1)
+            else 1 - mapply(pf, q = q, df1 = d1, df2 = d2)
   }
-  est <- combos %*% fit$coef
-  if (is.null(var)) var <- fit$geese$vbeta
-  se.est <- sqrt(diag(combos %*% var %*% t(combos)))
-  lcl <- est - se.est * qfun(0.975)
-  ucl <- est + se.est * qfun(0.975)
-  pvalue <- pfun((est/se.est)^2)
-  out <- cbind(est, lcl, ucl, se.est, pvalue)
+  var.est <- combos %*% vcov(x) %*% t(combos)
+  se.est <- sqrt(diag(var.est))
+  crit <- qfun(conf.int)
+  lcl <- est - se.est * crit
+  ucl <- est + se.est * crit
+  stat <- if (omnibus) rep(t(est - null) %*% solve(var.est) %*% (est - null), d1)
+          else (est - null)^2 / diag(var.est)
+  pvalue <- pfun(stat)
+  out <- cbind(est, lcl, ucl, se.est, stat, pvalue)
   rownames(out) <- rownames(combos)
-  colnames(out) <- c("Estimate", "95% LCL", "95% UCL", "SE", "p-value")
-  class(out) <- c("matrix", "estimate")
+  colnames(out) <- c("Estimate",
+                     paste0(round(conf.int * 100), "% ", c("LCL", "UCL")),
+                     "SE", type, "p-value")
+  class(out) <- "estimate"
   out
 }
 
 print.estimate <- function(object, digits = min(getOption("digits"), 3),
-                           signif.stars = TRUE, ...)
-{
+                           signif.stars = TRUE, eps.pvalue = 1e-4, ...) {
   printCoefmat(object, digits = digits, dig.tst = digits,
                signif.stars = signif.stars, has.Pvalue = TRUE,
-               eps.Pvalue = 1e-4, ...)
+               eps.Pvalue = eps.pvalue, ...)
 }
