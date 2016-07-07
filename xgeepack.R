@@ -84,7 +84,7 @@ glm2gee <- function(x, id = 1:length(fitted(x))) {
   x$family$mu.eta2 <- mu.eta2(x$family$link)
   z <- matrix(0, 1, 1)
   b <- coef(x)
-  x$geese <- list(alpha = 0, beta = b, gamma = 1,
+  x$geese <- list(alpha = numeric(0), beta = b, gamma = 1,
                   vbeta = z, vbeta.ajs = z, vbeta.j1s = z, vbeta.fij = z,
                   valpha = z, valpha.ajs = z, valpha.j1s = z, valpha.fij = z,
                   vgamma = z, vgamma.ajs = z, vgamma.j1s = z, vgamma.fij = z,
@@ -119,7 +119,7 @@ block.diag <- function(...) {
 ## nb: positive definite
 bread.geeglm <- function(x, wcovinv = NULL, sum = TRUE, invert = TRUE, ...) {
   if (is.null(wcovinv)) wcovinv <- working.covariance(x, invert = TRUE)
-  b <- mapply(function(D, w, V) t(D) %*% V %*% D,
+  b <- mapply(function(D, V) t(D) %*% V %*% D,
               D = split.data.frame(model.matrix(x) * dot.mu(x), x$id),
               V = wcovinv,
               SIMPLIFY = FALSE)
@@ -134,7 +134,7 @@ leverage <- function(x, wcovinv = NULL, invert = TRUE) {
   b <- bread.geeglm(x, wcovinv)
   g <- if (invert) function(m) solve(diag(nrow(m)) - m)
        else identity
-  mapply(function(D, w, V, k) g(D %*% b %*% t(D) %*% V),
+  mapply(function(D, V, k) g(D %*% b %*% t(D) %*% V),
          D = split.data.frame(model.matrix(x) * dot.mu(x), x$id),
          V = wcovinv,
          SIMPLIFY = FALSE)
@@ -148,7 +148,7 @@ estfun.geeglm <- function(x, wcovinv = NULL, small = TRUE, ...) {
   n <- cluster.number(x)
   scale <- if (n <= small) leverage(x, wcovinv)
            else lapply(cluster.size(x), function(k) diag(1, k))
-  e <- mapply(function(D, w, V, r, S) t(D) %*% V %*% (S %*% r),
+  e <- mapply(function(D, V, r, S) t(D) %*% V %*% (S %*% r),
               D = split.data.frame(model.matrix(x) * dot.mu(x), x$id),
               V = wcovinv,
               r = split(x$y - x$fitted.values, x$id),
@@ -164,7 +164,7 @@ estfun.geeglm <- function(x, wcovinv = NULL, small = TRUE, ...) {
 dot.estfun <- function(x, wcovinv = NULL, ...) {
   if (is.null(wcovinv)) wcovinv <- working.covariance(x, invert = TRUE)
   b <- bread.geeglm(x, wcovinv, sum = FALSE, invert = FALSE)
-  mapply(function(D, w, V, r, X) t(D) %*% V %*% diag(r) %*% X - b,
+  mapply(function(D, V, r, X) t(D) %*% V %*% diag(r) %*% X - b,
          D = split.data.frame(model.matrix(x) * dot.mu(x, 2), x$id),
          V = wcovinv,
          r = split(x$y - x$fitted.values, x$id),
@@ -192,9 +192,8 @@ meat.geeglm <- function(x, denom = NULL, num = NULL, lag = 0, wcovinv = NULL,
 working.covariance <- function(x, invert = FALSE, wcor = NULL) {
   if (is.null(wcor)) R <- working.correlation(x)
   g <- if (invert) solve else identity
-  mapply(function(a, phi, w, k)
-           diag(w, k) %*% g(phi * diag(a, k) %*%
-                            R[1:k, 1:k, drop = FALSE] %*% diag(a, k)),
+  mapply(function(a, phi, w, k) g(diag(phi / w, k) %*% diag(a, k) %*%
+                                  R[1:k, 1:k, drop = FALSE] %*% diag(a, k)),
          a = split(sqrt(x$family$variance(fitted(x))), x$id),
          phi = x$geese$gamma^(x$geese$model$scale.fix - 1),
          w = split(x$prior.weights, x$id),
@@ -205,9 +204,7 @@ working.covariance <- function(x, invert = FALSE, wcor = NULL) {
 ## extract geeglm's working correlation matrix
 working.correlation <- function(x, ...) {
   R <- diag(max(cluster.size(x)))
-  alpha <- if (x$corstr == "independence") 0
-           else x$geese$alpha
-  if (length(alpha)) R[lower.tri(R) | upper.tri(R)] <- alpha
+  if (length(x$geese$alpha)) R[lower.tri(R) | upper.tri(R)] <- x$geese$alpha
   if (x$corstr == "ar1") R <- R^abs(col(R) - row(R))
   R
 }
