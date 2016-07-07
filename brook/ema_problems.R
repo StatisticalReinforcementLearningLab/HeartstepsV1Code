@@ -25,7 +25,7 @@ load(paste(sys.var$mbox.data,"analysis.RData",sep=''))
 
 keep_users <- users$user[!users$exclude]
 daily.analysis <- filter(daily, user %in% keep_users & !travel)
-
+daily.analysis <- filter(daily.analysis, study.day.nogap <=41) # last study day is 41
 # Count each type of EMA record (engagement, notification, response)
 daily.analysis %>%
   left_join(

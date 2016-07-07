@@ -22,7 +22,7 @@ library(xtable)
 
 @
  
- In all of the following, there are \Sexpr{nrow(daily.analysis)} person-days and \Sexpr{with(daily.analysis, length(unique(user)))} people considered.
+ In all of the following, there are \Sexpr{nrow(daily.analysis)} person-days and \Sexpr{with(daily.analysis, length(unique(user)))} people considered. Data after the 42nd consecutive study day are excluded.
 \section{How often are people answering the EMA?}
 <<tab_n_response, echo=FALSE, results='asis'>>=
 tt <- with(daily.analysis, table(n_notify, n_response))
@@ -93,7 +93,7 @@ plot.eng.scenarios
 Figure \ref{fig:plot_engagements} attempts to count the number of user interactions per EMA for each user. This count excludes engagement records after the final response record and includes person-days where there is no engagement record but there are resopnses. For example, in Figure \ref{fig:plot_scenarios}, user 28 on study day 12 would have 2 "interactions" while user 4 on study day 1 would have 1 interaction. Engagement records are counted as interactions even when there are no responses. 
 
 <<plot_engagements, echo=FALSE, fig.width=6.5,fig.height=6,out.width='\\textwidth',fig.cap='Approximate distribution of the number of EMA interactions by user. The definition of interaction is given above.', fig.pos='H'>>=
-plot.hist.eng.fixed + ggtitle("EMA 'interactions' by user") + xlab('Interactions')
+plot.hist.eng.fixed + ggtitle("EMA 'interactions' by user") + xlab("'Interactions'")
 @
 
 
