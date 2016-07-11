@@ -8,7 +8,6 @@
 % wrap table text
 \usepackage{ragged2e,array}
 \usepackage{hyperref}
-\usepackage[capitalize]{cleveref}
 \usepackage{graphicx}
 \IfFileExists{MinionPro.sty}
   {\usepackage[lf,italicgreek]{MinionPro}
@@ -17,8 +16,8 @@
    \usepackage[toc,enum,bib,lineno,eqno]{tabfigures}}
   {\makeatletter\let\figureversion\@gobble\makeatother
    \usepackage{amsmath,amssymb}}
-% environment hooks
-\usepackage{etoolbox}
+\usepackage{etoolbox} 
+\usepackage[capitalize]{cleveref}
 
 % make smallcaps/figures searchable
 \input{glyphtounicode}
@@ -38,6 +37,9 @@
 \newcolumntype{R}[1]{>{\RaggedLeft\hspace{0pt}}p{#1}}
 \setlength{\tabcolsep}{6pt}
 
+\def\changemargin#1#2{\list{}{\rightmargin#2\leftmargin#1}\item[]}
+\let\endchangemargin=\endlist 
+
 \setlist{leftmargin=\parindent,rightmargin=\parindent}
 
 \linespread{1.125}
@@ -53,7 +55,7 @@
 \thispagestyle{empty}
 
 <<setup, include = FALSE, cache = FALSE>>=
-opts_chunk$set(fig.align = "center", dev = "tikz", dev.args = list(pointsize=11), echo = FALSE, fig.width = 6.5, fig.height = 3.5, fig.show = "hold", par = TRUE)
+opts_chunk$set(fig.align = "center", dev = "tikz", dev.args = list(pointsize=11), echo = FALSE, fig.width = 5.5, fig.height = 3.5, fig.show = "hold", par = TRUE)
 knit_hooks$set(par = function(before, options, envir){
   if (before && options$fig.show != "none")
     par(mar = c(3, 3, 1, 0) + 0.5, mgp = c(2, 0.5, 0), oma = rep(0, 4), las = 1, tcl = 0.25)})
@@ -66,19 +68,20 @@ color.name <- "blue"
 @
 
 \section{Participants Excluded}
-
+\label{sec:participant-exclusion}
 A total of \Sexpr{length(unique(users$user))} participants were recruited. Of those, we are excluding all data from \Sexpr{length(with(users, user[exclude == T]))}.
 
 \begin{itemize}
 \item \Sexpr{v <- as.character(with(timezone, unique(user[en.locale == F]))); ifelse(length(v) > 1, paste("Participants", paste(v[1:length(v) - 1], collapse = ", ", sep = ""), "and", v[length(v)], "were", collapse = ",", sep = " "), paste("Participant", v, "was", collapse = ",", sep = " "))} %
 excluded because their phones were not set to an English locale. This resulted in timezone data being reported to the HeartSteps server in a way that could not be understood in English.
 
-\item Participants \Sexpr{v <- with(users, user[days <= 7]); paste(paste(v[1:length(v) - 1], collapse = ", ", sep = ""), "and", v[length(v)], collapse = ",", sep = " ")} dropped out of the study after 7 or fewer days. (Participant \Sexpr{v[1]} was on-study for \Sexpr{with(users, days[user == v[1]])} days; participant \Sexpr{v[2]} for \Sexpr{with(users, days[user == v[2]])} day; participant \Sexpr{v[3]} for \Sexpr{with(users, days[user == v[3]])} days.) Participants \Sexpr{paste(v[2:3], collapse = " and ")} left the study because they were too uncomfortable using a study phone.
+\item Participants \Sexpr{v <- with(users, user[days <= 13]); paste(paste(v[1:length(v) - 1], collapse = ", ", sep = ""), "and", v[length(v)], collapse = ",", sep = " ")} dropped out of the study after 12 or fewer days. (Participant \Sexpr{v[1]} was on-study for \Sexpr{with(users, days[user == v[1]])} days; participant \Sexpr{v[2]} for \Sexpr{with(users, days[user == v[2]])} day; participant \Sexpr{v[3]} for \Sexpr{with(users, days[user == v[3]])} days; participant \Sexpr{v[4]} for \Sexpr{with(users, days[user == v[4]])} days.) Participants 36 and 38 left the study because they were too uncomfortable using a study phone.
 \end{itemize}
 
-\noindent After eliminating the above individuals, \Sexpr{sum(!users$exclude)} remain in the sample. Of those, \Sexpr{length(ids)} were on-study for at least \Sexpr{max(days) + 1} days. The total sample size is \textbf{\Sexpr{length(ids)}}.
+\noindent After eliminating the above individuals, \textbf{\Sexpr{sum(!users$exclude)}} remain in the sample. The included participants were all on-study for at least \textbf{\Sexpr{min(aggregate(study.day.nogap ~ user, primary, max)$study.day.nogap) + 1}} days.
 
 \section{Availability}
+\label{sec:avail}
 Our operationalized definition of availability is as follows: A participant is available if
 \begin{enumerate}
   \item she is not currently in a car,
@@ -86,64 +89,87 @@ Our operationalized definition of availability is as follows: A participant is a
   \item her phone is connected to the internet.
 \end{enumerate}
 
-Regarding the connection issue, see the following excerpt from the original summary:
+We justify the connectivity requirement for availability as follows:
 
 \begin{quote}
-  The anticipated data for each user-designated notification time slot is sometimes entirely missing. For example around the EMA notification time slot for a given user, we might find no corresponding records in the EMA-related tables. This presumably arises when the user's phone is in one of the following states:
-\begin{enumerate}
-\item connected to a network, but not authorized to send data\footnote{HeartSteps did not follow any handshake protocol prior, so in this scenario the device would send and discard data without ensuring that it was actually sent to the server.};
-\item turned off; or
-\item has no network access over extended periods of time.
-\end{enumerate}
+  The anticipated data for each user-designated notification time slot is sometimes entirely missing. For example around the EMA notification time slot for a given user, we might find no corresponding records in the EMA-related tables. This presumably arises when the user's phone is connected to a network, but not authorized to send data\footnote{The HeartSteps app did not follow any handshake protocol with the server, so in this scenario the device would send and discard data without ensuring that it was actually sent to the server.}; turned off; or has no network access over extended periods of time.
 \end{quote}
 
-The following rules create a proxy to determine whether an individual is connected:
-\begin{enumerate}
-\item For EMAs, we are \textit{completely missing} the context in which the EMA notification was delivered to the user, the context in which the user viewed the EMA, and the user's response to the EMA. If any of these are present, the user is treated as connected.
-\item For suggestions, we have no data about whether or not the suggestion was delivered, or the context in which it was delivered. 
-\end{enumerate}
+We say an individual is not connected at a decision point if we have do not have data about whether or not the suggestion was delivered, or the context in which it was delivered.
 
 <<availplot, fig.pos = "H", fig.cap = "Proportion of participants unavailable vs. decision point, either due to any cause or specifically due to walking.">>=
 replayPlot(avail.plot)
 @
 
-\section{Data Excluded}
+\section{Inclusion and Exclusion of Person-Decison Points}
+\label{sec:incl-excl}
 Two participants (IDs 3 and 6) reported periods of international travel during which they were unable to engage with HeartSteps due to lack of connectivity outside the United States. Three participants (IDs 1, 15, and 39) experienced technical issues over an extended period of time which prevented them from engaging. Additional details are below.
 \begin{enumerate}
 \item The Jawbone given to participant 1 failed for \Sexpr{sum(daily$travel[daily$user == 1])} days; her study was extended for 2 weeks to accomodate this.
 \item Participant 3 traveled internationally for \Sexpr{sum(daily$travel[daily$user == 3])} days; her study was extended for 1 week.
 \item Participant 6 traveled internationally for \Sexpr{sum(daily$travel[daily$user == 6])} days; his study was extended for 10 days.
+\item Participant 14 traveled to Hawaii for \Sexpr{sum(daily$travel[daily$user == 14])} days and experienced issues with the app while there. See~\Cref{sec:jawbone}.
 \item Participant 15 experienced extended technical issues stemming from her disabling connectivity on her phone (e.g., Bluetooth, location, etc.). Her study was extended by 12 days.
 \item Participant 17 reported technical and reception (both cellular and Wi-Fi) issues during the study (her office is in a basement). Her study was extended by 1 week.
 \item Participant 39 lost his Jawbone. Additionally, the device may have been faulty or the participant disabled connectivity: Audrey and Nick noticed his Jawbone data was not being uploaded for some time. His study was extended by 3 weeks.
 \end{enumerate}
 
-We call a decision ``valid'' if it occurred within an intended timeslot (e.g., morning commute, etc.) and was not duplicated. In total, there were \Sexpr{dim(suggest)[1]} ``valid'' decisions made throughout the study. Of those, we eliminate \Sexpr{table(suggest$avail, suggest$send)[1,2]} which occurred while the participant should have been marked as unavailable according to the above definition. 
+Below, we introduce language which will be convenient for discussing person-decision points in various scenarios.
 
-After removing travel dates, participant time series were spliced together. For example, if a user was on vacation starting on day 10 and ending after day 15, what would have been day 16 is relabeled as day 10.
+We call a person-decision point \textit{valid} if the decision occurred within an intended timeslot (e.g., morning commute, etc.) and was not duplicated. Records of decisions which occurred outside of intended timeslots or duplicate records were discarded.
 
+Person-decision points which occurred on days when the participant reported travel (described above) were excluded from analysis. Note that we exclude whole days. After removing travel dates, participant time series were spliced together. For example, if a user was on vacation starting on day 10 and ending after day 15, what would have been day 16 is relabeled as day 10. Additionally, we trim each participant's time series to include a maximum of 42 days.
+
+We also exclude a small number of anomalous person-decision points which could not be captured by the above rules:
+\begin{enumerate}
+  \item At \Sexpr{table(suggest$avail, suggest$send)[1,2]} person-decision points, records indicate that a suggestion was sent while the participant was unavailable according to the definition of availability in~\Cref{sec:avail}.
+  \item At \Sexpr{sum(is.na(suggest$send.active))} person-decision point, the text of the suggestion sent is unavailable, and so cannot be classified as active or sedentary (required for~\Cref{sec:actsed}).
+\end{enumerate}
+
+We call a person-decision point \textit{included} if it was not excluded per one of the above rules (and is thus used in the primary analyses which follow). We say a person-decision point is \textit{available} if it is included and the participant was available when the decision occurred.
+
+We summarize the exclusion of person-decision points below:
+\begin{changemargin}{.125\textwidth}{.125\textwidth}
+\begin{align*}
+  \mathbf{\Sexpr{dim(suggest)[1]}} &
+    \quad \text{\textit{Valid} person-decision points} \\
+  \Sexpr{-sum(suggest$travel)} &
+    \quad \text{Person-decision points while the participant was traveling} \\
+  \Sexpr{-sum(suggest$study.day.nogap > 41, na.rm = T)} &
+    \quad \text{Person-decision points which occurred on days after the participant's day 42} \\
+  \Sexpr{-table(suggest$avail, suggest$send)[1,2] - sum(is.na(suggest$send.active))} &
+    \quad \text{Anomalous person-decison points (see above)} \\ \cline{1-1}
+  \mathbf{\Sexpr{dim(primary)[1]}} &
+    \quad \text{\textit{Included} person-decision points} \\
+  \Sexpr{-sum(!primary$avail)} &
+    \quad \text{Person-decision points at which the participant was unavailable} \\ \cline{1-1}
+  \mathbf{\Sexpr{sum(primary$avail)}} &
+    \quad \text{\textit{Available} person-decision points}
+\end{align*}
+\end{changemargin}
 
 \section{Jawbone Step Count}
-We wish to regress step count in the 30 minutes following a decision point against a centered treatment indicator, controlling for step count in the 30 minutes prior to the decision point. Before we do this, we summarize features of and missingness in these variables.
+\label{sec:jawbone}
+We wish to regress step count in the 30 minutes following a decision point against a centered treatment indicator, controlling for step count   in the 30 minutes prior to the decision point. Before we do this, we summarize features of and missingness in these variables.
 
 Jawbone step count is left-truncated at zero: the device does not record zeroes when it is not moving or the battery is dead. Becasue of this, we cannot determine whether the participant was truly sedentary or if she is not wearing the device, for example. We can identify three distinct scenarios in which we do not have Jawbone step count data.
 \begin{enumerate}
   \item There is no step count data in the 30 minutes following a decision point, but there is data in the 60 minutes following. For example, if there is a decision at 2:00 PM, there are no step counts from 2:00 - 2:30, but there is data from 2:30 - 3:00. This happens for
   \begin{enumerate}
-      \item \Sexpr{with(eval(d), sum(jbsteps30 == 0 & jbsteps60 != 0, na.rm = T))} of \Sexpr{dim(eval(d))[1]} included decision points (\Sexpr{100 * with(eval(d), sum(jbsteps30 == 0 & jbsteps60 != 0, na.rm = T)) / dim(eval(d))[1]}\%)
-    \item \Sexpr{with(subset(eval(d), avail == T), sum(jbsteps30 == 0 & jbsteps60 != 0, na.rm = T))} of \Sexpr{sum(eval(d)$avail == T)} decision points at which the particpant was available (\Sexpr{100 * with(subset(eval(d), avail == T), sum(jbsteps30 == 0 & jbsteps60 != 0, na.rm = T)) / sum(eval(d)$avail == T)}\%).
+      \item \Sexpr{with(primary, sum(jbsteps30 == 0 & jbsteps60 != 0, na.rm = T))} of \Sexpr{dim(primary)[1]} included decision points (\Sexpr{100 * with(primary, sum(jbsteps30 == 0 & jbsteps60 != 0, na.rm = T)) / dim(primary)[1]}\%)
+    \item \Sexpr{with(subset(primary, avail == T), sum(jbsteps30 == 0 & jbsteps60 != 0, na.rm = T))} of \Sexpr{sum(primary$avail == T)} decision points at which the particpant was available (\Sexpr{100 * with(subset(primary, avail == T), sum(jbsteps30 == 0 & jbsteps60 != 0, na.rm = T)) / sum(primary$avail == T)}\%).
   \end{enumerate}
   
   \item There is no step count data in the 60 minutes following a decision point, but there is data before the next decision point. For example, if there are decisions at 2:00 PM and 5:00 PM, there are no step counts from 2:00 - 3:00, but data from 3:00 to 5:00. This happens for
   \begin{enumerate}
-      \item \Sexpr{with(eval(d), sum(jbsteps30 == 0 & jbsteps60 == 0, na.rm = T))} of \Sexpr{dim(eval(d))[1]} included decision points (\Sexpr{100 * with(eval(d), sum(jbsteps30 == 0 & jbsteps60 == 0, na.rm = T)) / dim(eval(d))[1]}\%)
-    \item \Sexpr{with(subset(eval(d), avail == T), sum(jbsteps30 == 0 & jbsteps60 == 0, na.rm = T))} of \Sexpr{sum(eval(d)$avail == T)} decision points at which the particpant was available (\Sexpr{100 * with(subset(eval(d), avail == T), sum(jbsteps30 == 0 & jbsteps60 == 0, na.rm = T)) / sum(eval(d)$avail == T)}\%).
+      \item \Sexpr{with(primary, sum(jbsteps30 == 0 & jbsteps60 == 0, na.rm = T))} of \Sexpr{dim(primary)[1]} included decision points (\Sexpr{100 * with(primary, sum(jbsteps30 == 0 & jbsteps60 == 0, na.rm = T)) / dim(primary)[1]}\%)
+    \item \Sexpr{with(subset(primary, avail == T), sum(jbsteps30 == 0 & jbsteps60 == 0, na.rm = T))} of \Sexpr{sum(primary$avail == T)} decision points at which the particpant was available (\Sexpr{100 * with(subset(primary, avail == T), sum(jbsteps30 == 0 & jbsteps60 == 0, na.rm = T)) / sum(primary$avail == T)}\%).
   \end{enumerate}
   
   \item There is no step count data in the entire period between decision points. For example, if there are decision points at 2:00 PM and 5:00 PM, there is no step count from 2:00 - 5:00, but data starting at 5:00. This happens for
   \begin{enumerate}
-      \item \Sexpr{sum(is.na(suggest$jbsteps30))} of \Sexpr{dim(eval(d))[1]} included decision points (\Sexpr{100 * with(eval(d), sum(is.na(jbsteps30))) / dim(eval(d))[1]}\%)
-    \item \Sexpr{with(subset(eval(d), avail == T), sum(is.na(jbsteps30)))} of \Sexpr{sum(eval(d)$avail == T)} decision points at which the particpant was available (\Sexpr{100 * with(subset(eval(d), avail == T), sum(is.na(jbsteps30))) / sum(eval(d)$avail == T)}\%).
+      \item \Sexpr{sum(is.na(suggest$jbsteps30))} of \Sexpr{dim(primary)[1]} included decision points (\Sexpr{100 * with(primary, sum(is.na(jbsteps30))) / dim(primary)[1]}\%)
+    \item \Sexpr{with(subset(primary, avail == T), sum(is.na(jbsteps30)))} of \Sexpr{sum(primary$avail == T)} decision points at which the particpant was available (\Sexpr{100 * with(subset(primary, avail == T), sum(is.na(jbsteps30))) / sum(primary$avail == T)}\%).
   \end{enumerate}
 \end{enumerate}
 
@@ -151,33 +177,33 @@ We observe similar scenarios in the measurements of step count before a decision
 \begin{enumerate}
   \item There is no step count data in the 30 minutes prior to a decision point, but there is data in the 60 minutes prior. This happens for
   \begin{enumerate}
-    \item \Sexpr{with(eval(d), sum(jbsteps30pre == 0 & jbsteps60pre != 0, na.rm = T))} of \Sexpr{dim(eval(d))[1]} included decision points (\Sexpr{100 * with(eval(d), sum(jbsteps30pre == 0 & jbsteps60pre != 0, na.rm = T)) / dim(eval(d))[1]}\%)
-    \item \Sexpr{with(subset(eval(d), avail == T), sum(jbsteps30pre == 0 & jbsteps60pre != 0, na.rm = T))} of \Sexpr{sum(eval(d)$avail == T)} included decision points (\Sexpr{100 * with(subset(eval(d), avail == T), sum(jbsteps30pre == 0 & jbsteps60pre != 0, na.rm = T)) / sum(eval(d)$avail == T)}\%).
+    \item \Sexpr{with(primary, sum(jbsteps30pre == 0 & jbsteps60pre != 0, na.rm = T))} of \Sexpr{dim(primary)[1]} included decision points (\Sexpr{100 * with(primary, sum(jbsteps30pre == 0 & jbsteps60pre != 0, na.rm = T)) / dim(primary)[1]}\%)
+    \item \Sexpr{with(subset(primary, avail == T), sum(jbsteps30pre == 0 & jbsteps60pre != 0, na.rm = T))} of \Sexpr{sum(primary$avail == T)} included decision points (\Sexpr{100 * with(subset(primary, avail == T), sum(jbsteps30pre == 0 & jbsteps60pre != 0, na.rm = T)) / sum(primary$avail == T)}\%).
   \end{enumerate}
   
   \item There is no step count data in the 60 minutes prior to a decision point, but there was data collected since the last decision point. This happens for
   \begin{enumerate}
-    \item \Sexpr{with(eval(d), sum(jbsteps30pre == 0 & jbsteps60pre == 0, na.rm = T))} of \Sexpr{dim(eval(d))[1]} included decision points (\Sexpr{100 * with(eval(d), sum(jbsteps30pre == 0 & jbsteps60pre == 0, na.rm = T)) / dim(eval(d))[1]}\%)
-    \item \Sexpr{with(subset(eval(d), avail == T), sum(jbsteps30pre == 0 & jbsteps60pre == 0, na.rm = T))} of \Sexpr{sum(eval(d)$avail == T)} included decision points (\Sexpr{100 * with(subset(eval(d), avail == T), sum(jbsteps30pre == 0 & jbsteps60pre == 0, na.rm = T)) / sum(eval(d)$avail == T)}\%).
+    \item \Sexpr{with(primary, sum(jbsteps30pre == 0 & jbsteps60pre == 0, na.rm = T))} of \Sexpr{dim(primary)[1]} included decision points (\Sexpr{100 * with(primary, sum(jbsteps30pre == 0 & jbsteps60pre == 0, na.rm = T)) / dim(primary)[1]}\%)
+    \item \Sexpr{with(subset(primary, avail == T), sum(jbsteps30pre == 0 & jbsteps60pre == 0, na.rm = T))} of \Sexpr{sum(primary$avail == T)} included decision points (\Sexpr{100 * with(subset(primary, avail == T), sum(jbsteps30pre == 0 & jbsteps60pre == 0, na.rm = T)) / sum(primary$avail == T)}\%).
   \end{enumerate}
   
   \item There is no step count data between the previous decision point and the current decision point. This happens for
   \begin{enumerate}
-      \item \Sexpr{sum(is.na(suggest$jbsteps30))} of \Sexpr{dim(eval(d))[1]} included decision points (\Sexpr{100 * with(eval(d), sum(is.na(jbsteps30))) / dim(eval(d))[1]}\%)
-    \item \Sexpr{with(subset(eval(d), avail == T), sum(is.na(jbsteps30)))} of \Sexpr{sum(eval(d)$avail == T)} decision points at which the particpant was available (\Sexpr{100 * with(subset(eval(d), avail == T), sum(is.na(jbsteps30))) / sum(eval(d)$avail == T)}\%).
+      \item \Sexpr{sum(is.na(suggest$jbsteps30))} of \Sexpr{dim(primary)[1]} included decision points (\Sexpr{100 * with(primary, sum(is.na(jbsteps30))) / dim(primary)[1]}\%)
+    \item \Sexpr{with(subset(primary, avail == T), sum(is.na(jbsteps30)))} of \Sexpr{sum(primary$avail == T)} decision points at which the particpant was available (\Sexpr{100 * with(subset(primary, avail == T), sum(is.na(jbsteps30))) / sum(primary$avail == T)}\%).
   \end{enumerate}
 \end{enumerate}
 
-When step count is missing, we impute zero.
+When step count is missing (in \textit{any} of the above scenarios), we impute zero.
 
-The following plot shows the number of days on which step count is \textit{completely} missing for each user. Bar labels give the percentage of missing days relative to total days on-study (excluding travel). Overall, 
+\Cref{fig:missing-step-plot} shows the number of days on which step count is \textit{completely} missing for each user. Bar labels give the percentage of missing days relative to total days on-study (excluding travel). Overall, 
 \Sexpr{round(sum(user.nojb) / sum(aggregate(study.day.nogap ~ user, data = suggest, max, na.rm = T)), 3) * 100}\% of person-days are completely missing in Jawbone step count.
 
 <<missing-step-plot, fig.height=3, out.width="\\textwidth", fig.cap = "Bar plot of number of days on which step count is completely missing for each user (excluding travel), labeled with the percent of days on study for which step count is missing.">>=
 replayPlot(missing.step.plot)
 @
 
-We notice large spikes of missingness for users 14 and 35.
+We notice large spikes of missingness for users 14 and 35 in~\Cref{fig:missing-step-plot}.
 \begin{itemize}
   \item User 14 went on vacation to Hawaii, and the dates of this trip could not be confirmed by study organizers. It may be reasonable to believe that she did not wear the Jawbone while on this trip. 
   \item User 35 has no Jawbone data after 18 days on-study. He dropped out of communication with study organizers; we believe this is due to a lost Jawbone. We do have Google Fit data which, when Jawbone data is available, is highly correlated with Jawbone step count 
@@ -190,8 +216,8 @@ Preliminary analysis using only participants on-study for at least \Sexpr{max(da
 
 \subsection*{Model 1}
 \begin{equation}
-  Y_{t+1} \sim \alpha_{0} + \alpha_{1} Z_{t} + \beta_{0}\left( A_{t} - 0.6 \right), \quad \text{if } I_{t} = 1,
-  \label{eqn:model-no-day-effect}
+  Y_{t+1} \sim \alpha_{0} + \alpha_{1} Z_{t} + \beta_{1}\left( A_{t} - 0.6 \right), \quad \text{if } I_{t} = 1,
+  \label{eqn:model-no-day-effect} 
 \end{equation}
 where 
 \begin{itemize}
@@ -201,14 +227,16 @@ where
 \end{itemize}
 
 <<model1-no_time_effect, results = "asis">>=
-names(model1$coef) <- c("$\\alpha_{0}$", "$\\alpha_{1}$", "$\\beta_{0}$")
-print(xtable(estimate(model1, ztest = FALSE), floating = FALSE, digits = 3), 
+names(model1$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$", "$\\beta_{1}$")
+print(xtable(estimate(model1, normal = FALSE),
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-no-day-effect}",
+             label = "tab:model-no-day-effect", floating = FALSE, digits = 3), 
       sanitize.rownames.function = identity)
 @
 
 \subsection*{Model 2}
 \begin{equation}
-  Y_{t+1} \sim \alpha_{0} + \alpha_{1} Z_{t} + \alpha_{2} d(t) + \beta_{0} \left(A_{t} - 0.6\right) + \beta_{1} d(t) \left(A_{t} - 0.6\right), \quad \text{if } I_{t} = 1,
+  Y_{t+1} \sim \alpha_{0} + \alpha_{1} Z_{t} + \alpha_{2} d(t) + \beta_{1} \left(A_{t} - 0.6\right) + \beta_{2} d(t) \left(A_{t} - 0.6\right), \quad \text{if } I_{t} = 1,
   \label{eqn:model-with-day-effect}
 \end{equation}
 where
@@ -220,9 +248,11 @@ where
 \end{itemize}
 
 <<model2-time_effect, results = "asis">>=
-names(model2$coef) <- c("$\\alpha_{0}$", "$\\alpha_{1}$", "$\\alpha_{2}$",
-                        "$\\beta_{0}$", "$\\beta_{1}$")
-print(xtable(estimate(model2, ztest = FALSE), floating = FALSE, digits = 3), 
+names(model2$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$", "$\\alpha_{2}$",
+                                "$\\beta_{1}$", "$\\beta_{2}$")
+print(xtable(estimate(model2, normal = FALSE),
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-with-day-effect}",
+             label = "tab:model-with-day-effect", floating = FALSE, digits = 3), 
       sanitize.rownames.function = identity)
 @
 
@@ -230,7 +260,7 @@ print(xtable(estimate(model2, ztest = FALSE), floating = FALSE, digits = 3),
 replayPlot(spaghetti.plot)
 @
 
-<<spaghettiplot-mean, fig.cap="Mean difference in proximal step count following a suggestion vs. folllwing no suggestion, averaged over all particpants, and smoothed using LOESS.", fig.pos = "H">>=
+<<spaghettiplot-mean, fig.cap="Mean difference in proximal step count following a suggestion vs. folllwing no suggestion, averaged over all particpants, and smoothed using LOESS with span 2/3.", fig.pos = "H">>=
 replayPlot(spaghetti.mean.plot)
 @
 
@@ -239,7 +269,7 @@ replayPlot(spaghetti.mean.plot)
 We are interested in selecting a model which best captures the effect of time on proximal step count. In particular, we want to decide whether a quadratic function in time should be incorporated into the model. To do this, we regress log-transformed proximal step count following each decision point against log-transformed step count in the 30 minutes prior to each decision point, among participants who are available at the decision point. We then use LOESS on the residuals vs. $d(t)$, where $t = 0, 1, 2, \ldots, 209$ is the index of the decision point, and $d(t) = \lfloor\frac{t}{5}\rfloor$ is the index of the day on which decision point $t$ occurred. As above, we only use data from the \Sexpr{length(ids)} participants who were on-study for \Sexpr{max(days)} or more days. 
 
 \subsection{Main Effect}
-
+\label{sec:time-main-effect}
 We model
 \begin{equation}
   Y_{t+1} \sim \alpha_{0} + \alpha_{1} Z_{t} \quad \text{if } I_{t} = 1,
@@ -250,54 +280,102 @@ where
   \item $Y_{t+1}$ is log-transformed total Jawbone step count in the 30 minutes following the $t^{\text{th}}$ treatment occasion and
   \item $Z_{t}$ is log-transformed total Jawbone step count in the 30 minutes prior to the $t^{\text{th}}$ treatment occasion.
 \end{itemize}
-As always, we weight by availability. Below we present plots of the residuals versus time, with a LOESS smoother drawn in \Sexpr{color.name} for different, small bandwidths.
+As always, we weight by availability. Below we present plots of the residuals versus time, with a LOESS smoother drawn in \Sexpr{color.name} for a span of 1/3.
 
 <<timemodel, results = "asis">>=
-names(minmod$coef) <- c("$\\alpha_{0}$", "$\\alpha_{1}$")
-print(xtable(estimate(minmod, ztest = FALSE), floating = FALSE, digits = 3,
-             caption = "Fitted Coefficients for Model~\\ref{eqn:resid-model}"), 
+names(minmod$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$")
+print(xtable(estimate(minmod, normal = FALSE), floating = FALSE, digits = 3,
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:resid-model}",
+             label = "tab:resid-model"), 
       sanitize.rownames.function = identity)
 @
 
-<<timemodel-resid, fig.cap = "Plot of mean residuals from Model~\\ref{eqn:resid-model} averaged over study day vs. time on study in days. The black line connects mean residuals, the blue is a loess smoother with span 1/3.", fig.pos="H">>=
-par(mfrow = c(1, length(span)), mar = c(0, 0, 2, 0), oma = c(4, 4, 1, 1), 
-    mgp = c(2, 0.6, 0), font.main = 1)
+<<timemodel-resid, fig.cap = "Plot of mean residuals from Model~\\labelcref{eqn:resid-model} averaged over study day vs. time on study in days. The black line connects mean residuals, the blue is a loess smoother with span 1/3.", fig.pos="H">>=
 replayPlot(mean.resid.main.effect)
 @
 
 There may be a small amount of curvature in the loess smoothers, indicating a quadratic effect; however, the degree of curvature is so slight as to likely be negligible.
 
 \subsection{Interaction with Treatment}
-Here, we again run model~\ref{eqn:resid-model}, first using only availble times for which $A_{t} = 1$ and then again using available times for which $A_{t} = 0$. We use LOESS smoothing on the residuals from each model separately (using only residuals from available decision points), then take the difference to inform the functional form of the time-treatment interaction.
+\label{sec:time-interaction}
+Here, we again run model~\labelcref{eqn:resid-model}, first using only availble times for which $A_{t} = 1$ and then again using available times for which $A_{t} = 0$. We use LOESS smoothing on the residuals from each model separately (using only residuals from available decision points), then take the difference to inform the functional form of the time-treatment interaction.
 
 <<timemodel-interaction, results = "asis">>=
-names(minmod.send0$coef) <- c("$\\alpha_{0}$", "$\\alpha_{1}$")
-print(xtable(estimate(minmod.send0, ztest = FALSE), floating = FALSE, digits = 3,
-             caption = "Fitted Coefficients for Model~\\ref{eqn:resid-model} when $A_{t} = 1$"), 
+names(minmod.send0$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$")
+print(xtable(estimate(minmod.send0, normal = FALSE), floating = FALSE, digits = 3,
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:resid-model} when $A_{t} = 0$",
+             label = "tab:resid-model-send0"), 
       sanitize.rownames.function = identity)
 
-names(minmod.send1$coef) <- c("$\\alpha_{0}$", "$\\alpha_{1}$")
-print(xtable(estimate(minmod.send1, ztest = FALSE), floating = FALSE, digits = 3,
-             caption = "Fitted Coefficients for Model~\\ref{eqn:resid-model} when $A_{t} = 0$"), 
+names(minmod.send1$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$")
+print(xtable(estimate(minmod.send1, normal = FALSE), floating = FALSE, digits = 3,
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:resid-model} when $A_{t} = 1$",
+             label = "tab:resid-model-send1"), 
       sanitize.rownames.function = identity)
 @
 
-<<timemodel-interaction-resid-1, fig.cap = "Mean difference in residuals from Model~\\ref{eqn:resid-model} when $A_{t} = 1$ and $A_{t} = 0$ vs. time on study in days. The black line connects the mean differences in residuals, the blue is a loess smoother with span 1/3.", fig.pos = "H">>=
-par(mfrow = c(1, length(span)), mar = c(0, 0, 2, 0), oma = c(4, 4, 1, 1),
-    mgp = c(2, 0.6, 0), font.main = 1)
-
+<<timemodel-interaction-resid, fig.cap = "Mean difference in residuals from Model~\\labelcref{eqn:resid-model} when $A_{t} = 1$ and $A_{t} = 0$ vs. time on study in days. The black line connects the mean differences in residuals, the blue is a loess smoother with span 1/3.", fig.pos = "H">>=
 replayPlot(mean.resid.interaction)
 @
 
+\subsection{Residual Plots with Quadratic Time}
+We follow the above procedures used to produce the residual plots in~\Cref{fig:timemodel-resid,fig:timemodel-interaction-resid}, this time introducing a quadratic main effect of time into Model~\labelcref{eqn:resid-model}. We model
+\begin{equation}
+Y_{t+1} \sim \alpha_{0} + \alpha_{1} Z_{t} + \alpha_{2} d(t) + \alpha_{3} d(t)^{2} \quad \text{if } I_{t} = 1,
+\label{eqn:resid-model-quad}
+\end{equation}
+where
+\begin{itemize}
+  \item $Y_{t+1}$ is log-transformed total Jawbone step count in the 30 minutes following the $t^{\text{th}}$ treatment occasion,
+  \item $Z_{t}$ is log-transformed total Jawbone step count in the 30 minutes prior to the $t^{\text{th}}$ treatment occasion, and
+  \item $d(t)$ is the index of the day on which the $t^{\text{th}}$ treatment occasion occurred, ranging from 0 to 41.
+\end{itemize}
+
+We present estimates for Model~\labelcref{eqn:resid-model-quad} in~\Cref{tab:timemodel-quad}, and plot the residuals (along with a LOESS smoother) in~\Cref{fig:timemodel-quad-resid}.
+<<timemodel-quad, results = "asis">>=
+names(quadmod$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$",
+                                 "$\\alpha_{2}$", "$\\alpha_{3}$")
+print(xtable(estimate(quadmod, normal = FALSE), floating = FALSE, digits = 3,
+             caption = "Fitted coefficients for Model~\\labelcref{eqn:resid-model-quad}",
+             label = "tab:timemodel-quad"), 
+      sanitize.rownames.function = identity)
+@
+
+<<timemodel-quad-resid, fig.pos = "H", fig.cap = "Plot of mean residuals from Model~\\labelcref{eqn:resid-model-quad} averaged over study day vs. time on study in days. The black line connects mean residuals, the blue is a loess smoother with span 1/3.">>=
+replayPlot(mean.resid.main.effect.quad)
+@
+
+We also examine the interaction between time and treatment, as in~\cref{sec:time-interaction}, using residuals from Model \labelcref{eqn:resid-model-quad}. We obtain separate estimates of the parameters from only person-decision points at which a suggestion was delivered and when a suggestion was not delivered. Those estimates are in~\Cref{tab:timemodel-quad-send0,tab:timemodel-quad-send1} below.
+
+<<timemodel-quad-interaction, results = "asis">>=
+names(quadmod.send0$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$",
+                                       "$\\alpha_{2}$", "$\\alpha_{3}$")
+print(xtable(estimate(quadmod.send0, normal = FALSE), floating = FALSE, digits = 3,
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:resid-model-quad} when $A_{t} = 0$",
+             label = "tab:timemodel-quad-send0"), 
+      sanitize.rownames.function = identity)
+
+names(quadmod.send1$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$",
+                                       "$\\alpha_{2}$", "$\\alpha_{3}$")
+print(xtable(estimate(quadmod.send1, normal = FALSE), floating = FALSE, digits = 3,
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:resid-model-quad} when $A_{t} = 1$",
+             label = "tab:timemodel-quad-send1"), 
+      sanitize.rownames.function = identity)
+@
+
+<<timemodel-quald-interaction-resid, fig.cap = "Mean difference in residuals from Model~\\labelcref{eqn:resid-model-quad} when $A_{t} = 1$ and $A_{t} = 0$ vs. time on study in days. The black line connects the mean differences in residuals, the blue is a loess smoother with span 1/3.", fig.pos = "H">>=
+replayPlot(mean.resid.interaction.quad)
+@
 
 
 \section{Secondary Analyses}
 \subsection{Active vs. Sedentary Suggestions}
-Suggestions delivered to a participant's phone could be either ``active'' or ``sedentary''. The former category encouraged participants to take the stairs, walk around the office, or go for an evening stroll; the latter included suggestions to stand and stretch, for example. We examine the proximal effect of each type of suggestion on step count using model~\ref{eqn:actsed-model}.
+\label{sec:actsed}
+Suggestions delivered to a participant's phone could be either ``active'' or ``sedentary''. The former category encouraged participants to take the stairs, walk around the office, or go for an evening stroll; the latter included suggestions to stand and stretch, for example. We examine the proximal effect of each type of suggestion on step count using model~\labelcref{eqn:actsed-model}.
 \begin{equation}
 	\begin{split}
 		\label{eqn:actsed-model}
-		Y_{t+1} &\sim \alpha_{0} + \alpha_{1} Z_{t} + \alpha_{2} d(t) + \beta_{1} \left(A_{1, t} - 0.3\right) + \beta_{2} \left(A_{2, t} - 0.3\right) \\  &\quad + \beta_{3} \left(A_{1, t} - 0.3\right) d(t) + \beta_{4} \left(A_{2, t} - 0.3\right) d(t),
+		Y_{t+1} &\sim \alpha_{0} + \alpha_{1} Z_{t} + \alpha_{2} d(t) + \beta_{1} \left(A_{1, t} - 0.3\right) + \beta_{2} \left(A_{2, t} - 0.3\right) \\  &\quad + \beta_{3} \left(A_{1, t} - 0.3\right) d(t) + \beta_{4} \left(A_{2, t} - 0.3\right) d(t), \quad \text{if } I_{t} = 1,
 	\end{split}
 \end{equation}
 where 
@@ -309,13 +387,193 @@ where
   \item $A_{2, t}$ is an indicator of whether or not a sedentary suggestion was provided at occasion $t$.
 \end{itemize}
 
-Note that $A_{1, t} = A_{2, t} = 0$ when no treatment was provided. Results are presented in~\Cref{tab:actsed-model-results}.
+Note that $A_{1, t} = A_{2, t} = 0$ when no treatment was provided. Results are presented in~\Cref{tab:actsed-model}.
 <<active-sedentary-model, results = "asis">>=
-names(model3$coef) <- c("$\\alpha_{0}$", "$\\alpha_{1}$", "$\\alpha_{2}$", 
+names(model3$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$", "$\\alpha_{2}$", 
                         "$\\beta_{1}$", "$\\beta_{2}$", "$\\beta_{3}$", "$\\beta_{4}$")
-print(xtable(estimate(model3, ztest = FALSE), floating = FALSE, digits = 3,
-             caption = "Fitted Coefficients for Model~\\ref{eqn:actsed-model}",
-             label = "tab:actsed-model-results"), 
+print(xtable(estimate(model3, normal = FALSE), floating = FALSE, digits = 3,
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:actsed-model}",
+             label = "tab:actsed-model"), 
       sanitize.rownames.function = identity)
+@
+
+
+\section{Sensitivity Analyses}
+We now investigate changing the criteria used to wholly exclude participants from the analysis, described in~\Cref{sec:participant-exclusion}. In each of subsequent sensitivity analyses, we present results from Models~\labelcref{eqn:model-no-day-effect,eqn:model-with-day-effect} after making the described exclusion(s). Recall the models of interest: 
+\begin{equation*}
+  Y_{t+1} \sim \alpha_{0} + \alpha_{1} Z_{t} + \beta_{1}\left( A_{t} - 0.6 \right), \quad \text{if } I_{t} = 1, \tag{\ref{eqn:model-no-day-effect} revisited}
+\end{equation*}
+\begin{equation*}
+  Y_{t+1} \sim \alpha_{0} + \alpha_{1} Z_{t} + \alpha_{2} d(t) + \beta_{1} \left(A_{t} - 0.6\right) + \beta_{2} d(t) \left(A_{t} - 0.6\right), \quad \text{if } I_{t} = 1,
+  \tag{\ref{eqn:model-with-day-effect} revisited}
+\end{equation*}
+\begin{equation*}
+	\begin{split}
+		Y_{t+1} &\sim \alpha_{0} + \alpha_{1} Z_{t} + \alpha_{2} d(t) + \beta_{1} \left(A_{1, t} - 0.3\right) + \beta_{2} \left(A_{2, t} - 0.3\right) \\  &\quad + \beta_{3} \left(A_{1, t} - 0.3\right) d(t) + \beta_{4} \left(A_{2, t} - 0.3\right) d(t), \quad \text{if } I_{t} = 1, 
+	\end{split}
+	\tag{\ref{eqn:actsed-model} revisited}
+\end{equation*}
+where 
+\begin{itemize}
+  \item $Y_{t+1}$ is log-transformed total Jawbone step count in the 30 minutes following the $t^{\text{th}}$ treatment occasion,
+  \item $Z_{t}$ is log-transformed total Jawbone step count in the 30 minutes prior to the $t^{\text{th}}$ treatment occasion,
+  \item $d(t)$ is the index of the day on which the $t^{\text{th}}$ treatment occasion occurred, ranging from 0 to 41,
+  \item $A_{t}$ is an indicator of whether or not treatment was provided at occasion $t$ (Models~\labelcref{eqn:model-no-day-effect,eqn:model-with-day-effect} only),
+  \item $A_{1, t}$ is an indicator of whether or not an active suggestion was provided at occasion $t$ (Model~\ref{eqn:actsed-model} only), and 
+  \item $A_{2, t}$ is an indicator of whether or not a sedentary suggestion was provided at occasion $t$ (Model~\ref{eqn:actsed-model} only).
+\end{itemize}
+
+Results presented below should be compared to those presented in~\Cref{tab:model-no-day-effect,tab:model-with-day-effect,tab:actsed-model} above.
+
+\subsection{Remove Anomalous Participants}
+We first remove participant 35, who was lost to follow-up by study organizers (see the explanation following~\Cref{fig:missing-step-plot}). Since this participant has Google Fit step count data for the duration of his time-on-study (and was intermittently responding to EMAs), his time series for the primary analysis was not automatically trimmed to the last date with Jawbone data. This led the preprocessing code to impute zero for all Jawbone step counts after his 18th day on-study. Without this zero-imputation, this participant would not be eligible for inclusion in the primary analyis according to the criteria detailed in~\Cref{sec:participant-exclusion}.
+
+Effective sample size for this analysis is \textbf{\Sexpr{length(unique(sens1$user))}} individuals, and \textbf{\Sexpr{dim(sens1)[1]}} person-decision points.
+
+<<sens1-rmID35, results = "asis">>=
+names(model1.sens1$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$", "$\\beta_{1}$")
+print(xtable(estimate(model1.sens1, normal = FALSE),
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-no-day-effect} after removing participant 35",
+             label = "tab:model-no-day-effect-sens1",
+             floating = FALSE, digits = 3), 
+      sanitize.rownames.function = identity)
+
+names(model2.sens1$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$",
+                                      "$\\alpha_{2}$", "$\\beta_{1}$",
+                                      "$\\beta_{2}$")
+print(xtable(estimate(model2.sens1, normal = FALSE),
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-with-day-effect} after removing participant 35",
+             label = "tab:model-with-day-effect-sens1", floating = FALSE, digits = 3), 
+      sanitize.rownames.function = identity)
+
+names(model3.sens1$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$",
+                                      "$\\alpha_{2}$", "$\\beta_{1}$",
+                                      "$\\beta_{2}$", "$\\beta_{3}$",
+                                      "$\\beta_{4}$")
+print(xtable(estimate(model3.sens1, normal = FALSE), floating = FALSE, digits = 3,
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:actsed-model} after removing participant 35",
+             label = "tab:actsed-model-sens1"), 
+      sanitize.rownames.function = identity)
+@
+
+\subsection{Increase Minimum-Required Time-on-Study}
+In the primary analysis, participants were included if they remained on-study for at least \Sexpr{max(days) + 1} days (with the possible exception of participant 35). Here, we increase this required time-on-study to exclude more participants. We present model results as above when we require 37, 38, and 40 
+Participant 35 is excluded from all of these analyses.
+
+\subsubsection*{37 days required}
+Effective sample size for this analysis is \textbf{\Sexpr{length(unique(sens2$user))}} individuals, and \textbf{\Sexpr{dim(sens2)[1]}} person-decision points.
+
+<<sens2-req37d, results = "asis">>=
+names(model1.sens2$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$", "$\\beta_{1}$")
+print(xtable(estimate(model1.sens2, normal = FALSE),
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-no-day-effect} after removing participant 35 and requiring 37 days on-study",
+             label = "tab:model-no-day-effect-sens2",
+             floating = FALSE, digits = 3), 
+      sanitize.rownames.function = identity)
+
+names(model2.sens2$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$",
+                                      "$\\alpha_{2}$", "$\\beta_{1}$",
+                                      "$\\beta_{2}$")
+print(xtable(estimate(model2.sens2, normal = FALSE),
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-with-day-effect} after removing participant 35 and requiring 37 days on-study",
+             label = "tab:model-with-day-effect-sens2", floating = FALSE, digits = 3), 
+      sanitize.rownames.function = identity)
+
+names(model3.sens2$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$",
+                                      "$\\alpha_{2}$", "$\\beta_{1}$",
+                                      "$\\beta_{2}$", "$\\beta_{3}$",
+                                      "$\\beta_{4}$")
+print(xtable(estimate(model3.sens2, normal = FALSE), floating = FALSE, digits = 3,
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:actsed-model} after removing participant 35 and requiring 37 days on-study",
+             label = "tab:actsed-model-sens2"), 
+      sanitize.rownames.function = identity)
+@
+
+\subsubsection*{38 days required}
+Effective sample size for this analysis is \textbf{\Sexpr{length(unique(sens3$user))}} individuals, and \textbf{\Sexpr{dim(sens3)[1]}} person-decision points.
+
+<<sens3-req38d, results = "asis">>=
+names(model1.sens3$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$", "$\\beta_{1}$")
+print(xtable(estimate(model1.sens3, normal = FALSE),
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-no-day-effect} after removing participant 35 and requiring 38 days on-study",
+             label = "tab:model-no-day-effect-sens3",
+             floating = TRUE, digits = 3), 
+      sanitize.rownames.function = identity, table.placement = "H")
+
+names(model2.sens3$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$",
+                                      "$\\alpha_{2}$", "$\\beta_{1}$",
+                                      "$\\beta_{2}$")
+print(xtable(estimate(model2.sens3, normal = FALSE),
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-with-day-effect} after removing participant 35 and requiring 38 days on-study",
+             label = "tab:model-with-day-effect-sens3", floating = TRUE, digits = 3), 
+      sanitize.rownames.function = identity, table.placement = "H")
+
+names(model3.sens3$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$",
+                                      "$\\alpha_{2}$", "$\\beta_{1}$",
+                                      "$\\beta_{2}$", "$\\beta_{3}$",
+                                      "$\\beta_{4}$")
+print(xtable(estimate(model3.sens3, normal = FALSE), floating = TRUE, digits = 3,
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:actsed-model} after removing participant 35 and requiring 38 days on-study",
+             label = "tab:actsed-model-sens3"), 
+      sanitize.rownames.function = identity, table.placement = "H")
+@
+
+
+\subsubsection*{41 days required}
+Effective sample size for this analysis is \textbf{\Sexpr{length(unique(sens4$user))}} individuals, and \textbf{\Sexpr{dim(sens4)[1]}} person-decision points.
+
+<<sens4-req41d, results = "asis">>=
+names(model1.sens4$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$", "$\\beta_{1}$")
+print(xtable(estimate(model1.sens4, normal = FALSE),
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-no-day-effect} after removing participant 35 and requiring 41 days on-study",
+             label = "tab:model-no-day-effect-sens4",
+             floating = TRUE, digits = 3), 
+      sanitize.rownames.function = identity, table.placement = "H")
+
+names(model2.sens4$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$",
+                                      "$\\alpha_{2}$", "$\\beta_{1}$",
+                                      "$\\beta_{2}$")
+print(xtable(estimate(model2.sens4, normal = FALSE),
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-with-day-effect} after removing participant 35 and requiring 41 days on-study",
+             label = "tab:model-with-day-effect-sens4", floating = TRUE, digits = 3), 
+      sanitize.rownames.function = identity, table.placement = "H")
+
+names(model3.sens4$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$",
+                                      "$\\alpha_{2}$", "$\\beta_{1}$",
+                                      "$\\beta_{2}$", "$\\beta_{3}$",
+                                      "$\\beta_{4}$")
+print(xtable(estimate(model3.sens4, normal = FALSE), floating = TRUE, digits = 3,
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:actsed-model} after removing participant 35 and requiring 41 days on-study",
+             label = "tab:actsed-model-sens4"), 
+      sanitize.rownames.function = identity, table.placement = "H")
+@
+
+\subsubsection*{42 days required}
+Effective sample size for this analysis is \textbf{\Sexpr{length(unique(sens5$user))}} individuals, and \textbf{\Sexpr{dim(sens5)[1]}} person-decision points.
+
+<<sens5-req42d, results = "asis">>=
+names(model1.sens5$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$", "$\\beta_{1}$")
+print(xtable(estimate(model1.sens5, normal = FALSE),
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-no-day-effect} after removing participant 35 and requiring 42 days on-study",
+             label = "tab:model-no-day-effect-sens5",
+             floating = TRUE, digits = 3), 
+      sanitize.rownames.function = identity, table.placement = "H")
+
+names(model2.sens5$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$",
+                                      "$\\alpha_{2}$", "$\\beta_{1}$",
+                                      "$\\beta_{2}$")
+print(xtable(estimate(model2.sens5, normal = FALSE),
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-with-day-effect} after removing participant 35 and requiring 42 days on-study",
+             label = "tab:model-with-day-effect-sens5", floating = TRUE, digits = 3), 
+      sanitize.rownames.function = identity, table.placement = "H")
+
+names(model3.sens5$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$",
+                                      "$\\alpha_{2}$", "$\\beta_{1}$",
+                                      "$\\beta_{2}$", "$\\beta_{3}$",
+                                      "$\\beta_{4}$")
+print(xtable(estimate(model3.sens5, normal = FALSE), floating = TRUE, digits = 3,
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:actsed-model} after removing participant 35 and requiring 42 days on-study",
+             label = "tab:actsed-model-sens5"), 
+      sanitize.rownames.function = identity, table.placement = "H")
 @
 \end{document}
