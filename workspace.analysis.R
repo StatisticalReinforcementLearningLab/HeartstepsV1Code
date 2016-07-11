@@ -472,6 +472,10 @@ suggest$jbsteps60.zero <- suggest$jbsteps60
 suggest$jbsteps30.zero[is.na(suggest$jbsteps30)] <- 0
 suggest$jbsteps60.zero[is.na(suggest$jbsteps60)] <- 0
 
+## Log transform step count
+suggest$jbsteps30.log <- log(suggest$jbsteps30.zero + 0.5)
+suggest$jbsteps60.log <- log(suggest$jbsteps60.zero + 0.5)
+
 
 ## --- add steps counts 30 and 60 minutes PRIOR TO each decision point
 temp <- with(jbslotpre, decision.utime - end.utime)
@@ -500,11 +504,18 @@ suggest$jbsteps60pre.zero <- suggest$jbsteps60pre
 suggest$jbsteps30pre.zero[is.na(suggest$jbsteps30pre)] <- 0
 suggest$jbsteps60pre.zero[is.na(suggest$jbsteps60pre)] <- 0
 
-
+## Spline imputation
 suggest$steps30.spl <- with(suggest, impute(user, decision.index, jbsteps30,
                                             fun = na.spline))
 suggest$steps60.spl <- with(suggest, impute(user, decision.index, jbsteps60,
                                             fun = na.spline))
 
+## Log-transform step count
+suggest$jbsteps30pre.log <- log(suggest$jbsteps30pre.zero + 0.5)
+suggest$jbsteps60pre.log <- log(suggest$jbsteps60pre.zero + 0.5)
+
+
 save(max.day, max.date, users, daily, suggest, jbslot, gfslot, jbslotpre, gfslotpre,
      file = "analysis.RData")
+save(suggest, users, daily, jawbone, timezone, file = "analysis-small.RData")
+setwd(sys.var$repo)
