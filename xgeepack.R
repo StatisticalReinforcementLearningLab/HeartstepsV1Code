@@ -381,7 +381,7 @@ estimate <- function(x, combos = NULL, omnibus = FALSE, null = 0,
   colnames(out) <- c("Estimate",
                      paste0(round(conf.int * 100), "% ", c("LCL", "UCL")),
                      "SE", type, "p-value")
-  class(out) <- "estimate"
+  class(out) <- c("estimate", "matrix")
   out
 }
 

@@ -6,7 +6,6 @@
 source("init.R")
 setwd(sys.var$mbox.data)
 # load("csv.RData")
-# load("analysis.RData")
 load("analysis-small.RData")
 setwd(sys.var$repo)
 
@@ -14,19 +13,29 @@ setwd(sys.var$repo)
 par(mar = c(3, 3, 1, 0) + 0.5, mgp = c(2, 0.5, 0), oma = rep(0, 4), las = 1, tcl = 0.25)
 color <- "royalblue1"
 
-##### Time inclusion criteria #####
-
 ## Decide minimum time on study for inclusion in analysis
-## and subset data to exclude participants who don't meet the threshold. Note that 
-## NOTE: to save memory, subsetting is always done on-the-fly: the data frame 
-## must be accessed using eval(d). 
+## and subset data to exclude participants who don't meet the threshold. 
+analysis.data <- function(days = 0:35, max.day = 41) {
+  ids  <- unique(suggest$user[suggest$study.day.nogap == rev(days)[1] &
+                                !is.na(suggest$study.day.nogap)])
+  d <- subset(suggest, !is.na(study.day.nogap) & user %in% ids & 
+           !(avail == F & send == T) & study.day.nogap <= max.day &
+           !is.na(send.active),
+         select = c(user, study.day.nogap, decision.index.nogap, decision.utime,
+                    slot, study.date, intake.date, intake.utime, intake.slot,
+                    travel.start, travel.end, exit.date, dropout.date,
+                    last.date, last.utime, last.slot, recognized.activity,
+                    avail, send, send.active, send.sedentary, jbsteps30pre,
+                    jbsteps30, jbsteps30pre.zero, jbsteps30.zero, 
+                    jbsteps30pre.log, jbsteps30.log, jbsteps60pre,
+                    jbsteps60, jbsteps60pre.zero, jbsteps60.zero,
+                    jbsteps60pre.log, jbsteps60.log))
+  return(list(data = d, ids = ids))
+}
 days <- 0:35
-max.day <- 41
-ids  <- unique(suggest$user[suggest$study.day.nogap == rev(days)[1] &
-                              !is.na(suggest$study.day.nogap)])
-d    <- quote(subset(suggest, !is.na(study.day.nogap) & user %in% ids &
-                       !(avail == F & send == T) & study.day.nogap <= max.day))
-
+primary <- analysis.data(days = days)
+ids     <- primary$ids
+primary <- primary$data
 
 #### Describe missingness of Jawbone data #####
 
@@ -44,7 +53,7 @@ user.nojb <- sapply(ids, function(x) {
 })
 
 
-##### Plots #####
+##### Descriptive Plots #####
 
 ## Bar chart for number of days on which step count is completely missing/zero for
 ## each participant. Height of bar is number of days with no step count data,
@@ -53,7 +62,7 @@ text(barplot(height = user.nojb, names.arg = ids, ylim = c(0, 27),
              xlab = "User", ylab = "Days Missing Step Count"),
      user.nojb + 1,
      labels = sapply(as.character(round(user.nojb / 
-                                          aggregate(study.day.nogap ~ user, data = eval(d),
+                                          aggregate(study.day.nogap ~ user, data = primary,
                                                     FUN = max)$study.day.nogap * 100, 1)),
                      function(x) ifelse(x != "0", paste0(x, "\\%"), "")),
      cex = .6)
@@ -105,20 +114,20 @@ rm(x, y, y1, z)
 
 # Create plot of percent unavailability at each decision point
 ## Count number of people available at each decision index 
-y <- aggregate(avail ~ decision.index.nogap,  data = eval(d), FUN = sum)
+y <- aggregate(avail ~ decision.index.nogap,  data = primary, FUN = sum)
 ## Count number of people currently walking at each decision index and merge with above
 y <- merge(y, aggregate(recognized.activity ~ decision.index.nogap,
-                        data = eval(d), FUN = function(x) sum(x == "ON_FOOT")),
+                        data = primary, FUN = function(x) sum(x == "ON_FOOT")),
            by = "decision.index.nogap")
 ## Merge above with total number of people on-study at each decision point
-y <- merge(y, as.data.frame(table(eval(d)$decision.index.nogap)),
+y <- merge(y, as.data.frame(table(primary$decision.index.nogap)),
            by.x = "decision.index.nogap", by.y = "Var1")
 ## Compute percent unavailable and percent walking (latter is only among unavailable people)
 y <- cbind(y, "percent.unavail" = 1 - y$avail / y$Freq, 
            "percent.intransit" = y$recognized.activity / y$Freq)
 
 plot(y$percent.unavail ~ y$decision.index.nogap, type = "l",
-     xlim = c(0, 209), lwd = 2,
+     xlim = c(0, 209), ylim = c(0, .5), lwd = 2,
      xlab = "Decision Point", ylab = "Proportion of Participants")
 lines(y$percent.intransit ~ y$decision.index.nogap, type = "l", xlim = c(0,209), col = color)
 legend("topright", legend = c("Any-Cause Unavailability", "Unavailbility due to Walking"), 
@@ -132,17 +141,10 @@ rm(y)
 
 ## Define function to format variables for modeling, call geeglm(), and 
 ## make small-sample variance corrections (uses xgeepack.R functions)
-fit <- function(formula, combos = NULL, data = eval(d)) {
-  d <- data
-  
-  d$jbsteps30.log    <- log(d$jbsteps30.zero + .5)
-  d$jbsteps30pre.log <- log(d$jbsteps30pre.zero + .5)
-  
+fit <- function(formula, combos = NULL, data = primary) {
   formula <- substitute(formula)
-  
   fit <- geeglm(formula = formula, id = user, weights = as.numeric(avail),
-                data = d, scale.fix = T)
-  
+                data = data, scale.fix = T)
   temp <- bread.geeglm(fit)
   fit$var <- temp %*% meat.geeglm(fit, g = NULL, gn = NULL, small = TRUE) %*% t(temp)
   fit
@@ -150,14 +152,40 @@ fit <- function(formula, combos = NULL, data = eval(d)) {
 
 ## Model 1: No time effect
 model1 <- fit(jbsteps30.log ~ jbsteps30pre.log + I(send - .6))
-estimate(model1, ztest = FALSE)
+# estimate(model1, normal = FALSE)
 
 ## Model 2: Linear day-on-study effect and interaction between linear 
 ## day on study and centered treatment status
 model2 <- fit(jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
                 I(send - .6) + study.day.nogap:I(send - .6))
-estimate(model2, ztest = FALSE)
+# estimate(model2, normal = FALSE)
 
+
+##### Model Fit Plots #####
+# y <- aggregate(jbsteps30.log ~ study.day.nogap + send, 
+#                data = subset(primary, avail == T), 
+#                FUN = function(x) exp(mean(x)) - 0.5)
+# with(subset(y, send == F), plot(jbsteps30.log ~ study.day.nogap, type = "l",
+#                                 lwd = 1, col = "black"))
+# with(subset(y, send == T), lines(jbsteps30.log ~ study.day.nogap, 
+#                                  lwd = 2, col = color))
+# 
+# y1 <- cbind(Intercept = 1,
+#            jbsteps30pre.log = 0,
+#            study.day.nogap = 0:41,
+#            send = 0.4,
+#            interaction = 0.4 * 0:41)
+# y2 <- data.frame(estimate(model2, combos = y1, normal = F),
+#                  study.day.nogap = 0:41)
+# with(y2, lines(Estimate ~ study.day.nogap, col = color, lwd = 2))
+# y1 <- cbind(Intercept = 1,
+#             jbsteps30pre.log = 0,
+#             study.day.nogap = 0:41,
+#             send = -0.6,
+#             interaction = -0.6 * 0:41)
+# y2 <- data.frame(estimate(model2, combos = y1, normal = F),
+#                  study.day.nogap = 0:41)
+# with(y2, lines(Estimate ~ study.day.nogap))
 
 ##### Time Trend Analysis #####
 
@@ -165,9 +193,9 @@ estimate(model2, ztest = FALSE)
 ## participants, then split by treated/untreated
 minmod       <- fit(jbsteps30.log ~ jbsteps30pre.log)
 minmod.send0 <- fit(jbsteps30.log ~ jbsteps30pre.log, 
-                    data = subset(eval(d), send == F))
+                    data = subset(primary, send == F))
 minmod.send1 <- fit(jbsteps30.log ~ jbsteps30pre.log,
-                    data = subset(eval(d), send == T))
+                    data = subset(primary, send == T))
 
 ### LOESS plots: Raw residuals
 
@@ -178,11 +206,11 @@ par(mfrow = c(1, length(span)), mar = c(0, 0, 2, 0), oma = c(4, 4, 1, 1),
 
 ## Main effect of day on study
 for (i in 1:length(span)) {
-  plot(minmod$residuals[sample] ~ eval(d)$study.day.nogap[sample], axes = F,
+  plot(minmod$residuals[sample] ~ primary$study.day.nogap[sample], axes = F,
        xlab = "", ylab = "", main = "", type = "p", xlim = c(0, 41))
   box(col = "grey40")
   axis(side = 1, outer = T, cex = .6)
-  lines(with(subset(eval(d)), 
+  lines(with(subset(primary), 
              predict(loess(minmod$residuals ~ study.day.nogap,
                            span = span[i]))),
         col = color, lwd = 6)
@@ -199,17 +227,17 @@ loess.plot.main <- recordPlot()
 par(mfrow = c(1, length(span)), mar = c(0, 0, 2, 0), oma = c(4, 4, 1, 1), 
     mgp = c(2, 0.6, 0), font.main = 1)
 for (i in 1:length(span)) {
-  plot(minmod$residuals[sample] ~ eval(d)$study.day.nogap[sample], axes = F,
+  plot(minmod$residuals[sample] ~ primary$study.day.nogap[sample], axes = F,
        xlab = "", ylab = "", main = "", type = "p", xlim = c(0, 41))
   box(col = "grey40")
   axis(side = 1, outer = T, cex = .6)
-  lines(with(subset(eval(d)), 
+  lines(with(subset(primary), 
              predict(loess(minmod.send1$residuals ~ 
-                             study.day.nogap[eval(d)$send == T],
+                             study.day.nogap[primary$send == T],
                            span = span[i]),
                      newdata = seq(0, 41)) - 
                predict(loess(minmod.send0$residuals ~
-                               study.day.nogap[eval(d)$send == F],
+                               study.day.nogap[primary$send == F],
                              span = span[i]),
                        newdata = seq(0, 41))),
         col = color, lwd = 6)
@@ -227,19 +255,15 @@ loess.plot.intr <- recordPlot()
 par(mfrow = c(1, 1), mar = c(3, 3, 1, 0) + 0.5, mgp = c(2, 0.5, 0),
     oma = rep(0, 4), las = 1, tcl = 0.25)
 
-resids <- subset(eval(d), select = c("jbsteps30.zero", "jbsteps30pre.zero",
+resids <- subset(primary, select = c("jbsteps30.zero", "jbsteps30pre.zero",
                                      "study.day.nogap", "send", "avail"))
 
 resids$resid.full <- with(resids, log(jbsteps30.zero + .5) - coef(minmod)[1] -
                             coef(minmod)[2] * log(jbsteps30pre.zero + .5))
 
 resids$resid.send <- NA
-resids$resid.send[resids$send == T] <- 
-  with(subset(resids, send == T), log(jbsteps30.zero + .5) - coef(minmod.send1)[1] -
-         coef(minmod.send1)[2] * log(jbsteps30pre.zero + .5))
-resids$resid.send[resids$send == F] <- 
-  with(subset(resids, send == F), log(jbsteps30.zero + .5) - coef(minmod.send0)[1] -
-         coef(minmod.send0)[2] * log(jbsteps30pre.zero + .5))
+resids$resid.send[resids$send == T] <- minmod.send1$residuals
+resids$resid.send[resids$send == F] <- minmod.send0$residuals
 
 y <- aggregate(resid.full ~ study.day.nogap,
                data = subset(resids, avail == T & study.day.nogap <= 41),
@@ -265,9 +289,162 @@ abline(0, 0, col = "grey50")
 
 mean.resid.interaction <- recordPlot()
 
+### LOESS Plots: Mean residuals with quadratic time
+primary$study.day.nogap.sq <- primary$study.day.nogap ^ 2
+quadmod       <- fit(jbsteps30.log ~ jbsteps30pre.log + 
+                      study.day.nogap + study.day.nogap.sq)
+quadmod.send0 <- fit(jbsteps30.log ~ jbsteps30pre.log + 
+                      study.day.nogap + study.day.nogap.sq, 
+                    data = subset(primary, send == F))
+quadmod.send1 <- fit(jbsteps30.log ~ jbsteps30pre.log + 
+                      study.day.nogap + study.day.nogap.sq,
+                    data = subset(primary, send == T))
+
+resids <- cbind(resids[, 1:3], 
+                study.day.nogap.sq = primary$study.day.nogap.sq,
+                resids[, 4:7])
+
+resids$resid.full <- quadmod$residuals
+
+resids$resid.send <- NA
+resids$resid.send[resids$send == T] <- quadmod.send1$residuals
+resids$resid.send[resids$send == F] <- quadmod.send0$residuals
+
+y <- aggregate(resid.full ~ study.day.nogap,
+               data = subset(resids, avail == T & study.day.nogap <= 41),
+               FUN = mean)
+with(y, scatter.smooth(resid.full ~ study.day.nogap, type = "l", span = 1/3,
+                       xlab = "Study Day (excluding travel)",
+                       ylab = "Mean Residual",
+                       lpars = list(lwd = 2, col = color)))
+abline(0, 0, col = "grey50")
+
+mean.resid.main.effect.quad <- recordPlot()
+
+x <- aggregate(resid.send ~ send + study.day.nogap, 
+               data = subset(resids, avail == T), FUN = mean)
+y <- aggregate(resid.send ~ study.day.nogap, 
+               data = subset(x, study.day.nogap <= 41), FUN = diff)
+
+with(y, scatter.smooth(resid.send ~ study.day.nogap, type = "l", span = 1/3,
+                       xlab = "Study Day (excluding travel)",
+                       ylab = "Mean Difference in Residual",
+                       lpars = list(lwd = 2, col = color)))
+abline(0, 0, col = "grey50")
+
+mean.resid.interaction.quad <- recordPlot()
+
 ##### Active vs. Sedentary Suggestions #####
 model3 <- fit(jbsteps30.log ~ jbsteps30pre.log + study.day.nogap + 
                 I(send.active - 0.3) + I(send.sedentary - 0.3) + 
                 study.day.nogap:I(send.active - 0.3) + 
                 study.day.nogap:I(send.sedentary - 0.3),
-              data = subset(eval(d), !is.na(send.active)))
+              data = primary)
+# estimate(model3, normal = FALSE)
+
+
+##### Sensitivity Analyses #####
+### Remove ID 35
+sens1 <- subset(primary, user != 35)
+
+## Model 1: No time effect
+model1.sens1 <- fit(jbsteps30.log ~ jbsteps30pre.log + I(send - .6), data = sens1)
+# estimate(model1.sens1, normal = FALSE)
+
+## Model 2: Linear day-on-study effect and interaction between linear 
+## day on study and centered treatment status
+model2.sens1 <- fit(jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
+                      I(send - .6) + study.day.nogap:I(send - .6), data = sens1)
+# estimate(model2.sens1, normal = FALSE)
+
+## Model 3: Active and sedentary suggestions
+model3.sens1 <- fit(jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
+                      I(send.active - 0.3) + I(send.sedentary - 0.3) + 
+                      study.day.nogap:I(send.active - 0.3) + 
+                      study.day.nogap:I(send.sedentary - 0.3),
+                    data = sens1)
+# estimate(model3.sens1, normal = FALSE)
+
+### Require 37 days on study
+sens2 <- subset(analysis.data(0:36)$data, user != 35)
+
+## Model 1: No time effect
+model1.sens2 <- fit(jbsteps30.log ~ jbsteps30pre.log + I(send - .6), data = sens2)
+# estimate(model1.sens2, normal = FALSE)
+
+## Model 2: Linear day-on-study effect and interaction between linear 
+## day on study and centered treatment status
+model2.sens2 <- fit(jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
+                      I(send - .6) + study.day.nogap:I(send - .6), data = sens2)
+# estimate(model2.sens2, normal = FALSE)
+
+## Model 3: Active and sedentary suggestions
+model3.sens2 <- fit(jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
+                      I(send.active - 0.3) + I(send.sedentary - 0.3) + 
+                      study.day.nogap:I(send.active - 0.3) + 
+                      study.day.nogap:I(send.sedentary - 0.3),
+                    data = sens2)
+# estimate(model3.sens2, normal = FALSE)
+
+### Require 38 days on study
+sens3 <- subset(analysis.data(0:37)$data, user != 35)
+
+## Model 1: No time effect
+model1.sens3 <- fit(jbsteps30.log ~ jbsteps30pre.log + I(send - .6), data = sens3)
+# estimate(model1.sens3, normal = FALSE)
+
+## Model 2: Linear day-on-study effect and interaction between linear 
+## day on study and centered treatment status
+model2.sens3 <- fit(jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
+                      I(send - .6) + study.day.nogap:I(send - .6), data = sens3)
+# estimate(model2.sens3, normal = FALSE)
+
+## Model 3: Active and sedentary suggestions
+model3.sens3 <- fit(jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
+                      I(send.active - 0.3) + I(send.sedentary - 0.3) + 
+                      study.day.nogap:I(send.active - 0.3) + 
+                      study.day.nogap:I(send.sedentary - 0.3),
+                    data = sens3)
+# estimate(model3.sens3, normal = FALSE)
+
+### Require 41 days on study
+sens4 <- subset(analysis.data(0:40)$data, user != 35)
+
+## Model 1: No time effect
+model1.sens4 <- fit(jbsteps30.log ~ jbsteps30pre.log + I(send - .6), data = sens4)
+# estimate(model1.sens4, normal = FALSE)
+
+## Model 2: Linear day-on-study effect and interaction between linear 
+## day on study and centered treatment status
+model2.sens4 <- fit(jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
+                      I(send - .6) + study.day.nogap:I(send - .6), data = sens4)
+# estimate(model2.sens4, normal = FALSE)
+
+## Model 3: Active and sedentary suggestions
+model3.sens4 <- fit(jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
+                      I(send.active - 0.3) + I(send.sedentary - 0.3) + 
+                      study.day.nogap:I(send.active - 0.3) + 
+                      study.day.nogap:I(send.sedentary - 0.3),
+                    data = sens4)
+# estimate(model3.sens4, normal = FALSE)
+
+### Require 42 days on study
+sens5 <- subset(analysis.data(0:41)$data, user != 35)
+
+## Model 1: No time effect
+model1.sens5 <- fit(jbsteps30.log ~ jbsteps30pre.log + I(send - .6), data = sens5)
+# estimate(model1.sens5, normal = FALSE)
+
+## Model 2: Linear day-on-study effect and interaction between linear 
+## day on study and centered treatment status
+model2.sens5 <- fit(jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
+                      I(send - .6) + study.day.nogap:I(send - .6), data = sens5)
+# estimate(model2.sens5, normal = FALSE)
+
+## Model 3: Active and sedentary suggestions
+model3.sens5 <- fit(jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
+                      I(send.active - 0.3) + I(send.sedentary - 0.3) + 
+                      study.day.nogap:I(send.active - 0.3) + 
+                      study.day.nogap:I(send.sedentary - 0.3),
+                    data = sens5)
+# estimate(model3.sens5, normal = FALSE)
