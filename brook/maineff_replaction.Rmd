@@ -11,15 +11,98 @@ library(ggplot2)
 library(RColorBrewer)
 library(dplyr)
 library(gridExtra)
+library(knitr)
 library(grid)
 library(reshape2)
+library(geepack)
 
 source('../init.R', chdir=TRUE)
-load(paste(sys.var$mbox.data,'csv.RData',sep=''))
-load(paste(sys.var$mbox.data,"analysis.RData",sep=''))
+if (!exists('suggest')){
+  load(paste(sys.var$mbox.data,'csv.RData',sep=''))
+  load(paste(sys.var$mbox.data,"analysis.RData",sep=''))
+}
 ```
 
 ## Replicating the Main Effects Analysis
 
+### Inclusion/Exclusion
+```{r include_exclude, echo=FALSE}
 
+unavail_sent_slots <-
+            filter(suggest, !avail & !is.na(notification.message))%>%
+                select(user, study.day.nogap, slot, avail, notification.message) %>%
+  mutate('Message sent' = !is.na(notification.message)) %>% select(-notification.message) %>%
+  rename('User' = user, 'Non-travel study day'= study.day.nogap,
+         'Decision slot' = slot, 'Available' = avail)
+no_message_tag <- 
+            filter(suggest, send & !travel & study.day.nogap <= 42 & is.na(send.sedentary)) %>%
+                select(user, study.day.nogap, slot, 
+                      notification.message) %>%
+  rename('User' = user,
+         'Non-travel study day' = study.day.nogap,
+         'Decision slot' = slot,
+         'Sent mesasge' = notification.message)
+
+ntravel <- sum(suggest$travel)
+npost41 <- with(suggest, sum(study.day.nogap > 41, na.rm=T))
+nexclude <- 
+  ntravel + npost41 + nrow(unavail_sent_slots) + nrow(no_message_tag)
+
+suggest.included <- 
+  suggest %>%
+  filter(!travel & study.day.nogap <= 41) %>%
+  anti_join(mutate(no_message_tag, no_message_tag = T),
+            by=c('user'='User','study.day.nogap'='Non-travel study day',
+                 'slot'='Decision slot')) %>%
+  anti_join(mutate(unavail_sent_slots, unavail_sent_slots = T),
+            by=c('user'='User','study.day.nogap'='Non-travel study day',
+                 'slot'='Decision slot'))
+
+navail <- sum(suggest.included$avail)
+
+```
+
+* **Valid** decision points occurred within intended timeslot and are not duplicated: `r nrow(suggest)`
+* **Excluded** decision points (`r nexclude`):
+    + Exclude decision points during travel days (`r ntravel`)
+        ```{r table-travel, echo=FALSE}
+            with(suggest, table(`Traveling at decision point?` = travel, exclude=NULL))
+        ```
+    + Exclude decision points past the 42nd consecutive, non-travel study day (`r npost41`)
+    + Exclude decision points when the user was unavailable but a message was still sent (`r nrow(unavail_sent_slots)`)
+        ```{r unavail-sent, echo=FALSE}
+          print(unavail_sent_slots)
+        ```
+    + Exclude decision points where the notification message is blank (`r nrow(no_message_tag)`):
+        ```{r no-active-sedentary, echo=FALSE}
+            print(no_message_tag)
+        ```
+* **Included** decision points: `r nrow(suggest) - nexclude` = valid -- excluded = `r nrow(suggest)` -- `r nexclude`
+* **Available** decision points: `r navail` = included -- unavailable
+          ```{r avail-print, echo=FALSE}
+                with(suggest.included, table('Available?'=avail))
+          ```
+          
+          
+```{r model1, echo=FALSE}
+
+# jbsteps30.zero is the zero-imputed raw step count in the 30 minutes after decision
+# jbsteps30.log = log(jbsteps30.zero + 0.5)
+# jbsteps30pre.zero is the zero-imputed raw step count in the 30 minutes prior to decision
+# jbsteps30pre.log = log(jbsteps30pre.zero + 0.5)
+# A_t = send
+
+mod1 <- 
+  geeglm(
+  jbsteps30.log ~ jbsteps30pre.log + I(send - 0.6),
+  id = user, 
+  corstr = 'independence',
+  weights = as.numeric(suggest.included$avail), # 1/0 weighting?
+  scale.fix = TRUE,
+  data = suggest.included %>%
+    arrange(user, study.day.nogap, decision.index.nogap)
+)
+
+
+```
 
