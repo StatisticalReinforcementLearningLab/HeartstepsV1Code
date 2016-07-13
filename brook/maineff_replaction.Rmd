@@ -2,7 +2,10 @@
 title: "Replicating main effects analysis"
 author: "Brook Luers"
 date: "July 7, 2016"
-output: html_document
+output: 
+  html_document:
+    toc: true
+    toc_depth: 2
 ---
 
 ```{r setup, include=FALSE}
@@ -15,17 +18,17 @@ library(knitr)
 library(grid)
 library(reshape2)
 library(geepack)
+library(Matrix)
 
 source('../init.R', chdir=TRUE)
+source('../xgeepack.R')
 if (!exists('suggest')){
   load(paste(sys.var$mbox.data,'csv.RData',sep=''))
   load(paste(sys.var$mbox.data,"analysis.RData",sep=''))
 }
 ```
 
-## Replicating the Main Effects Analysis
-
-### Inclusion/Exclusion
+## Inclusion/Exclusion
 ```{r include_exclude, echo=FALSE}
 
 unavail_sent_slots <-
@@ -82,27 +85,113 @@ navail <- sum(suggest.included$avail)
           ```{r avail-print, echo=FALSE}
                 with(suggest.included, table('Available?'=avail))
           ```
-          
-          
-```{r model1, echo=FALSE}
 
+## sandwich estimator
+All of the following assumes an independent working correlation structure.
+
+Notation:
+
+* $X_j$ is the design matrix for the $j$th user.
+* $W_j$ is the diagonal matrix of weights for the $j$th user. The models given below use availability, $I_t \in \left\{0,1\right\}$, as the weights.
+* $\hat{\epsilon}_j$ is the vector of residuals for the $j$th user.
+* $H_{jj} = X_j\left(\sum_k X_k^\intercal W_k X_k\right)^{-1} X_j^\intercal W_j$ is the hat matrix for the $j$th user.
+
+Unadjusted sandwich estimator:
+$$ \left(X^\intercal W X\right)^{-1} \left[\sum_j X_j^\intercal W_j \hat{\epsilon}_j \hat{\epsilon}_j^\intercal W_j X_j\right]\left(X^\intercal W X\right)^{-1}$$
+
+Mancl & DeRouen adjusted sandwich estimator:
+$$\left(X^\intercal W X\right)^{-1} \left[\sum_j X_j^\intercal W_j\left(I - H_{jj}\right)^{-1} \hat{\epsilon}_j \hat{\epsilon}_j^\intercal\left(I - H_{jj}\right)^{-1} W_j X_j\right]\left(X^\intercal W X\right)^{-1} $$
+
+## Modeling
+
+```{r vcov-function, echo=FALSE}
+# Calculate the sandwich variance-covariance estimator
+# Independent working correlation
+# small = TRUE for the Mancl & DeRouen adjustment
+vcov.heartsteps.bgl <- function(x, small = TRUE){
+  require(Matrix)
+  X <- model.matrix(x)
+  ids <- x$geese$id
+  Xl <- split(as.data.frame(X), ids)
+  residl <- split(x$y - x$fitted.values, ids)
+  meatmat <- matrix(0, nrow=ncol(X), ncol=ncol(X))
+  W <- diag(x$geese$weights) # matrix of all weights
+  Wl <- split(x$geese$weights, ids) # list of vectors
+  XWXi <- solve(crossprod(X, W) %*% X) # BREAD
+  for (i in 1:length(Xl)){
+    Xj <- as.matrix(Xl[[i]]) # Design matrix for this user
+    ej <- residl[[i]] # Residuals for this user
+    Wj <- diag(Wl[[i]]) # Weights for this user
+    Inj <- diag(ncol(Wj)) # Identity of size n_j
+    adj_mat <- Inj 
+    XtWj <- crossprod(Xj, Wj) # t(X_j) * W_j
+    if (small){
+      Hjj <- Xj %*% XWXi %*% XtWj # Hat matrix for jth user
+      adj_mat <- solve(Inj - Hjj) # Adjustment matrix
+    }
+    Mj <- XtWj %*% adj_mat %*% ej # p by 1 vector
+    meatmat <- meatmat + tcrossprod(Mj)
+  }
+  return(XWXi %*% meatmat %*% XWXi) # sandwich estimator
+}
+
+```
+Missing values:
+
+* The following models impute 0 for any time interval with a missing step count.
+Notation:
+* $Y_{t+1}$ is log(stepcount + 0.5) in the 30 minutes following the $t$th decision point.
+* $Z_t$ is log(stepcount + 0.5) in the 30 minutes prior to the $t$th decision point.
+* $A_t$ indicator of treatment at decision point $t$.
+* $I_t \in \left\{0,1\right\}$ indicator of availability at the $t$th decision point.
+* $d(t) \in \left\{0,1,\ldots,41\right\}$ index of the day of the $t$th decision point.
+
+### Model 1
+
+$$Y_{t+1} = \alpha_0 + \alpha_1 Z_t + \beta_1(A_t - 0.6)$$
+
+The weight matrix has diagonal elements equal to the availability indicator $I_t$.
+          
+```{r model1, echo=FALSE, cache=TRUE}
 # jbsteps30.zero is the zero-imputed raw step count in the 30 minutes after decision
 # jbsteps30.log = log(jbsteps30.zero + 0.5)
 # jbsteps30pre.zero is the zero-imputed raw step count in the 30 minutes prior to decision
 # jbsteps30pre.log = log(jbsteps30pre.zero + 0.5)
 # A_t = send
+suggest.analysis <-
+  suggest.included %>%
+    arrange(user, study.day.nogap, decision.index.nogap)
 
-mod1 <- 
+mod1.brook <- 
   geeglm(
   jbsteps30.log ~ jbsteps30pre.log + I(send - 0.6),
   id = user, 
   corstr = 'independence',
-  weights = as.numeric(suggest.included$avail), # 1/0 weighting?
+  weights = as.numeric(suggest.analysis$avail),
   scale.fix = TRUE,
-  data = suggest.included %>%
-    arrange(user, study.day.nogap, decision.index.nogap)
+  data = suggest.analysis
 )
 
+```
+
+Estimates and standard errors:
+
+```{r mod1-results, echo=FALSE, results='asis'}
+
+#aud1 <- diag(vcov.geeglm(mod1.brook, small=T))
+brook1 <- diag(vcov.heartsteps.bgl(mod1.brook, small=T))
+
+tt <- cbind('Estimate' = coef(mod1.brook),
+            "SE" = sqrt(brook1))
+            #"SE (Audrey's code)" = sqrt(aud1))
+rownames(tt) <- c('$\\alpha_0$', '$\\alpha_1$','$\\beta_1$')
+
+#print(xtable(tt, digits=c(0,3,4)), type='html',
+#      include.rownames=TRUE,
+#      include.colnames=TRUE)
+kable(tt,
+      digits = c(3,4),
+      padding=0)
 
 ```
 
