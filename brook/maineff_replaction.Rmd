@@ -5,7 +5,7 @@ date: "July 7, 2016"
 output: 
   html_document:
     toc: true
-    toc_depth: 2
+    toc_depth: 3
 ---
 
 ```{r setup, include=FALSE}
@@ -26,6 +26,15 @@ if (!exists('suggest')){
   load(paste(sys.var$mbox.data,'csv.RData',sep=''))
   load(paste(sys.var$mbox.data,"analysis.RData",sep=''))
 }
+
+gridline <- element_line(color='lightgrey',linetype='dashed')
+ptheme <-
+  theme_bw(base_size = 11) +
+  theme(panel.grid.major.x=gridline,
+        panel.grid.minor.x=element_blank(),
+        panel.grid.major.y=gridline,
+        panel.grid.minor.y=element_blank(),
+        strip.background=element_rect(fill=NA,color='white'))
 ```
 
 ## Inclusion/Exclusion
@@ -86,7 +95,27 @@ navail <- sum(suggest.included$avail)
                 with(suggest.included, table('Available?'=avail))
           ```
 
-## sandwich estimator
+
+```{r plot-all, echo=FALSE, include=FALSE, eval=FALSE}
+
+suggest.included %>%
+  mutate(study.day.nogap.f = factor(study.day.nogap, levels=0:41,
+                                  labels=paste(c('Study day ',rep('',41)),
+                                               0:41,sep=''))) %>%
+  filter(avail) %>%
+  ggplot(aes(x=log(jbsteps30pre + 0.5), y=log(jbsteps30 + 0.5))) +
+  geom_point(aes(shape=send, color=send)) +
+  ptheme +
+  facet_wrap(~study.day.nogap.f) +
+  scale_shape_discrete(solid=F) + 
+  scale_color_brewer(palette='Set1') +
+  xlab(expression(Z[t])) + ylab(expression(Y[t+1]))
+  
+
+```
+
+
+## Sandwich Estimator
 All of the following assumes an independent working correlation structure.
 
 Notation:
@@ -102,7 +131,7 @@ $$ \left(X^\intercal W X\right)^{-1} \left[\sum_j X_j^\intercal W_j \hat{\epsilo
 Mancl & DeRouen adjusted sandwich estimator:
 $$\left(X^\intercal W X\right)^{-1} \left[\sum_j X_j^\intercal W_j\left(I - H_{jj}\right)^{-1} \hat{\epsilon}_j \hat{\epsilon}_j^\intercal\left(I - H_{jj}\right)^{-1} W_j X_j\right]\left(X^\intercal W X\right)^{-1} $$
 
-## Modeling
+## Models
 
 ```{r vcov-function, echo=FALSE}
 # Calculate the sandwich variance-covariance estimator
@@ -136,10 +165,10 @@ vcov.heartsteps.bgl <- function(x, small = TRUE){
 }
 
 ```
-Missing values:
+Missing values: The following models impute 0 for any time interval with a missing step count.
 
-* The following models impute 0 for any time interval with a missing step count.
 Notation:
+
 * $Y_{t+1}$ is log(stepcount + 0.5) in the 30 minutes following the $t$th decision point.
 * $Z_t$ is log(stepcount + 0.5) in the 30 minutes prior to the $t$th decision point.
 * $A_t$ indicator of treatment at decision point $t$.
@@ -179,10 +208,10 @@ Estimates and standard errors:
 ```{r mod1-results, echo=FALSE, results='asis'}
 
 #aud1 <- diag(vcov.geeglm(mod1.brook, small=T))
-brook1 <- diag(vcov.heartsteps.bgl(mod1.brook, small=T))
+se1.brook <- diag(vcov.heartsteps.bgl(mod1.brook, small=T))
 
 tt <- cbind('Estimate' = coef(mod1.brook),
-            "SE" = sqrt(brook1))
+            "SE" = sqrt(se1.brook))
             #"SE (Audrey's code)" = sqrt(aud1))
 rownames(tt) <- c('$\\alpha_0$', '$\\alpha_1$','$\\beta_1$')
 
@@ -195,3 +224,83 @@ kable(tt,
 
 ```
 
+### Model 2
+
+$$Y_{t+1} = \alpha_0 + \alpha_1 Z_t + \alpha_2 d(t) + \beta_1(A_t - 0.6) + \beta_2 d(t) (A_t - 0.6)$$
+
+Same weighting as in model 1.
+
+
+```{r model2, echo=FALSE, cache=TRUE}
+
+mod2.brook <- 
+  geeglm(
+  jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
+                  I(send - 0.6) + study.day.nogap:I(send - 0.6),
+  id = user, 
+  corstr = 'independence',
+  weights = as.numeric(suggest.analysis$avail),
+  scale.fix = TRUE,
+  data = suggest.analysis
+)
+
+```
+
+Estimates and standard errors:
+```{r model2-results, echo=FALSE, results='asis'}
+
+se2.brook <- diag(vcov.heartsteps.bgl(mod2.brook, small = TRUE))
+tt <- cbind('Estimate' = coef(mod2.brook),
+            "SE" = sqrt(se2.brook))
+            #"SE (Audrey's code)" = sqrt(aud1))
+rownames(tt) <- c('$\\alpha_0$', '$\\alpha_1$',
+                  '$\\alpha_2$', '$\\beta_1$', '$\\beta_2$')
+
+#print(xtable(tt, digits=c(0,3,4)), type='html',
+#      include.rownames=TRUE,
+#      include.colnames=TRUE)
+kable(tt,
+      digits = c(3,4),
+      padding=0)
+
+
+```
+
+
+```{r plot-res2, echo=FALSE}
+
+plotdat <- 
+  expand.grid(jbsteps30pre = seq(0, 5500, length.out=150),
+              study.day.nogap = 0:41,
+              send = c(0,1)) %>%
+  mutate(jbsteps30pre.log = log(jbsteps30pre + 0.5))
+plotdat$jbsteps30.log <- numeric(nrow(plotdat))
+
+plotdatmat1 <- model.matrix(formula(mod1.brook), data=plotdat)
+plotdatmat2 <- model.matrix(formula(mod2.brook), data=plotdat)
+
+plotdat$jbsteps30.log2 <- as.numeric(plotdatmat2 %*% coef(mod2.brook))
+plotdat$jbsteps30.log1 <- as.numeric(plotdatmat1 %*% coef(mod1.brook))
+
+plot.mod2.mean <-
+  plotdat %>%
+  mutate(study.day.nogap.f = factor(study.day.nogap, levels=0:41,
+                                  labels=paste(c('Study day ',rep('',41)),
+                                               0:41,sep=''))) %>%
+  filter(study.day.nogap %in% seq(0,41,by=2)) %>%
+  ggplot(aes(x=exp(jbsteps30pre.log) - 0.5, y=exp(jbsteps30.log2) - 0.5)) +
+  geom_line(aes(group=send, linetype=as.factor(send))) +
+  facet_wrap(~study.day.nogap.f, nrow=4) + 
+  ptheme + xlab('Steps 30 minutes prior') + ylab('Steps 30 minutes after') +
+  scale_linetype_discrete(name='', breaks=c(0,1),
+                          labels=c('No suggestion','Suggestion')) +
+  theme(legend.position=c(1, 0),
+        legend.justification=c(1,0),
+        legend.direction='vertical') 
+
+```
+
+This model implies the following relationship between the raw step count before and after a decision point over the course of the study.
+```{r plot-mod2-print, echo=FALSE, fig.width=7, fig.height=6}
+plot.mod2.mean + ggtitle('Conditional mean in Model 2')
+```
