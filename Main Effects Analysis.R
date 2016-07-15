@@ -25,7 +25,8 @@ analysis.data <- function(days = 0:35, max.day = 41) {
                     slot, study.date, intake.date, intake.utime, intake.slot,
                     travel.start, travel.end, exit.date, dropout.date,
                     last.date, last.utime, last.slot, recognized.activity,
-                    avail, send, send.active, send.sedentary, jbsteps30pre,
+                    avail, send, send.active, send.sedentary, jbsteps10, 
+                    jbsteps10.zero, jbsteps10.log, jbsteps30pre,
                     jbsteps30, jbsteps30pre.zero, jbsteps30.zero, 
                     jbsteps30pre.log, jbsteps30.log, jbsteps60pre,
                     jbsteps60, jbsteps60pre.zero, jbsteps60.zero,
@@ -141,14 +142,6 @@ rm(y)
 
 ## Define function to format variables for modeling, call geeglm(), and 
 ## make small-sample variance corrections (uses xgeepack.R functions)
-fit <- function(formula, combos = NULL, data = primary) {
-  formula <- substitute(formula)
-  fit <- geeglm(formula = formula, id = user, weights = as.numeric(avail),
-                data = data, scale.fix = T)
-  temp <- bread.geeglm(fit)
-  fit$var <- temp %*% meat.geeglm(fit, g = NULL, gn = NULL, small = TRUE) %*% t(temp)
-  fit
-}
 
 ## Model 1: No time effect
 model1 <- fit(jbsteps30.log ~ jbsteps30pre.log + I(send - .6))
@@ -342,6 +335,10 @@ model3 <- fit(jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
               data = primary)
 # estimate(model3, normal = FALSE)
 
+model4 <-  geeglm(jbsteps30.log ~ jbsteps30pre.log + I(send.active - 0.3) +
+                    I(send.sedentary - 0.3),
+                  id = user, weights = as.numeric(avail),
+                  data = primary, scale.fix = T)
 
 ##### Sensitivity Analyses #####
 ### Remove ID 35

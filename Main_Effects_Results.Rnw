@@ -168,7 +168,7 @@ Jawbone step count is left-truncated at zero: the device does not record zeroes 
   
   \item There is no step count data in the entire period between decision points. For example, if there are decision points at 2:00 PM and 5:00 PM, there is no step count from 2:00 - 5:00, but data starting at 5:00. This happens for
   \begin{enumerate}
-      \item \Sexpr{sum(is.na(suggest$jbsteps30))} of \Sexpr{dim(primary)[1]} included decision points (\Sexpr{100 * with(primary, sum(is.na(jbsteps30))) / dim(primary)[1]}\%)
+      \item \Sexpr{sum(is.na(primary$jbsteps30))} of \Sexpr{dim(primary)[1]} included decision points (\Sexpr{100 * with(primary, sum(is.na(jbsteps30))) / dim(primary)[1]}\%)
     \item \Sexpr{with(subset(primary, avail == T), sum(is.na(jbsteps30)))} of \Sexpr{sum(primary$avail == T)} decision points at which the particpant was available (\Sexpr{100 * with(subset(primary, avail == T), sum(is.na(jbsteps30))) / sum(primary$avail == T)}\%).
   \end{enumerate}
 \end{enumerate}
@@ -189,7 +189,7 @@ We observe similar scenarios in the measurements of step count before a decision
   
   \item There is no step count data between the previous decision point and the current decision point. This happens for
   \begin{enumerate}
-      \item \Sexpr{sum(is.na(suggest$jbsteps30))} of \Sexpr{dim(primary)[1]} included decision points (\Sexpr{100 * with(primary, sum(is.na(jbsteps30))) / dim(primary)[1]}\%)
+      \item \Sexpr{sum(is.na(primary$jbsteps30))} of \Sexpr{dim(primary)[1]} included decision points (\Sexpr{100 * with(primary, sum(is.na(jbsteps30))) / dim(primary)[1]}\%)
     \item \Sexpr{with(subset(primary, avail == T), sum(is.na(jbsteps30)))} of \Sexpr{sum(primary$avail == T)} decision points at which the particpant was available (\Sexpr{100 * with(subset(primary, avail == T), sum(is.na(jbsteps30))) / sum(primary$avail == T)}\%).
   \end{enumerate}
 \end{enumerate}
@@ -256,17 +256,17 @@ print(xtable(estimate(model2, normal = FALSE),
       sanitize.rownames.function = identity)
 @
 
-<<spaghettiplot, fig.cap="Mean difference in proximal step count following a suggestion vs. folllwing no suggestion, by particpant. The y-axis is truncated below at -3000 steps", fig.pos = "H">>=
+<<spaghettiplot, fig.cap="Mean difference in proximal step count following a suggestion vs. folllwing no suggestion, by participant. Differences are computed by subtracting the mean proximal step count when $A_{t} = 0$ from the mean proximal step count when $A_{t} = 1$. The y-axis is truncated below at -3000 steps.", fig.pos = "H">>=
 replayPlot(spaghetti.plot)
 @
 
-<<spaghettiplot-mean, fig.cap="Mean difference in proximal step count following a suggestion vs. folllwing no suggestion, averaged over all particpants, and smoothed using LOESS with span 2/3.", fig.pos = "H">>=
+<<spaghettiplot-mean, fig.cap="Mean difference in proximal step count following a suggestion vs. folllwing no suggestion, averaged over all particpants, and smoothed using LOESS with span 2/3. Differences are computed by subtracting the mean proximal step count when $A_{t} = 0$ from the mean proximal step count when $A_{t} = 1$.", fig.pos = "H">>=
 replayPlot(spaghetti.mean.plot)
 @
 
 \section{Time Trend Analysis}
 
-We are interested in selecting a model which best captures the effect of time on proximal step count. In particular, we want to decide whether a quadratic function in time should be incorporated into the model. To do this, we regress log-transformed proximal step count following each decision point against log-transformed step count in the 30 minutes prior to each decision point, among participants who are available at the decision point. We then use LOESS on the residuals vs. $d(t)$, where $t = 0, 1, 2, \ldots, 209$ is the index of the decision point, and $d(t) = \lfloor\frac{t}{5}\rfloor$ is the index of the day on which decision point $t$ occurred. As above, we only use data from the \Sexpr{length(ids)} participants who were on-study for \Sexpr{max(days)} or more days. 
+We are interested in selecting a model which best captures the effect of time on proximal step count. In particular, we want to decide whether a quadratic function in time should be incorporated into the model. To do this, we regress log-transformed proximal step count following each decision point against log-transformed step count in the 30 minutes prior to each decision point, among participants who are available at the decision point. We then use LOESS on the residuals vs. $d(t)$, where $t = 0, 1, 2, \ldots, 209$ is the index of the decision point, and $d(t) = \lfloor\frac{t}{5}\rfloor$ is the index of the day on which decision point $t$ occurred. As above, we only use data from the \Sexpr{length(ids)} participants who were on-study for \Sexpr{max(days)} or more days. Finally, note that residuals are always computed as $(Y_{t+1} - \hat{Y}_{t+1})$.
 
 \subsection{Main Effect}
 \label{sec:time-main-effect}
@@ -293,8 +293,6 @@ print(xtable(estimate(minmod, normal = FALSE), floating = FALSE, digits = 3,
 <<timemodel-resid, fig.cap = "Plot of mean residuals from Model~\\labelcref{eqn:resid-model} averaged over study day vs. time on study in days. The black line connects mean residuals, the blue is a loess smoother with span 1/3.", fig.pos="H">>=
 replayPlot(mean.resid.main.effect)
 @
-
-There may be a small amount of curvature in the loess smoothers, indicating a quadratic effect; however, the degree of curvature is so slight as to likely be negligible.
 
 \subsection{Interaction with Treatment}
 \label{sec:time-interaction}
@@ -371,7 +369,29 @@ replayPlot(mean.resid.interaction.quad)
 \section{Secondary Analyses}
 \subsection{Active vs. Sedentary Suggestions}
 \label{sec:actsed}
-Suggestions delivered to a participant's phone could be either ``active'' or ``sedentary''. The former category encouraged participants to take the stairs, walk around the office, or go for an evening stroll; the latter included suggestions to stand and stretch, for example. We examine the proximal effect of each type of suggestion on step count using model~\labelcref{eqn:actsed-model}.
+Suggestions delivered to a participant's phone could be either ``active'' or ``sedentary''. The former category encouraged participants to take the stairs, walk around the office, or go for an evening stroll; the latter included suggestions to stand and stretch, for example. We examine the proximal effect of each type of suggestion on step count by expanding the treatment indicator in Models~\labelcref{eqn:model-no-day-effect,eqn:model-with-day-effect}. In Model~\labelcref{eqn:actsed-marginal-model}, we assess the marginal effect of active and sedentary suggestions, controlling for log-transformed step count in the previous 30 minutes. In Model~\labelcref{eqn:actsed-model}, we introduce a linear time effect and interaction wtih the treatment indicators.
+\begin{equation}
+	\begin{split}
+		\label{eqn:actsed-marginal-model}
+		Y_{t+1} &\sim \alpha_{0} + \alpha_{1} Z_{t} + \beta_{1} \left(A_{1, t} - 0.3\right) + \beta_{2} \left(A_{2, t} - 0.3\right), \quad \text{if } I_{t} = 1,
+	\end{split}
+\end{equation}
+where 
+\begin{itemize}
+  \item $Y_{t+1}$ is log-transformed total Jawbone step count in the 30 minutes following the $t^{\text{th}}$ treatment occasion,
+  \item $Z_{t}$ is log-transformed total Jawbone step count in the 30 minutes prior to the $t^{\text{th}}$ treatment occasion,
+  \item $A_{1, t}$ is an indicator of whether or not an active suggestion was provided at occasion $t$, and 
+  \item $A_{2, t}$ is an indicator of whether or not a sedentary suggestion was provided at occasion $t$.
+\end{itemize}
+
+<<active-sedentary--marginal-model, results = "asis">>=
+names(model4$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$", "$\\beta_{1}$", "$\\beta_{2}$")
+print(xtable(estimate(model4), floating = FALSE, digits = 3,
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:actsed-marginal-model}",
+             label = "tab:actsed-model"), 
+      sanitize.rownames.function = identity)
+@
+
 \begin{equation}
 	\begin{split}
 		\label{eqn:actsed-model}

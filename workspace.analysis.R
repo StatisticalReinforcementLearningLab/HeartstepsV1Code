@@ -448,18 +448,22 @@ gfslotpre <- gfslotpre[with(gfslotpre, order(user, end.utime)), ]
 
 temp <- with(jbslot, end.utime - decision.utime)
 suggest <- merge(suggest,
-                 aggregate(cbind(jbmins30 = temp <= 30 * 60,
+                 aggregate(cbind(jbmins10  = temp <= 10 * 60,
+                                 jbsteps10 = steps * (temp <= 10 * 60),
+                                 jbmins30  = temp <= 30 * 60,
                                  jbsteps30 = steps * (temp <= 30 * 60),
-                                 jbmins60 = temp <= 60 * 60,
+                                 jbmins60  = temp <= 60 * 60,
                                  jbsteps60 = steps * (temp <= 60 * 60))
                            ~ decision.index + user, data = jbslot, FUN = sum),
                  by = c("user", "decision.index"), all.x = TRUE)
 
 temp <- with(gfslot, end.utime - decision.utime)
 suggest <- merge(suggest,
-                 aggregate(cbind(gfmins30 = temp <= 30 * 60,
+                 aggregate(cbind(gfmins10  = temp <= 10 * 60,
+                                 gfsteps10 = steps * (temp <= 10 * 60),
+                                 gfmins30  = temp <= 30 * 60,
                                  gfsteps30 = steps * (temp <= 30 * 60),
-                                 gfmins60 = temp <= 60 * 60,
+                                 gfmins60  = temp <= 60 * 60,
                                  gfsteps60 = steps * (temp <= 60 * 60))
                            ~ decision.index + user, data = gfslot, FUN = sum),
                  by = c("user", "decision.index"), all.x = TRUE)
@@ -467,12 +471,12 @@ suggest <- merge(suggest,
 # Aggregate returns NA when study.date is not in the user's Jawbone data (e.g., if 
 # the user just didn't wear the Jawbone for a whole day, or if she was traveling 
 # internationally and left the tracker at home). We impute zeros.
-suggest$jbsteps30.zero <- suggest$jbsteps30
-suggest$jbsteps60.zero <- suggest$jbsteps60
-suggest$jbsteps30.zero[is.na(suggest$jbsteps30)] <- 0
-suggest$jbsteps60.zero[is.na(suggest$jbsteps60)] <- 0
+suggest$jbsteps10.zero <- with(suggest, ifelse(is.na(jbsteps10), 0, jbsteps10))
+suggest$jbsteps30.zero <- with(suggest, ifelse(is.na(jbsteps30), 0, jbsteps30))
+suggest$jbsteps60.zero <- with(suggest, ifelse(is.na(jbsteps60), 0, jbsteps60))
 
 ## Log transform step count
+suggest$jbsteps10.log <- log(suggest$jbsteps10.zero + 0.5)
 suggest$jbsteps30.log <- log(suggest$jbsteps30.zero + 0.5)
 suggest$jbsteps60.log <- log(suggest$jbsteps60.zero + 0.5)
 
