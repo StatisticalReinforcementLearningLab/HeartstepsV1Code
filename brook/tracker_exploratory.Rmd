@@ -1,0 +1,114 @@
+---
+title: "Tracker exploratory analysis"
+author: "Brook Luers"
+date: "July 18, 2016"
+output: html_document
+---
+
+
+```{r setup,echo=FALSE, warning=FALSE, message=FALSE}
+
+library(ggplot2)
+library(RColorBrewer)
+library(dplyr)
+library(gridExtra)
+library(knitr)
+library(grid)
+library(reshape2)
+library(geepack)
+knitr::opts_chunk$set(echo = FALSE)
+source('../init.R', chdir=TRUE)
+source('../xgeepack.R')
+if (!exists('suggest')){
+  load(paste(sys.var$mbox.data,'csv.RData',sep=''))
+  load(paste(sys.var$mbox.data,"analysis.RData",sep=''))
+}
+
+gridline <- element_line(color='lightgrey',linetype='dashed')
+ptheme <-
+  theme_bw(base_size = 11) +
+  theme(panel.grid.major.x=gridline,
+        panel.grid.minor.x=element_blank(),
+        panel.grid.major.y=gridline,
+        panel.grid.minor.y=element_blank(),
+        strip.background=element_rect(fill=NA,color='white'),
+        legend.position='right',
+        legend.direction='vertical')
+
+```
+
+
+```{r data,echo=FALSE}
+
+unavail_sent_slots <-
+            filter(suggest, !avail & !is.na(notification.message))%>%
+                select(user, study.day.nogap, slot, avail, notification.message) %>%
+  mutate('Message sent' = !is.na(notification.message)) %>% select(-notification.message) %>%
+  rename('User' = user, 'Non-travel study day'= study.day.nogap,
+         'Decision slot' = slot, 'Available' = avail)
+no_message_tag <- 
+            filter(suggest, send & !travel & study.day.nogap <= 42 & is.na(send.sedentary)) %>%
+                select(user, study.day.nogap, slot, 
+                      notification.message) %>%
+  rename('User' = user,
+         'Non-travel study day' = study.day.nogap,
+         'Decision slot' = slot,
+         'Sent mesasge' = notification.message)
+
+suggest.included <- 
+  suggest %>%
+  filter(!travel & study.day.nogap <= 41) %>%
+  anti_join(mutate(no_message_tag, no_message_tag = T),
+            by=c('user'='User','study.day.nogap'='Non-travel study day',
+                 'slot'='Decision slot')) %>%
+  anti_join(mutate(unavail_sent_slots, unavail_sent_slots = T),
+            by=c('user'='User','study.day.nogap'='Non-travel study day',
+                 'slot'='Decision slot'))
+
+
+
+keep_users <- sort(unique(suggest.included$user))
+
+
+tracker.user.day <- 
+  daily %>%
+  filter(study.day.nogap <= 41 & user %in% keep_users) %>%
+  select(user, study.date, study.day.nogap, last.utime, travel) %>%
+  group_by(user) %>% mutate(n_days = max(study.day.nogap, na.rm=T) + 1) %>%
+  left_join(
+    tracker %>%
+      group_by(user, start.date) %>%
+      summarise(n_starts = n())
+    , by=c('user'='user', 'study.date'='start.date')
+  ) %>% 
+  filter(!travel, study.day.nogap <= 41) %>% 
+  group_by(user) %>%
+  summarise(n_days = max(n_days),
+            n_no_tracker = sum(is.na(n_starts)))
+
+```
+
+### User-days without app usage data
+
+About `r with(tracker.user.day, round(100*sum(n_no_tracker) / sum(n_days)))` percent (`r sum(tracker.user.day$n_no_tracker)` / `r sum(tracker.user.day$n_days)`) of user-days have no app usage data.
+
+The following users have at least one day without any app usage data:
+
+```{r table-notracker-days, echo=FALSE, results='asis'}
+
+tt <- 
+  tracker.user.day %>%
+  filter(n_no_tracker>0) %>%
+  mutate(prop = n_no_tracker / n_days) %>%
+  arrange(desc(prop)) 
+
+names(tt) <- c('User','# total study days','# days without app usage data',
+               'Proportion')
+tt$Proportion <- paste(round(tt$Proportion,2))
+kable(as.data.frame(tt),
+      align='r',
+      padding=0,
+      format='markdown')
+
+```
+
