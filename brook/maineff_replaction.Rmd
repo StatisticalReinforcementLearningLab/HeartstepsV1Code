@@ -34,7 +34,9 @@ ptheme <-
         panel.grid.minor.x=element_blank(),
         panel.grid.major.y=gridline,
         panel.grid.minor.y=element_blank(),
-        strip.background=element_rect(fill=NA,color='white'))
+        strip.background=element_rect(fill=NA,color='white'),
+        legend.position='right',
+        legend.direction='vertical')
 ```
 
 ## Inclusion/Exclusion
@@ -268,7 +270,7 @@ rownames(tt) <- c('$\\alpha_0$', '$\\alpha_1$','$\\beta_1$')
 colnames(tt)[3:6] <- c('Hotelling','p-value','95% LCL','95% UCL')
 
 kable(tt,
-      digits = c(3,4,3,5,3,3),
+      digits = c(3,4,2,3,3,3),
       padding=0)
 
 ```
@@ -313,10 +315,8 @@ rownames(tt) <- c('$\\alpha_0$', '$\\alpha_1$',
                   '$\\alpha_2$', '$\\beta_1$', '$\\beta_2$')
 colnames(tt)[3:6] <- c('Hotelling','p-value','95% LCL','95% UCL')
 
-kable(tt,
-      digits = c(3,4,3,5,3,3),
+kable(tt, digits=3,
       padding=0)
-
 
 ```
 
@@ -359,21 +359,22 @@ rownames(tt) <- c('$\\alpha_0$', '$\\alpha_1$',
                   '$\\alpha_2$', '$\\alpha_3$',
                   '$\\beta_1$', '$\\beta_2$', '$\\beta_3$')
 colnames(tt)[3:6] <- c('Hotelling','p-value','95% LCL','95% UCL')
-
 kable(tt,
-      digits = c(4,4,3,5,3,3),
-      padding=0, align='r')
+      digits = c(3,4,2,3,3,3),
+      padding=0)
 
 ```
 
 ## Time trend
 
+(Include unavailable decision points in residual plots?)
+
+### Prior step count only (Nick's model 3)
 $$ Y_{t+1} \sim \alpha_0 + \alpha_1 Z_t$$
 
-Residuals versus time:
-```{r time1, echo=FALSE, fig.width=6.5, fig.height=5}
+```{r time1, echo=FALSE}
 
-mainmod1 <- 
+timemod1 <- 
   geeglm(
   jbsteps30.log ~ jbsteps30pre.log,
   id = user, 
@@ -383,33 +384,99 @@ mainmod1 <-
   data = suggest.analysis
   )
 
-#pointwise.table.small(coef(mainmod1), S=vcov.heartsteps.bgl(mainmod1,small = T),
-#                      n=length(mainmod1$geese$clusz))
+#pointwise.table.small(coef(timemod1), S=vcov.heartsteps.bgl(timemod1,small = T),
+#                      n=length(timemod1$geese$clusz))
 
 
 plotdf <- data.frame(
-  resid = mainmod1$y - mainmod1$fitted.values,
-  send = mainmod1$data$send,
-  study.day.nogap = mainmod1$data$study.day.nogap,
-  avail = mainmod1$data$avail
+  resid = timemod1$y - timemod1$fitted.values,
+  send = timemod1$data$send,
+  study.day.nogap = timemod1$data$study.day.nogap,
+  avail = timemod1$data$avail
 )
 
+plotdf <- bind_rows(
+  'All decision points'=plotdf,
+  'Available decision points'=filter(plotdf, avail),
+  .id='availability'
+)
+
+span <- 0.5
 plot.resid.time1 <- 
   plotdf %>%
-  filter(avail) %>%
   ggplot(aes(x=study.day.nogap, y=resid)) + 
-  geom_point(aes(color=send), shape=1) + 
+  geom_point(aes(color=send), shape=1,alpha=I(1/2)) + 
   geom_smooth(aes(group=send,color=send), method='loess',se=F,
-              span=0.25) +
+              span=span) +
   ptheme + scale_color_brewer(palette='Set1',
-                              name='', 
+                              name=paste('Loess smoother,',span,'span'), 
                               breaks=c('FALSE','TRUE'),
                               labels=c('No suggestion','Suggestion')) +
   ylab('Residual') + xlab('Study day') +
+  facet_grid(.~availability)+
   ggtitle(expression(alpha[0] + alpha[1]~Z[t]))
   
 
 ```
+
+Residuals versus time:
+
+```{r plot-resid-time1,echo=FALSE, fig.width=8.5,fig.height=4.5}
+
+plot.resid.time1
+
+```
+
+### Quadratic time (Nick's model 4)
+
+```{r time2, echo=FALSE}
+
+
+timemod2 <- 
+  geeglm(
+  jbsteps30.log ~ jbsteps30pre.log + study.day.nogap + I(study.day.nogap^2),
+  id = user, 
+  corstr = 'independence',
+  weights = as.numeric(suggest.analysis$avail),
+  scale.fix = TRUE,
+  data = suggest.analysis
+  )
+
+plotdf2 <- data.frame(
+  resid = timemod2$y - timemod2$fitted.values,
+  send = timemod2$data$send,
+  study.day.nogap = timemod2$data$study.day.nogap,
+  avail = timemod2$data$avail
+)
+plotdf2 <- bind_rows(
+  'All decision points' = plotdf2,
+  'Available decision points' = filter(plotdf2, avail),
+  .id='availability'
+)
+
+plot.resid.time2 <- 
+  plotdf2 %>%
+  ggplot(aes(x=study.day.nogap, y=resid)) + 
+  geom_point(aes(color=send), shape=1,alpha=I(1/2)) + 
+  geom_smooth(aes(group=send,color=send), method='loess',se=F,
+              span=span) +
+  ptheme + scale_color_brewer(palette='Set1',
+                              name=paste('Loess smoother,',span,'span'), 
+                              breaks=c('FALSE','TRUE'),
+                              labels=c('No suggestion','Suggestion')) +
+  ylab('Residual') + xlab('Study day') +
+  facet_grid(.~availability)+
+  ggtitle(expression(alpha[0] + alpha[1]~Z[t] + alpha[2]~d(t)+alpha[3]~d(t)^2))
+
+```
+
+Residuals versus time:
+
+```{r plot-resid-time2, echo=FALSE, fig.width=8.5, fig.height=4.5}
+plot.resid.time2
+
+```
+
 
 
 ```{r plot-res2, echo=FALSE}
