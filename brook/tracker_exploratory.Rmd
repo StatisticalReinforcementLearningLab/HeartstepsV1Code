@@ -86,13 +86,13 @@ tracker.user.day <-
   summarise(n_days = max(n_days),
             n_no_tracker = sum(is.na(n_starts)))
 
-
+cutoff_hour_first <- 3
 tracker.first.app.day <- 
   tracker %>%
   select(user, start.date, start.ltime, duration.secs, app, rank) %>%
   group_by(user, start.date) %>%
   arrange(start.ltime) %>%
-  filter(start.ltime >= trunc(start.ltime, 'day') + 60*60*3) %>%
+  filter(start.ltime >= trunc(start.ltime, 'day') + 60*60*cutoff_hour_first) %>%
   mutate(my_order=order(start.ltime)) %>% 
   filter(my_order==1) %>%
   select(user, start.date, first_ltime = start.ltime, 
@@ -103,7 +103,10 @@ daily.first.app <-
   filter(!travel & user %in% keep_users) %>%
   select(user, study.date, study.day.nogap) %>%
   left_join(tracker.first.app.day,
-            by=c('user'='user','study.date'='start.date'))
+            by=c('user'='user','study.date'='start.date')) %>%
+  mutate(secs_first_use = difftime(first_ltime, trunc(first_ltime, 'day'),
+                                     units='secs'),
+         secs_first_use_num = as.numeric(secs_first_use))
 
 
 
@@ -135,13 +138,77 @@ kable(as.data.frame(tt),
 
 ### Time of first daily phone usage
 
-```{r hist-time-first, echo=FALSE}
+The following histogram shows times of first daily phone usage according to the tracker data for each user. I defined "time of first usage" as the earliest tracker timestamp that occurred after `r cutoff_hour_first` a.m. 
+
+```{r hist-time-first, echo=FALSE, fig.width=8, fig.height=7}
 ## Histogram of time of first app usage
+
+breaks_first_use <- 
+  with(daily.first.app,
+       seq(min(secs_first_use_num, na.rm=T),
+         max(secs_first_use_num, na.rm=T),
+         by=60*60*6))
+
+labels_first_use <-
+  format(as.POSIXct('2016-07-20 00:00:00') + breaks_first_use,
+       '%H:%M')
+
+top_app_names <-
+  names(
+  with(daily.first.app,
+     sort(table(first_app), decreasing=T))[1:3]
+)
+
+daily.first.app <-
+  daily.first.app %>%
+  mutate(first_app_f = paste(factor(first_app,
+                                    levels=top_app_names)),
+         first_app_f = factor(ifelse(first_app_f=='NA', 'Other',first_app_f)))
+
 daily.first.app %>%
-  mutate(secs_first_usage = difftime(first_ltime, trunc(first_ltime, 'day'),
-                                     units='secs'))%>%
-  ggplot(aes(x=secs_first_usage)) +
-  geom_histogram() + 
+  filter(!is.na(secs_first_use_num)) %>%
+  mutate(user = factor(user,
+                       levels=unique(user),
+                       labels=paste(c('User ',rep('',length(unique(user))-1)),
+                                    unique(user), sep=''))) %>%
+  ggplot(aes(x=secs_first_use_num)) +
+  geom_histogram(aes(fill=first_app_f),
+                 binwidth=60*60,color=NA) + 
+  ptheme +
+  scale_x_continuous(breaks = breaks_first_use,
+                     labels=as.character(labels_first_use)) +
+  facet_wrap(~user, ncol=6) +
+  scale_y_continuous(breaks=c(0,10,20)) +
+  xlab(paste('Time of first tracker activity\nafter ',cutoff_hour_first,' a.m.',sep='')) +
+  ylab('Num. study days') +
+  scale_fill_manual(values=c(brewer.pal(length(top_app_names),'Dark2'),
+                              'darkgrey'),
+                     breaks=c(top_app_names,'Other'),
+                    name='') +
+  theme(legend.position=c(1,0),
+        legend.justification=c(1,0),
+        legend.direction='horizontal',
+        axis.text.x=element_text(angle=45,hjust=1))
+
+```
+
+
+### Time since last phone usage (prior to decision point)
+
+```{r time-prior-data, echo=FALSE, include=FALSE, eval=FALSE}
+
+suggest.included %>%
+  group_by(user) %>%
+  summarise(n_points = n(),
+            prop_no_dev_since = sum(is.na(device.since)) / n_points)
+
+suggest.included %>%
+  group_by(user) %>%
+  mutate(n_points = n(),
+            prop_no_dev_since = sum(is.na(device.since)) / n_points) %>%
+  filter(prop_no_dev_since <1) %>% ungroup %>%
+  ggplot(aes(x=as.numeric(device.since))) + 
+  geom_histogram(aes(y=..density..)) + 
   facet_wrap(~user)
 
 ```
