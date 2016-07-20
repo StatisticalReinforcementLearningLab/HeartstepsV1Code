@@ -86,6 +86,27 @@ tracker.user.day <-
   summarise(n_days = max(n_days),
             n_no_tracker = sum(is.na(n_starts)))
 
+
+tracker.first.app.day <- 
+  tracker %>%
+  select(user, start.date, start.ltime, duration.secs, app, rank) %>%
+  group_by(user, start.date) %>%
+  arrange(start.ltime) %>%
+  filter(start.ltime >= trunc(start.ltime, 'day') + 60*60*3) %>%
+  mutate(my_order=order(start.ltime)) %>% 
+  filter(my_order==1) %>%
+  select(user, start.date, first_ltime = start.ltime, 
+         first_app = app) 
+
+daily.first.app <-
+  daily %>%
+  filter(!travel & user %in% keep_users) %>%
+  select(user, study.date, study.day.nogap) %>%
+  left_join(tracker.first.app.day,
+            by=c('user'='user','study.date'='start.date'))
+
+
+
 ```
 
 ### User-days without app usage data
@@ -100,15 +121,28 @@ tt <-
   tracker.user.day %>%
   filter(n_no_tracker>0) %>%
   mutate(prop = n_no_tracker / n_days) %>%
-  arrange(desc(prop)) 
+  arrange(desc(prop)) %>%
+  select(user, prop)
 
-names(tt) <- c('User','# total study days','# days without app usage data',
-               'Proportion')
-tt$Proportion <- paste(round(tt$Proportion,2))
+names(tt) <- c('User','Proportion of study days without tracker data')
+tt[,2] <- round(tt[,2],2)
 kable(as.data.frame(tt),
       align='r',
       padding=0,
       format='markdown')
+
+```
+
+### Time of first daily phone usage
+
+```{r hist-time-first, echo=FALSE}
+## Histogram of time of first app usage
+daily.first.app %>%
+  mutate(secs_first_usage = difftime(first_ltime, trunc(first_ltime, 'day'),
+                                     units='secs'))%>%
+  ggplot(aes(x=secs_first_usage)) +
+  geom_histogram() + 
+  facet_wrap(~user)
 
 ```
 
