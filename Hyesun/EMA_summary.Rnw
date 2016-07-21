@@ -46,11 +46,11 @@ barplot(temp1[,2], names.arg = temp1$user, ylim=c(0,1), cex.names = 0.4)
 tmp=with(temp, table(respond, connect))
 tmp=c(sum(with(temp,respond & connect)),sum(with(temp,!respond & connect)),sum(with(temp,!respond & !connect)))
 tmp=as.table(c(tmp, sum(tmp)))
-rownames(tmp)=c("responded","connected but not responded", "disconnected", "Sum")
+rownames(tmp)=c("connected and responded","connected but not responded", "disconnected", "Sum")
 print(xtable(tmp), include.colnames = FALSE, hline.after = c(-1,3,4))
 @
 
-In the dataset, there are $\Sexpr{nrow(temp)}$ total person-day datapoints obtained from 37 subjects for durations ranging from $\Sexpr{min(aggregate(study.day.nogap~user, data=temp, max)[,2])+1}$ to $\Sexpr{max(aggregate(study.day.nogap~user, data=temp, max)[,2])+1}$ days. Among those $\Sexpr{nrow(temp)}$ datapoints, only $\Sexpr{sum(temp$respond)}$ contained one or more responses to at least one of either planning message or EMA questions.\\
+In the dataset, there are $\Sexpr{nrow(temp)}$ total person-day datapoints obtained from 37 subjects for durations ranging from $\Sexpr{min(aggregate(study.day.nogap~user, data=temp, max)[,2])+1}$ to $\Sexpr{max(aggregate(study.day.nogap~user, data=temp, max)[,2])+1}$ days. Among those $\Sexpr{nrow(temp)}$ datapoints, only $\Sexpr{sum(temp$respond)}$ contained one or more responses to at least one of either planning message or EMA questions. Here, `connected' means whether people got EMA notification, engaged or responded.\\
 Among person-data datapoints that were available to respond EMA, $\frac{\Sexpr{tmp[1]}}{\Sexpr{tmp[1]} + \Sexpr{tmp[2]}}$ = $\Sexpr{round(tmp[1]/(tmp[1]+tmp[2])*100 , digits=2)}$\% responded to EMA.
 
 \section{EMA completed status}
@@ -105,7 +105,7 @@ names(d)[is.na(names(d))]<-"NA"
 
 xx=barplot(d,names.arg=names(d),ylim=c(0,max(d)+200))
 text(x = xx, y = d, label = d, pos = 3, cex = 1)
-with(temp1,boxplot(jbsteps~hectic,main="hectic"))
+with(temp1,boxplot(jbsteps~hectic, main="hectic", ylab="daily jbsteps"))
 @
 
 
@@ -116,7 +116,7 @@ d=table(temp1$stressful, useNA="ifany")
 names(d)[is.na(names(d))]<-"NA"
 xx=barplot(d,ylim=c(0,max(d)+200), names.arg=names(d))
 text(x = xx, y = d, label = d, pos = 3, cex = 1)
-with(temp1,boxplot(jbsteps~stressful,main="stressful"))
+with(temp1,boxplot(jbsteps~stressful,main="stressful", ylab="daily jbsteps"))
 @
 
 Here is table of stressfulness/hecticness
@@ -135,7 +135,7 @@ d=table(temp1$typical, useNA="ifany")
 names(d)[is.na(names(d))]<-"NA"
 xx=barplot(d,ylim=c(0,max(d)+200), names.arg=names(d))
 text(x = xx, y = d, label = d, pos = 3, cex = 1)
-with(temp1,boxplot(jbsteps~typical,main="typical"))
+with(temp1,boxplot(jbsteps~typical,main="typical", ylab="daily jbsteps"))
 @
 
 \subsection{EMA 4: activeness}
@@ -215,7 +215,7 @@ d=table(temp1$energetic, useNA="ifany")
 names(d)[is.na(names(d))]<-"NA"
 xx=barplot(d, ylim=c(0,max(d)+200))
 text(x = xx, y = d, label = d, pos = 3, cex = 1)
-with(temp1,boxplot(jbsteps~energetic,main="energetic"))
+with(temp1,boxplot(jbsteps~energetic,main="energetic", ylab="daily jbsteps"))
 
 @
 
@@ -228,7 +228,7 @@ d=table(temp1$urge, useNA =  "ifany")
 names(d)[is.na(names(d))]<-"NA"
 xx=barplot(d, ylim=c(0,max(d)+250))
 text(x = xx, y = d, label = d, pos = 3, cex = 1)
-with(temp1,boxplot(jbsteps~urge,main="urge"))
+with(temp1,boxplot(jbsteps~urge,main="urge", ylab="daily jbsteps"))
 @
 
 There is no one who checked degree 5.
@@ -238,13 +238,41 @@ Among $\Sexpr{sum(temp$connect==TRUE)}$ day-person datapoints which were connect
 <<missing context, echo=FALSE, results="asis" >>=
 temp1=temp[temp$connect==TRUE,]
 tmp=apply(subset(temp1, select = c(recognized.activity:snow)), 2, function(x) sum((is.na(x) & temp1$respond),na.rm=T) )
-tmp=as.table(tmp[3:14])
-print(xtable(t(as.table(tmp[1:5])), auto=TRUE),include.rownames = F)
-print(xtable(t(as.table(tmp[6:8])), auto=TRUE),include.rownames = F)
-print(xtable(t(as.table(tmp[9:12])), auto=TRUE),include.rownames = F)
+tmp=as.table(tmp[c(1,3:14)])
+print(xtable(t(as.table(tmp[1:6])), auto=TRUE),include.rownames = F)
+print(xtable(t(as.table(tmp[7:9])), auto=TRUE),include.rownames = F)
+print(xtable(t(as.table(tmp[10:13])), auto=TRUE),include.rownames = F)
 @
 Overall, at most $\Sexpr{max(tmp)}$ contexts are missing.
 
+\section{Planning issue}
+<<planning composition, echo=FALSE, results="asis" >>=
+d = table(temp$planning, useNA="ifany")
+d=as.table(c(d,sum(d)))
+names(d)[5:6]=c("NA","Sum")
+print(xtable(t(d), auto=TRUE, caption = "planning randomization result"),include.rownames = F)
+@
 
+We defined no{\_}planning if we have datapoints that responded(answered at least one of planning or EMA questions ) but neither we got planning responses or disconnected. Planning ratio might be inferred by (structured+unstructured)/(structured+unstructured+no{\_}planning) = $\Sexpr{sum(d[3:4])/sum(d[2:4])}$.\\
+Below is table of the number of answered EMA questions and a planning question. Every participants were supposed to have total 8 questions either from EMA questions or a planning question.
 
+<<planning as if EMA, echo=FALSE, results="asis" >>=
+t1=temp$planning %in% c("structured","unstructured")
+t3=t1+temp$ema.set.length
+t1 = table(t3)
+t1=rbind(rownames(t1),t1)
+colnames(t1)=NULL
+rownames(t1)=c("Number of answers", "answered")
+print(xtable(t1, auto=T, caption = "the number of answered EMA questions and a planning question "), include.rownames = TRUE, include.colnames = FALSE, hline.after = c(0,1,2))
+@
+
+Since the majority of values are $\Sexpr{t1[1,5]}$, it matches our EMA study plan. However, there is one datapoint that answered 8 EMA questions and a planning question. I looked at the original data, but I couldn't find the reason. \\
+
+And there are also suspicious cases below.
+
+\includegraphics[scale=0.6]{ema5glitches.png}
+
+If you look at user4-study.day11, user8 study.day7 and user32-study.day32, they got planning question yesterday but received EMA questions without ema5. \\
+
+I am trying to look at raw data and try to figure out these problems. 
 \end{document}

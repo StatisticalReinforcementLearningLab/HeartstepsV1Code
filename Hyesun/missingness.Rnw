@@ -1,0 +1,324 @@
+%jbsteps should be replaced by daily countsteps
+
+\documentclass[11pt]{article}
+
+\title{\bfseries Missingness amongst potential daily moderators}
+\begin{document}
+%\SweaveOpts{concordance=TRUE}
+\maketitle
+
+<<data, echo = FALSE, include = FALSE>>=
+setwd("C:/Users/Hyesun/git/heartstepsdata")
+source("init.R")
+
+setwd("Z:/HeartSteps/Data")
+load("csv.RData")
+load("analysis.RData")
+setwd("C:/Users/Hyesun/git/heartstepsdata/Hyesun")
+load("location_for_decision.RData")
+load("weather.RData")
+color <- "chartreuse"
+color.name <- "green"
+@
+
+\section{Daily moderators on weather}
+<<setting, echo=FALSE, eval=TRUE>>=
+## Included ema.set to daily to analyze ema.set
+daily <- merge(daily,
+               aggregate(subset(ema, select = c(ema.set)),
+                         by = with(ema, list(user, ema.date)),
+                         function(x) na.omit(x)[1]),
+               by.x = c("user", "study.date"),
+               by.y = paste("Group", 1:2, sep = "."), all.x = TRUE)
+
+temp=daily[!is.na(daily$study.day.nogap),]
+temp=temp[temp$study.day.nogap %in% 0:41,]
+@
+\subsection{Which location can represent daily location}
+Participants' location changed during a day. Choosing a location to represent their daily location should be considered.\\
+My naive approach was considering frequency of locations among 5 decision time points and pick the most frequent location among them. Unique number of location in 5 decision points during a day is presented below. 
+<<frequency, echo=FALSE, results="asis">>=
+decision$city.coor=location_for_decision$city.coor
+decision$state.coor=location_for_decision$state.coor
+fq=function(c){names(sort(table(c),decreasing=TRUE))[1]}
+tmp=aggregate(paste(city.coor,state.coor,sep="_")~date.stamp+user,data=decision, FUN = fq)
+tmp1=aggregate(paste(city.coor,state.coor,sep="_")~date.stamp+user,data=decision, FUN = function(x) length(unique(x)))
+tmp=cbind(tmp,tmp1[,3])
+names(tmp)[1]="study.date" ;names(tmp)[3]="city.freq";names(tmp)[4]="city.number"
+tmp[,c("city.coor","state.coor")]=matrix(unlist(strsplit(tmp$city.freq,"_")),byrow=TRUE,ncol=2)
+tmp$city.freq=NULL
+kk=merge(daily, tmp, by.x = c("user", "study.date"), by.y = c("user", "study.date"),
+      all.x = TRUE)
+
+temp=kk[!is.na(kk$study.day.nogap),]
+temp=kk[kk$study.day.nogap %in% 0:41,]
+
+a=table(temp$city.number,useNA = "ifany")
+a=c(a,sum(a[1:6]))
+names(a)[is.na(names(a))]="NA"
+names(a)[names(a)==""]="Sum"
+print(xtable(t(as.table(a)), auto=TRUE),include.rownames = F)
+@
+Here, NA implies we don't have records on decision point data but we have records on daily EMA data(Due to people who were not recoreded on decision data but on EMA.)\\
+And some instances of participants' itinerary are presented to show how people moved during a day. 
+
+
+<<5-city, echo=FALSE, results="asis">>=
+a=temp[temp$city.number %in% 5,c("user","study.date")]
+i=1
+tt1=decision[(decision$user %in% a[i,1]) & decision$date.stamp %in% a[i,2], c("city.coor","state.coor")]
+
+#print(paste("user",a[i,1],"date",a[i,2],tt1))
+i=2
+tt2=decision[(decision$user %in% a[i,1]) & decision$date.stamp %in% a[i,2], c("city.coor","state.coor")]
+#tt1=paste(tt[1,1],"(",tt[1,2],") ",tt[2,1],"(",tt[2,2],") ",tt[3,1],"(",tt[3,2],") ",tt[4,1],"(",tt[4,2],") ",tt[5,1],"(",tt[5,2],") ",sep="")
+#print(paste("user",a[i,1],"date",a[i,2],tt1))
+i=3
+tt3=decision[(decision$user %in% a[i,1]) & decision$date.stamp %in% a[i,2], c("city.coor","state.coor")]
+
+i=4
+tt4=decision[(decision$user %in% a[i,1]) & decision$date.stamp %in% a[i,2], c("city.coor","state.coor")]
+@
+
+\begin{itemize}
+\item User $\Sexpr{a[1,1]}$ on $\Sexpr{a[1,2]}$ visited $\Sexpr{paste(tt1[1,1],"(",tt1[1,2],")")}$, $\Sexpr{paste(tt1[2,1],"(",tt1[2,2],")")}$, $\Sexpr{paste(tt1[3,1],"(",tt1[3,2],")")}$, $\Sexpr{paste(tt1[4,1],"(",tt1[4,2],")")}$, $\Sexpr{paste(tt1[5,1],"(",tt1[5,2],")")}$\\
+\item User $\Sexpr{a[2,1]}$ on $\Sexpr{a[2,2]}$ visited $\Sexpr{paste(tt2[1,1],"(",tt2[1,2],")")}$,\\ $\Sexpr{paste(tt2[2,1],"(",tt2[2,2],")")}$, $\Sexpr{paste(tt2[3,1],"(",tt2[3,2],")")}$, $\Sexpr{paste(tt2[4,1],"(",tt2[4,2],")")}$, $\Sexpr{paste(tt2[5,1],"(",tt2[5,2],")")}$\\
+\item User $\Sexpr{a[3,1]}$ on $\Sexpr{a[3,2]}$ visited $\Sexpr{paste(tt3[1,1],"(",tt3[1,2],")")}$, $\Sexpr{paste(tt3[2,1],"(",tt3[2,2],")")}$, $\Sexpr{paste(tt3[3,1],"(",tt3[3,2],")")}$, $\Sexpr{paste(tt3[4,1],"(",tt3[4,2],")")}$, $\Sexpr{paste(tt3[5,1],"(",tt3[5,2],")")}$\\
+\item User $\Sexpr{a[4,1]}$ on $\Sexpr{a[4,2]}$ visited $\Sexpr{paste(tt4[1,1],"(",tt4[1,2],")")}$, $\Sexpr{paste(tt4[2,1],"(",tt4[2,2],")")}$, $\Sexpr{paste(tt4[3,1],"(",tt4[3,2],")")}$, $\Sexpr{paste(tt4[4,1],"(",tt4[4,2],")")}$, $\Sexpr{paste(tt4[5,1],"(",tt4[5,2],")")}$\\
+\end{itemize}
+
+\subsection{Daily temperature and Precipitaion}
+Missingness of temperature and precipitation are presented below. 
+<<weather, echo=FALSE, results="asis">>=
+names(weather)[1]="study.date"
+kk1=merge(kk, weather, by.x = c("study.date", "city.coor","state.coor"), by.y = c("study.date",  "city.coor", "state.coor"),
+          all.x = TRUE, sort=FALSE)
+kk1=kk1[order(kk1$user, kk1$study.date),] 
+temp=kk1[!is.na(kk1$study.day.nogap),]
+temp=kk1[kk1$study.day.nogap %in% 0:41,]
+
+####What is important######################################################################
+#mean_temp, max_temp, min_temp, precip, precip_source
+str=c()
+str=c(str,sum(is.na(temp$mean_temp)))
+str=c(str,sum(is.na(temp$max_temp)))
+str=c(str,sum(is.na(temp$min_temp)))
+str=c(str,sum(is.na(temp$precip)))
+str=c(str,sum(is.na(temp$precip_source)))
+names(str)=c("mean_temp","max_temp","min_temp","precip","precip_source")
+str=as.table(str)
+print(xtable(t(as.table(str)), auto=TRUE),include.rownames = F)
+a=apply(temp[,c("mean_temp","max_temp","min_temp")],1, function(x) any(is.na(x)))
+b=apply(temp[,c("mean_temp","max_temp","min_temp","precip","precip_source")],1, function(x) any(is.na(x)))
+@
+Total $\Sexpr{sum(a)}$ temperature datapoints are missing(mean{\_}temp, max{\_}temp, min{\_}temp are missing at the same time). Also, Total $\Sexpr{sum(b)}$ datapoints are missing in at least one of those five (moderator) variables. 
+
+\subsection{Weekday and Weekend}
+We have study date. All weekday and weekend can be recovered from that.
+
+
+\section{Daily moderators on EMA}
+<<setting_ema, echo=FALSE, eval=TRUE>>=
+## Included ema.set to daily to analyze ema.set
+temp1=temp[temp$connect,]
+@
+In this section, only $\Sexpr{sum(temp$connect)}$ person-day data points that were connected when EMA was given were considered.
+
+\subsection{EMA hectic reports}
+<<hectic, echo=FALSE, results="asis">>=
+## Included ema.set to daily to analyze ema.set
+a=with(temp1,table(is.na(jbsteps),is.na(hectic)))
+a=cbind(a, margin.table(a, 1))
+a=rbind(a, margin.table(a, 2))
+rownames(a)=c("Not missing","Missing","Sum")
+colnames(a)=c("Not missing","Missing","Sum")
+a=rbind(rownames(a),a)
+rownames(a)[rownames(a)==""]="jbsteps\\hectic"
+print(xtable(a,auto=T), include.colnames = FALSE)
+@
+
+<<hectic_rolling, echo=FALSE, results="asis", fig.height=3>>=
+
+hectic_rolling=matrix(0,nrow(temp),3)
+hectic_rolling[,3]=temp$hectic
+hectic_rolling[2:nrow(temp),2]=temp$hectic[1:(nrow(temp)-1)] 
+hectic_rolling[3:nrow(temp),1]=temp$hectic[1:(nrow(temp)-2)]
+hectic_rolling=as.data.frame(hectic_rolling)
+names(hectic_rolling)=c( "2daybefore","1daybefore","today")
+
+hectic_rolling[which(temp$study.day==0),1:2]=0
+hectic_rolling[which(temp$study.day==1),1]=0
+
+hectic_rolling$n.NA=apply(hectic_rolling,1,function(x) sum(is.na(x)))
+hectic_rolling$mean=apply(hectic_rolling[,1:3],1,function(x) mean(x, na.rm=TRUE))
+hectic_rolling[which(temp$study.day==0),5]=hectic_rolling[which(temp$study.day==0),3]
+hectic_rolling[which(temp$study.day==1),5]=apply(hectic_rolling[which(temp$study.day==1),2:3],1,function(x) mean(x, na.rm=TRUE))
+
+hectic_rolling=cbind(subset(temp,select=c(user,study.day.nogap)),hectic_rolling)
+hectic_rolling=as.data.frame(hectic_rolling)
+
+a=table(hectic_rolling$n.NA, useNA="ifany")
+names(a)[is.na(names(a))]="NA"
+xx=barplot(a,names.arg = names(a),ylim=c(0,max(a)+200),xlab="Number of missing in 3 days rolling")
+text(x = xx, y = a, label = a, pos = 3, cex = 1)
+@
+
+
+\subsection{EMA stress reports}
+<<stress, echo=FALSE, results="asis">>=
+## Included ema.set to daily to analyze ema.set
+a=with(temp1,table(is.na(jbsteps),is.na(stressful)))
+a=cbind(a, margin.table(a, 1))
+a=rbind(a, margin.table(a, 2))
+rownames(a)=c("Not missing","Missing","Sum")
+colnames(a)=c("Not missing","Missing","Sum")
+a=rbind(rownames(a),a)
+rownames(a)[rownames(a)==""]="jbsteps\\stress"
+print(xtable(a,auto=T), include.colnames = FALSE)
+@
+
+<<stress_rolling, echo=FALSE, results="asis", fig.height=3>>=
+## Included ema.set to daily to analyze ema.set
+stressful_rolling=matrix(0,nrow(temp),3)
+stressful_rolling[,3]=temp$stressful
+stressful_rolling[2:nrow(temp),2]=temp$stressful[1:(nrow(temp)-1)] 
+stressful_rolling[3:nrow(temp),1]=temp$stressful[1:(nrow(temp)-2)]
+stressful_rolling=as.data.frame(stressful_rolling)
+names(stressful_rolling)=c("2daybefore","1daybefore","today")
+
+stressful_rolling[which(temp$study.day==0),1:2]=0
+stressful_rolling[which(temp$study.day==1),1]=0
+
+stressful_rolling$n.NA=apply(stressful_rolling,1,function(x) sum(is.na(x)))
+stressful_rolling$mean=apply(stressful_rolling[,1:3],1,function(x) mean(x, na.rm=TRUE))
+stressful_rolling[which(temp$study.day==0),5]=stressful_rolling[which(temp$study.day==0),3]
+stressful_rolling[which(temp$study.day==1),5]=apply(stressful_rolling[which(temp$study.day==1),2:3],1,function(x) mean(x, na.rm=TRUE))
+
+stressful_rolling=cbind(subset(temp,select=c(user,study.day.nogap)),stressful_rolling)
+stressful_rolling=as.data.frame(stressful_rolling)
+
+a=table(stressful_rolling$n.NA, useNA="ifany")
+names(a)[is.na(names(a))]="NA"
+xx=barplot(a,names.arg = names(a),ylim=c(0,max(a)+200),xlab="Number of missing in 3 days rolling")
+text(x = xx, y = a, label = a, pos = 3, cex = 1)
+
+@
+
+
+\subsection{EMA reports for urge to walk}
+<<urge, echo=FALSE, results="asis">>=
+## Included ema.set to daily to analyze ema.set
+a=with(temp1,table(is.na(jbsteps),is.na(urge)))
+a=cbind(a, margin.table(a, 1))
+a=rbind(a, margin.table(a, 2))
+rownames(a)=c("Not missing","Missing","Sum")
+colnames(a)=c("Not missing","Missing","Sum")
+a=rbind(rownames(a),a)
+rownames(a)[rownames(a)==""]="jbsteps\\urge"
+print(xtable(a,auto=T), include.colnames = FALSE)
+@
+
+<<urge_rolling, echo=FALSE, results="asis", fig.height=3>>=
+urge_rolling=matrix(0,nrow(temp),7)
+urge_rolling[,7]=temp$urge
+urge_rolling[2:nrow(temp),6]=temp$urge[1:(nrow(temp)-1)] 
+urge_rolling[3:nrow(temp),5]=temp$urge[1:(nrow(temp)-2)]
+urge_rolling[4:nrow(temp),4]=temp$urge[1:(nrow(temp)-3)]
+urge_rolling[5:nrow(temp),3]=temp$urge[1:(nrow(temp)-4)]
+urge_rolling[6:nrow(temp),2]=temp$urge[1:(nrow(temp)-5)]
+urge_rolling[7:nrow(temp),1]=temp$urge[1:(nrow(temp)-6)]
+
+urge_rolling=as.data.frame(urge_rolling)
+names(urge_rolling)=c("6daybefore","5daybefore","4daybefore","3daybefore","2daybefore","1daybefore","today")
+
+urge_rolling[which(temp$study.day==0),1:6]=0
+urge_rolling[which(temp$study.day==1),1:5]=0
+urge_rolling[which(temp$study.day==2),1:4]=0
+urge_rolling[which(temp$study.day==3),1:3]=0
+urge_rolling[which(temp$study.day==4),1:2]=0
+urge_rolling[which(temp$study.day==5),1]=0
+
+
+urge_rolling$n.NA=apply(urge_rolling[,1:7],1,function(x) sum(is.na(x)))
+urge_rolling$mean=apply(urge_rolling[,1:7],1,function(x) mean(x, na.rm=TRUE))
+urge_rolling[which(temp$study.day==0),9]=urge_rolling[which(temp$study.day==0),7]
+urge_rolling[which(temp$study.day==1),9]=apply(urge_rolling[which(temp$study.day==1),6:7],1,function(x) mean(x, na.rm=TRUE))
+urge_rolling[which(temp$study.day==2),9]=apply(urge_rolling[which(temp$study.day==2),5:7],1,function(x) mean(x, na.rm=TRUE))
+urge_rolling[which(temp$study.day==3),9]=apply(urge_rolling[which(temp$study.day==3),4:7],1,function(x) mean(x, na.rm=TRUE))
+urge_rolling[which(temp$study.day==4),9]=apply(urge_rolling[which(temp$study.day==4),3:7],1,function(x) mean(x, na.rm=TRUE))
+urge_rolling[which(temp$study.day==5),9]=apply(urge_rolling[which(temp$study.day==5),2:7],1,function(x) mean(x, na.rm=TRUE))
+
+urge_rolling=cbind(subset(temp,select=c(user,study.day.nogap)),urge_rolling)
+urge_rolling=as.data.frame(urge_rolling)
+
+a=table(urge_rolling$n.NA, useNA="ifany")
+names(a)[is.na(names(a))]="NA"
+xx=barplot(a,names.arg = names(a),ylim=c(0,max(a)+200),xlab="Number of missing in 7 days rolling")
+text(x = xx, y = a, label = a, pos = 3, cex = 1)
+uniq_s=length(with(temp,unique(response[planning %in% "structured"])))
+uniq_uns=length(with(temp,unique(response[planning %in% "unstructured"])))
+uniq_intersect=length(intersect(with(temp,unique(response[planning %in% "structured"])),with(temp,unique(response[planning %in% "unstructured"]))))
+@
+
+Spagetti plot(interaction plot) of average 7 day urge are presented with smoothing(loess) line. 
+<<urge_rolling1, echo=FALSE, results="asis", fig.height=6>>=
+urge_rolling=cbind(subset(temp,select=c(user,study.day.nogap)),urge_rolling)
+a=colnames(urge_rolling)
+urge_rolling=as.data.frame(urge_rolling)
+interaction.plot(urge_rolling$study.day.nogap,
+                 urge_rolling$user, urge_rolling$mean, xlab="time", ylab="Mean", legend=F)
+lw1 <- loess(mean ~ study.day.nogap,data=urge_rolling)
+j <- order(lw1$x)
+lines(lw1$x[j],predict(lw1)[j],col="red",lwd=3)
+@
+
+\subsection{EMA reports for other non-walking activities}
+
+Even though structural planning questions in which participants can select options were given half of the time, selection options were so diverse. There are $\Sexpr{uniq_s}$ unique answeres among $\Sexpr{sum(temp$planning=="structured",na.rm=TRUE)}$. In contrast, There are $\Sexpr{uniq_uns}$ unique answeres among $\Sexpr{sum(temp$planning=="unstructured",na.rm=TRUE)}$ in unstructured planning response. Also, I suspect that structured and unstructured questions were mixed since  
+$\Sexpr{uniq_intersect}$ are unique intersection number of unique responses to structured and unstructured planning. They have a lot of common responses.\\
+It is not plausible to make frequency table by just using answers from structured answers. So number of responses that contained certain words are listed here. I looked through responses and picked some words.
+This table is not rigorous just give some sense of how people responded to planning. 
+
+
+<<other_activity, echo=FALSE, results="asis">>=
+planning=temp[temp$planning %in% c("structured","unstructured"),]
+
+str=c()
+str=c(str,length(with(planning, grep("walk",response))))
+str=c(str,length(with(planning, grep("yoga",response))))
+str=c(str,length(with(planning, grep("run",response))))
+str=c(str,length(with(planning, grep("stretch",response))))
+str=c(str,length(with(planning, grep("step",response))))
+str=c(str,length(with(planning, grep("elipical",response))))
+str=c(str,length(with(planning, grep("jump",response)))) #jumping jacks
+str=c(str,length(with(planning, grep("squat",response))))
+str=c(str,length(with(planning, grep("bik",response))))
+str=c(str,length(with(planning, grep("swim",response))))
+str=c(str,length(with(planning, grep("zumba",response))))
+str=c(str,length(with(planning, grep("gym",response))))
+str=c(str,length(with(planning, grep("weight",response))))
+str=c(str,length(with(planning, grep("stair",response))))
+str=c(str,length(with(planning, grep("danc",response))))
+str=c(str,length(with(planning, grep("no plan",response))))
+str=c(str,length(with(planning, grep("clean",response))))
+str=c(str,length(with(planning, grep("exercis",response))))
+str=c(str,length(with(planning, grep("longboard",response))))
+str=c(str,length(with(planning, grep("badminton",response))))
+str=c(str,length(with(planning, grep("KanJam",response))))
+names(str)=c("walk","yoga","run","stretch","step","elipical","jump","squat","bik","swim","zumba","gym"
+      ,"weight","stair","danc","no plan","clean","exercis","longboard","badminton","KanJam")
+str=as.table(sort(str))
+print(xtable(t(as.table(str[1:7])), auto=TRUE),include.rownames = F)
+print(xtable(t(as.table(str[8:14])), auto=TRUE),include.rownames = F)
+print(xtable(t(as.table(str[15:21])), auto=TRUE),include.rownames = F)
+@
+
+<<other_activity1, echo=FALSE, results="asis">>=
+set.seed(5)
+a=sample(1:nrow(planning),10)
+print(planning$response[a])
+@
+
+Mostly responses contain walk, run or step words. 
+
+\end{document}
