@@ -224,7 +224,7 @@ $$Y_{t+1} = \alpha_0 + \alpha_1 Z_t + \beta_1(A_t - 0.6)$$
 
 The weight matrix has diagonal elements equal to the availability indicator $I_t$.
           
-```{r model1, echo=FALSE, cache=TRUE}
+```{r model1, echo=FALSE, cache=FALSE}
 # jbsteps30.zero is the zero-imputed raw step count in the 30 minutes after decision
 # jbsteps30.log = log(jbsteps30.zero + 0.5)
 # jbsteps30pre.zero is the zero-imputed raw step count in the 30 minutes prior to decision
@@ -279,7 +279,7 @@ $$Y_{t+1} = \alpha_0 + \alpha_1 Z_t + \alpha_2 d(t) + \beta_1(A_t - 0.6) + \beta
 Same weighting as in model 1.
 
 
-```{r model2, echo=FALSE, cache=TRUE}
+```{r model2, echo=FALSE, cache=FALSE}
 
 mod2.brook <- 
   geeglm(
