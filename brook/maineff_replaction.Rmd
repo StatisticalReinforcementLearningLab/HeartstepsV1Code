@@ -1,11 +1,8 @@
 ---
 title: "Replicating main effects analysis"
 author: "Brook Luers"
-date: "July 7, 2016"
-output: 
-  html_document:
-    toc: true
-    toc_depth: 3
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
@@ -315,8 +312,12 @@ rownames(tt) <- c('$\\alpha_0$', '$\\alpha_1$',
                   '$\\alpha_2$', '$\\beta_1$', '$\\beta_2$')
 colnames(tt)[3:6] <- c('Hotelling','p-value','95% LCL','95% UCL')
 
-kable(tt, digits=3,
-      padding=0)
+#kable(tt, digits=2,
+#      padding=0)
+print(xtable(tt,
+             digits=c(0,5,4,2,3,3,3)),
+      sanitize.rownames.function=identity,
+      comment=FALSE)
 
 ```
 
@@ -359,9 +360,13 @@ rownames(tt) <- c('$\\alpha_0$', '$\\alpha_1$',
                   '$\\alpha_2$', '$\\alpha_3$',
                   '$\\beta_1$', '$\\beta_2$', '$\\beta_3$')
 colnames(tt)[3:6] <- c('Hotelling','p-value','95% LCL','95% UCL')
-kable(tt,
-      digits = c(3,4,2,3,3,3),
-      padding=0)
+#kable(tt,
+#      digits = c(5,3,2,3,3,3),
+#      padding=0)
+print(xtable(tt,
+             digits=c(0,5,4,2,3,3,3)),
+      sanitize.rownames.function=identity,
+      comment=FALSE)
 
 ```
 

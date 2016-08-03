@@ -1,8 +1,8 @@
 ---
-title: "Tracker exploratory analysis"
+title: "Phone usage/tracker exploratory analysis"
 author: "Brook Luers"
-date: "July 18, 2016"
-output: html_document
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output: pdf_document
 ---
 
 
@@ -112,11 +112,11 @@ daily.first.app <-
 
 ```
 
-### User-days without app usage data
+### User-days without phone usage data
 
-About `r with(tracker.user.day, round(100*sum(n_no_tracker) / sum(n_days)))` percent (`r sum(tracker.user.day$n_no_tracker)` / `r sum(tracker.user.day$n_days)`) of user-days have no app usage data.
+About `r with(tracker.user.day, round(100*sum(n_no_tracker) / sum(n_days)))` percent (`r sum(tracker.user.day$n_no_tracker)` / `r sum(tracker.user.day$n_days)`) of user-days have no phone usage data.
 
-The following users have at least one day without any app usage data:
+The following users have at least one day without any phone usage data:
 
 ```{r table-notracker-days, echo=FALSE, results='asis'}
 
@@ -127,20 +127,19 @@ tt <-
   arrange(desc(prop)) %>%
   select(user, prop)
 
-names(tt) <- c('User','Proportion of study days without tracker data')
+names(tt) <- c('User','Proportion of study days without usage data')
 tt[,2] <- round(tt[,2],2)
 kable(as.data.frame(tt),
       align='r',
-      padding=0,
-      format='markdown')
+      padding=0)
 
 ```
 
 ### Time of first daily phone usage
 
-The following histogram shows times of first daily phone usage according to the tracker data for each user. I defined "time of first usage" as the earliest tracker timestamp that occurred after `r cutoff_hour_first` a.m. 
+The following histogram shows times of first daily phone usage according to the tracker data for each user. I defined "time of first usage" as the earliest tracker timestamp that occurred after `r cutoff_hour_first` a.m. on each study day.
 
-```{r hist-time-first, echo=FALSE, fig.width=8, fig.height=7}
+```{r hist-time-first, echo=FALSE, fig.width=8.5, fig.height=7}
 ## Histogram of time of first app usage
 
 breaks_first_use <- 
@@ -168,17 +167,18 @@ daily.first.app <-
 daily.first.app %>%
   filter(!is.na(secs_first_use_num)) %>%
   mutate(user = factor(user,
-                       levels=unique(user),
+                       levels=sort(unique(user)),
                        labels=paste(c('User ',rep('',length(unique(user))-1)),
-                                    unique(user), sep=''))) %>%
+                                    sort(unique(user)), sep=''))) %>%
   ggplot(aes(x=secs_first_use_num)) +
   geom_histogram(aes(fill=first_app_f),
-                 binwidth=60*60,color=NA) + 
+                 binwidth=60*60*1.5, color=NA,
+                 boundary=0) + 
   ptheme +
   scale_x_continuous(breaks = breaks_first_use,
                      labels=as.character(labels_first_use)) +
   facet_wrap(~user, ncol=6) +
-  scale_y_continuous(breaks=c(0,10,20)) +
+  scale_y_continuous(breaks=seq(0,50,by=10)) +
   xlab(paste('Time of first tracker activity\nafter ',cutoff_hour_first,' a.m.',sep='')) +
   ylab('Num. study days') +
   scale_fill_manual(values=c(brewer.pal(length(top_app_names),'Dark2'),
@@ -188,28 +188,39 @@ daily.first.app %>%
   theme(legend.position=c(1,0),
         legend.justification=c(1,0),
         legend.direction='horizontal',
-        axis.text.x=element_text(angle=45,hjust=1))
+        axis.text.x=element_text(angle=45,hjust=1)) +
+  ggtitle('Time of first daily phone usage by user')
 
 ```
 
 
 ### Time since last phone usage (prior to decision point)
 
-```{r time-prior-data, echo=FALSE, include=FALSE, eval=FALSE}
+For users with non-missing tracking data, how much time elapsed between the most recent phone usage and the current decision point? 
 
-suggest.included %>%
-  group_by(user) %>%
-  summarise(n_points = n(),
-            prop_no_dev_since = sum(is.na(device.since)) / n_points)
+```{r time-prior-data, echo=FALSE, fig.width=8.5, fig.height=7}
 
+max_time_since <- 60 * 3 # 3 hours
 suggest.included %>%
   group_by(user) %>%
   mutate(n_points = n(),
             prop_no_dev_since = sum(is.na(device.since)) / n_points) %>%
   filter(prop_no_dev_since <1) %>% ungroup %>%
-  ggplot(aes(x=as.numeric(device.since))) + 
-  geom_histogram(aes(y=..density..)) + 
-  facet_wrap(~user)
+  mutate(device.since.min = as.numeric(device.since)*60) %>%# minutes
+  filter(device.since.min <= max_time_since) %>%
+  mutate(user = factor(user,
+                       levels=sort(unique(user)),
+                       labels=paste(c('User ',rep('',length(unique(user))-1)),
+                                    sort(unique(user)), sep=''))) %>%
+  ggplot(aes(x=device.since.min, y=..density..)) + 
+  geom_histogram(binwidth=15, color='darkgreen',fill='darkgreen',
+                 boundary=0) + 
+  ptheme + xlab('Minutes since last phone usage') + ylab('Density')+
+  scale_x_continuous(breaks=seq(0,max_time_since,by=60)) + 
+  scale_y_continuous(breaks=NULL) +
+  facet_wrap(~user) + 
+  ggtitle(paste('Time between current decision point and latest phone usage\n(truncated at ', max_time_since/60,
+                ' hours)',sep=''))
 
 ```
 
