@@ -1,0 +1,181 @@
+---
+title: "Heartsteps Effect Size"
+author: "Brook Luers"
+date: "August 4, 2016"
+output: 
+    beamer_presentation:
+      colortheme: "dove"
+      toc: false
+      incremental: false
+      fig_width: 6
+      fig_height: 4
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(ggplot2)
+library(RColorBrewer)
+library(dplyr)
+library(gridExtra)
+library(knitr)
+library(grid)
+library(reshape2)
+library(geepack)
+library(Matrix)
+
+source('../init.R', chdir=TRUE)
+source('../xgeepack.R')
+if (!exists('suggest')){
+  load(paste(sys.var$mbox.data,'csv.RData',sep=''))
+  load(paste(sys.var$mbox.data,"analysis.RData",sep=''))
+}
+
+gridline <- element_line(color='lightgrey',linetype='dashed')
+ptheme <-
+  theme_bw(base_size = 11) +
+  theme(panel.grid.major.x=gridline,
+        panel.grid.minor.x=element_blank(),
+        panel.grid.major.y=gridline,
+        panel.grid.minor.y=element_blank(),
+        strip.background=element_rect(fill=NA,color='white'),
+        legend.position='right',
+        legend.direction='vertical')
+```
+
+
+```{r data, echo=FALSE}
+
+unavail_sent_slots <-
+            filter(suggest, !avail & !is.na(notification.message))%>%
+                select(user, study.day.nogap, slot, avail, notification.message) %>%
+  mutate('Message sent' = !is.na(notification.message)) %>% select(-notification.message) %>%
+  rename('User' = user, 'Non-travel study day'= study.day.nogap,
+         'Decision slot' = slot, 'Available' = avail)
+no_message_tag <- 
+            filter(suggest, send & !travel & study.day.nogap <= 42 & is.na(send.sedentary)) %>%
+                select(user, study.day.nogap, slot, 
+                      notification.message) %>%
+  rename('User' = user,
+         'Non-travel study day' = study.day.nogap,
+         'Decision slot' = slot,
+         'Sent mesasge' = notification.message)
+
+ntravel <- sum(suggest$travel)
+npost41 <- with(suggest, sum(study.day.nogap > 41, na.rm=T))
+nexclude <- 
+  ntravel + npost41 + nrow(unavail_sent_slots) + nrow(no_message_tag)
+
+suggest.included <- 
+  suggest %>%
+  filter(!travel & study.day.nogap <= 41) %>%
+  anti_join(mutate(no_message_tag, no_message_tag = T),
+            by=c('user'='User','study.day.nogap'='Non-travel study day',
+                 'slot'='Decision slot')) %>%
+  anti_join(mutate(unavail_sent_slots, unavail_sent_slots = T),
+            by=c('user'='User','study.day.nogap'='Non-travel study day',
+                 'slot'='Decision slot'))
+
+navail <- sum(suggest.included$avail)
+
+# jbsteps30.zero is the zero-imputed raw step count in the 30 minutes after decision
+# jbsteps30.log = log(jbsteps30.zero + 0.5)
+# jbsteps30pre.zero is the zero-imputed raw step count in the 30 minutes prior to decision
+# jbsteps30pre.log = log(jbsteps30pre.zero + 0.5)
+# A_t = send
+suggest.analysis <-
+  suggest.included %>%
+    arrange(user, study.day.nogap, decision.index.nogap)
+
+```
+
+```{r effect-calcs, echo=FALSE}
+
+
+timepoints <-
+  with(suggest.analysis, sort(unique(decision.index.nogap)))
+
+s2_yt <-
+  suggest.analysis %>%
+  filter(avail) %>% # available only
+  group_by(decision.index.nogap, send) %>%
+  summarise(s2t = var(jbsteps30.log)) %>% # zero imputed, log(steps + 0.5)
+  mutate(tm1 = decision.index.nogap - 1)
+
+ybar_t <- 
+  suggest.analysis %>%
+  filter(avail) %>%
+  group_by(decision.index.nogap) %>%
+  summarise(ybar1 = mean(jbsteps30.log[which(send)]),
+            ybar0 = mean(jbsteps30.log[which(!send)])) %>%
+  mutate(ybardiff = ybar1 - ybar0,
+         tm1 = decision.index.nogap - 1)
+
+```
+
+
+## Ratio of variances for each treatment group
+```{r plot-sd-ratio-time, echo=FALSE}
+
+data.frame(t=timepoints) %>%
+  left_join(s2_yt, by=c('t'='tm1')) %>%
+  filter(!is.na(s2t)) %>%
+  dcast(t ~ send, value.var='s2t') %>% 
+  rename(s2_1 = `TRUE`, s2_0 = `FALSE`) %>%
+  ggplot(aes(x=t, y= s2_1 / s2_0)) + 
+  geom_point() +
+  ptheme + xlab(expression(t)) + ylab('ratio of sample variances at t+1')+
+  ggtitle('Comparing variances for treated/untreated')
+
+```
+
+## Difference in sample means over time
+
+```{r plot-means-time, echo=FALSE}
+
+p.ybar.time <- 
+  data.frame(t=timepoints) %>%
+  left_join(ybar_t, by=c('t'='tm1')) %>%
+  filter(!is.na(ybar1)) %>%
+  ggplot(aes(x=t, y=ybardiff)) +
+  geom_point(shape=1) +
+  ptheme + xlab(expression(t)) + ylab(expression(bar(y)[t+1]^(A[t]==1) - bar(y)[t+1]^(A[t]==0)))
+p.ybar.time
+
+```
+
+## Kernel smoothers
+
+```{r smooth-data, echo=FALSE}
+
+nsmooth <- 150
+ybar_smooth <-
+  expand.grid(t=seq(0, max(timepoints), length.out=nsmooth),
+              bwidth = c(10,20)) %>%
+  group_by(bwidth) %>%
+  mutate(ysmooth = with(filter(ybar_t, tm1>=0),
+                        ksmooth(tm1, ybardiff,
+                                kernel='normal', x.points=t,
+                                bandwidth=unique(bwidth))[['y']]))
+
+```
+
+```{r smooth-plot-gaussian, echo=FALSE}
+ybar_smooth %>% ungroup %>%
+  ggplot(aes(x=t, y=ysmooth)) +
+  geom_line(aes(color=as.factor(bwidth))) +
+  geom_point(aes(x=tm1, y=ybardiff), data=filter(ybar_t, tm1>=0),
+             shape=1) +
+  ptheme + xlab('t')
+
+```
+
+## Loess
+
+```{r smooth-plot-loess, echo=FALSE}
+
+p.ybar.time +
+  geom_smooth(method='loess', span=0.25, se=F,
+              color='darkgreen')
+
+```
+
