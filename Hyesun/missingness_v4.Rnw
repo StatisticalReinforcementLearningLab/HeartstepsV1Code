@@ -1,0 +1,585 @@
+%jbsteps should be replaced by daily countsteps
+
+\documentclass[11pt]{article}
+
+\title{\bfseries Missingness amongst potential daily moderators}
+\begin{document}
+%\SweaveOpts{concordance=TRUE}
+\maketitle
+
+<<data, echo = FALSE, include = FALSE>>=
+###weather is overloaded. I used newly recieved data 
+setwd("C:/Users/user/Documents/heartstepsdata/")
+source("init.R")
+
+setwd("Z:/HeartSteps/Data")
+load("csv.RData")
+load("analysis.RData")
+setwd("Z:/HeartSteps/Hyesun's")
+load("location_for_decision.RData")
+load("weather.RData")
+setwd("C:/Users/user/Documents/heartstepsdata/Hyesun")
+color <- "chartreuse"
+color.name <- "green"
+@
+
+\section{Daily moderators on weather}
+<<setting, echo=FALSE, eval=TRUE>>=
+## Included ema.set to daily to analyze ema.set
+daily <- merge(daily,
+               aggregate(subset(ema, select = c(ema.set)),
+                         by = with(ema, list(user, ema.date)),
+                         function(x) na.omit(x)[1]),
+               by.x = c("user", "study.date"),
+               by.y = paste("Group", 1:2, sep = "."), all.x = TRUE)
+
+###setting city and state######################################
+decision$city.coor=location_for_decision$city.coor
+decision$state.coor=location_for_decision$state.coor
+
+
+###attaching city and state####################################
+tmp=aggregate(paste(city.coor,state.coor,sep="_")~date.stamp+user,data=decision, 
+               FUN = function(x) length(unique(x)))
+names(tmp)[1]="study.date" ;names(tmp)[3]="city.number"
+temp1=merge(daily, tmp, by.x = c("user", "study.date"), by.y = c("user", "study.date"),
+      all.x = TRUE)
+
+###add city and state to suggest data frame#############################
+suggest_temp=merge(suggest,subset(decision,
+                                  select=c("user", "date.stamp", "slot","city.coor","state.coor")),
+                   by.x = c("user", "study.date", "slot"),
+                   by.y = c("user", "date.stamp", "slot"), all.x = TRUE)
+
+###add precipitation data to suggest data frame############################
+###precipitation has "None" value as well
+suggest_temp=merge(suggest_temp,subset(weather,select=c("study.date","city.coor","state.coor","precip")),
+                   by.x=c("study.date", "city.coor","state.coor"),
+                   by.y=c("study.date", "city.coor","state.coor"), all.x = TRUE, sort=FALSE)
+
+suggest_temp=with(suggest_temp, suggest_temp[order(user, study.date, slot),])
+suggest_temp$temperature[suggest_temp$temperature==(-1024)]=NA
+suggest_temp$precipitation.chance[suggest_temp$precipitation.chance=="unknown"]=NA
+suggest_temp$precipitation.chance[suggest_temp$precipitation.chance==(-1)]=NA
+
+
+###add average temperature based of "suggest" data to "daily" data frame
+tmp=aggregate(temperature~study.date+user
+              , data=suggest_temp, FUN = function(x) mean(x, na.rm = TRUE), na.action = na.pass)
+tmp1=aggregate(temperature~study.date+user
+               , data=suggest_temp, FUN = function(x) paste(sum(!is.na(x)),"/",length(x),sep=""), 
+               na.action = na.pass)
+
+tmp=cbind(tmp,tmp1[,3])
+names(tmp)[1]="study.date" ;names(tmp)[3]="temp_mean";names(tmp)[4]="temp_day_used";
+
+temp1=merge(temp1, tmp,
+         by.x = c("user", "study.date"), by.y = c("user", "study.date"),
+         all.x = TRUE)
+
+###add daily precipitation based on "suggest" data to "daily" data frame
+tmp=aggregate(as.numeric(precip)~study.date+user
+               , data=suggest_temp, FUN = function(x) mean(x, na.rm = TRUE), na.action = na.pass)
+tmp1=aggregate(precip~study.date+user
+               , data=suggest_temp, FUN = function(x) paste(sum(!is.na(x)),"/",length(x),sep=""),
+               na.action = na.pass)
+
+tmp=cbind(tmp,tmp1[,3])
+names(tmp)[1]="study.date" ;names(tmp)[3]="daily.precip_mean";names(tmp)[4]="daily.precip_mean_used";
+
+temp1=merge(temp1, tmp,
+         by.x = c("user", "study.date"), by.y = c("user", "study.date"),
+         all.x = TRUE)
+
+temp1=with(temp1,temp1[order(user,study.date),])
+
+temp=temp1[!is.na(temp1$study.day.nogap),]
+temp=temp1[temp1$study.day.nogap %in% 0:41,]
+
+@
+\subsection{Which location can represent daily location}
+Participants' location changed during a day. Choosing a location to represent their daily location should be considered.\\
+Unique number of location in 5 decision points during a day is presented below. 
+<<frequency, echo=FALSE, results="asis">>=
+
+
+a=table(temp$city.number,useNA = "ifany")
+a=c(a,sum(a[1:6]))
+names(a)[is.na(names(a))]="NA"
+names(a)[names(a)==""]="Sum"
+print(xtable(t(as.table(a)), auto=TRUE),include.rownames = F)
+@
+Here, NA implies we don't have records on decision point data but we have records on daily EMA data (due to people who were not recoreded on decision data but on EMA.)\\
+And some instances of participants' itinerary are presented to show how people moved during a day. 
+
+
+<<5-city, echo=FALSE, results="asis">>=
+a=temp[temp$city.number %in% 5,c("user","study.date")]
+i=1
+tt1=decision[(decision$user %in% a[i,1]) & decision$date.stamp %in% a[i,2], c("city.coor","state.coor")]
+
+i=2
+tt2=decision[(decision$user %in% a[i,1]) & decision$date.stamp %in% a[i,2], c("city.coor","state.coor")]
+
+i=3
+tt3=decision[(decision$user %in% a[i,1]) & decision$date.stamp %in% a[i,2], c("city.coor","state.coor")]
+
+i=4
+tt4=decision[(decision$user %in% a[i,1]) & decision$date.stamp %in% a[i,2], c("city.coor","state.coor")]
+@
+
+
+\begin{itemize}
+\item User $\Sexpr{a[1,1]}$ on $\Sexpr{a[1,2]}$ visited $\Sexpr{paste(tt1[1,1],"(",tt1[1,2],")")}$, $\Sexpr{paste(tt1[2,1],"(",tt1[2,2],")")}$, $\Sexpr{paste(tt1[3,1],"(",tt1[3,2],")")}$, $\Sexpr{paste(tt1[4,1],"(",tt1[4,2],")")}$, $\Sexpr{paste(tt1[5,1],"(",tt1[5,2],")")}$\\
+\item User $\Sexpr{a[2,1]}$ on $\Sexpr{a[2,2]}$ visited $\Sexpr{paste(tt2[1,1],"(",tt2[1,2],")")}$,\\ $\Sexpr{paste(tt2[2,1],"(",tt2[2,2],")")}$, $\Sexpr{paste(tt2[3,1],"(",tt2[3,2],")")}$, $\Sexpr{paste(tt2[4,1],"(",tt2[4,2],")")}$, $\Sexpr{paste(tt2[5,1],"(",tt2[5,2],")")}$\\
+\item User $\Sexpr{a[3,1]}$ on $\Sexpr{a[3,2]}$ visited $\Sexpr{paste(tt3[1,1],"(",tt3[1,2],")")}$, $\Sexpr{paste(tt3[2,1],"(",tt3[2,2],")")}$, $\Sexpr{paste(tt3[3,1],"(",tt3[3,2],")")}$, $\Sexpr{paste(tt3[4,1],"(",tt3[4,2],")")}$, $\Sexpr{paste(tt3[5,1],"(",tt3[5,2],")")}$\\
+\item User $\Sexpr{a[4,1]}$ on $\Sexpr{a[4,2]}$ visited $\Sexpr{paste(tt4[1,1],"(",tt4[1,2],")")}$, $\Sexpr{paste(tt4[2,1],"(",tt4[2,2],")")}$, $\Sexpr{paste(tt4[3,1],"(",tt4[3,2],")")}$, $\Sexpr{paste(tt4[4,1],"(",tt4[4,2],")")}$, $\Sexpr{paste(tt4[5,1],"(",tt4[5,2],")")}$\\
+\end{itemize}
+
+To deal with this issue, we averaged over their weather in city at the decision time points. (And for the missing values, consider EMA context? )
+
+\subsection{Daily temperature}
+
+<<temperature0, echo=FALSE, results="asis", fig.height=3>>=
+par(mfrow=c(1,1))
+hist(temp$temp_mean, xlab="average daily temperature(Celcius)",main="Histogram of daily mean temperature")
+a=table(is.na(temp$temp_mean),is.na(temp$jbsteps))
+a=cbind(a, margin.table(a, 1))
+a=rbind(a, margin.table(a, 2))
+rownames(a)=c("Not missing","Missing","Sum")
+colnames(a)=c("Not missing","Missing","Sum")
+a=rbind(colnames(a),a)
+rownames(a)[rownames(a)==""]="temperature\\jbsteps"
+print(xtable(a,auto=T), include.colnames = FALSE)
+@
+
+Daily temperature are obtained by averaging available temperature values at decision time points. Missing values are ignored when averaging. After changing temperature values which is -1024 Celcius to NA, we have $\Sexpr{sum(is.na(temp$temp_mean))}$ missing temperature values.\\
+Here is table of missingess of jbsteps and average precipitation.
+
+<<temperature1, echo=FALSE, results="asis", fig.height=3>>=
+print(xtable(a,auto=T), include.colnames = FALSE)
+@
+
+If you look at the table how decision data points are used to calculate this values, we have
+
+<<temperature2, echo=FALSE, results="asis", fig.height=3>>=
+a=table(temp$temp_day_used)
+print(xtable(t(a),auto=T),include.rownames=FALSE)
+@
+
+Why do we have $\Sexpr{sum(is.na(temp$temp_mean))}$ missing temperature values? Here is a conjecture.\\
+<<temperature3, echo=FALSE, results="asis", fig.height=3>>=
+a=temp$temp_day_used=="0/5"
+b=(paste(suggest_temp$user,suggest_temp$study.day) %in% paste(temp$user[a],temp$study.day[a]))
+tmp=suggest_temp[b,c("user","study.day.nogap","gps.coordinate","own.phone")]
+tmp1=aggregate(own.phone~user+study.day.nogap, data=tmp, mean)
+@
+Total $\Sexpr{sum(!tmp1$own.phone)}$ did not used their phone and $\Sexpr{sum(tmp1$own.phone)}$ used their phone  in ``0/5'' while\\ $\Sexpr{sum(!temp$own.phone)/length(temp$own.phone)}$ percentage of  daily person-day data points did not use their own phone. Users who caused these problems were $\Sexpr{unique(tmp1$user)}$. But, I am not sure whether using own phone or not could cause this problem. 
+
+
+
+<<mean_temerature_jbsteps, echo=FALSE, fig.height=3>>=
+par(mfrow=c(1,2))
+span=c(0.1,0.4)
+for(i in 1:2){
+with(temp,plot(temp_mean, jbsteps,xlab="daily mean temperature(Celcius)",main=paste("span = ",span[i])))
+a=with(temp, loess(jbsteps~temp_mean,span=span[[i]]))
+lines(a$x[order(a$x)],a$fitted[order(a$x)],col="red",lwd=6)
+}
+@
+If this plot is not so clear, then roughly simple linear regression can be used to show association between daily mean temperature and jawbone steps. 
+
+<<temperature4, echo=FALSE, results="asis">>=
+a=summary(lm(jbsteps~temp_mean,data=temp))
+a=a$coefficients
+a[,1:3]=round(a[,1:3],digits=2)
+@
+
+
+\subsection{Daily Precipitaion}
+
+Unlike temperature, we used daily precipitation not momentary value. Daily temperature day-person data points are averaged among corresponding daily temperature at the city of decision data points. Missing values are ignored. Unlike the temperature that we got above, we have additional missing values due to unoffered information(Not available) from underground server. In addition to $\Sexpr{sum(is.na(temp$temp_mean)*is.na(temp$daily.precip_mean))}$, we have $\Sexpr{sum((!is.na(temp$temp_mean))*is.na(temp$daily.precip_mean))}$ more missing data points. 
+
+ 
+<<precipitation_jbsteps_missing, echo=FALSE, fig.height=3>>=
+options(warn=-1)
+par(mfrow=c(1,2))
+span=c(0.1,0.5)
+precip.max=which.max(temp$daily.precip_mean)
+temp2=temp[-precip.max,]
+for(i in 1:2){
+with(temp2,plot(daily.precip_mean, jbsteps,xlab="daily mean precipitation(inch)", 
+                main=paste("span = ", span[i])))
+a=with(temp2, loess(jbsteps~daily.precip_mean,span=span[[i]]))
+lines(a$x[order(a$x)],a$fitted[order(a$x)],col="red",lwd=6)
+}
+options(warn=0)
+@
+
+Here is table of missingess of jbsteps and average precipitation.
+<<precipitation_jbsteps, echo=FALSE, results="asis">>=
+a=table(is.na(temp$daily.precip_mean),is.na(temp$jbsteps))
+a=cbind(a, margin.table(a, 1))
+a=rbind(a, margin.table(a, 2))
+rownames(a)=c("Not missing","Missing","Sum")
+colnames(a)=c("Not missing","Missing","Sum")
+a=rbind(colnames(a),a)
+rownames(a)[rownames(a)==""]="daily.precipitation\\jbsteps"
+print(xtable(a,auto=T), include.colnames = FALSE)
+@
+
+If you look at the below table, I am concerned about influential points. 
+<<precipitation_influential, echo=FALSE, results="asis">>=
+tmp1=c()
+tmp2=c()
+
+a=(0<=temp$daily.precip_mean) & (temp$daily.precip_mean<0.2)
+a=which(a==TRUE)
+tmp1=c(tmp1,length(a))
+tmp2=c(tmp2,mean(temp$jbsteps[a],na.rm=T))
+
+a=(0.2<=temp$daily.precip_mean) & (temp$daily.precip_mean<0.5)
+a=which(a==TRUE)
+tmp1=c(tmp1,length(a))
+tmp2=c(tmp2,mean(temp$jbsteps[a],na.rm=T))
+
+a=(0.5<=temp$daily.precip_mean) & (temp$daily.precip_mean<1)
+a=which(a==TRUE)
+tmp1=c(tmp1,length(a))
+tmp2=c(tmp2,mean(temp$jbsteps[a],na.rm=T))
+
+a=(1<=temp$daily.precip_mean) & (temp$daily.precip_mean<1.5)
+a=which(a==TRUE)
+tmp1=c(tmp1,length(a))
+tmp2=c(tmp2,mean(temp$jbsteps[a],na.rm=T))
+
+a=(1.5<=temp$daily.precip_mean) & (temp$daily.precip_mean<6)
+a=which(a==TRUE)
+tmp1=c(tmp1,length(a))
+tmp2=c(tmp2,mean(temp$jbsteps[a],na.rm=T))
+
+tmp=round(rbind(tmp1,tmp2),digits=0)
+tmp=cbind(tmp,c(sum(is.na(temp$daily.precip_mean)),"NA"))
+tmp=cbind(tmp,c(sum(as.numeric(tmp[1,1:6]))," "))
+colnames(tmp)=c("0-0.2", "0.2-0.5", "0.5-1.0", "1.0-1.5", 
+             "1.5-6", "NA", "Sum")
+rownames(tmp)=c("N.datapoints","Avg.jbsteps")
+
+print(xtable(tmp, auto=T))
+
+@
+where 0-0.2 means precipitation is larger than or equal to 0 and less than 0.2.
+
+\subsection{Potential improvement upon weather missingness and question}
+\begin{itemize}
+\item 1. Use work or home gps to get their missing temperature or precipitation?
+
+\item 2. Use data of locatiton at the time of evening EMA? \\
+
+\item 3. Should I use weather of some nearby city if daily precipitation data were not provided.\\
+
+\item 4. I set temperature -1024 to NA and precipitation chance -1 to NA in decision data set. Is there any meaning to those two values? where should I ask for help?
+
+\end{itemize}
+
+ 
+
+\subsection{Detailed inspection on temperature missingness}
+<<inspection, echo=FALSE, results="asis">>=
+a=which(temp$temp_day_used=="0/5")
+tmp1=temp[a,c("user","study.day","study.day.nogap","gps.coordinate","home","work")]
+
+b=temp$temp_day_used=="0/5"
+b[which(b)+1]=TRUE
+b[which(b)-1]=TRUE
+b=(paste(suggest$user,suggest$study.day) %in% paste(temp$user[b],temp$study.day[b]))
+tmp2=suggest_temp[b,c("user","study.day","study.day.nogap","slot","gps.coordinate","home","work",
+                      "city.coor","time.stamp.wday","study.date")]
+
+p1.y=unique(na.omit(tmp2$city.coor[(tmp2$user==temp$user[a[1]]) &(tmp2$study.day %in% temp$study.day[a[1]-1])]))
+p1.t=unique(na.omit(tmp2$city.coor[(tmp2$user==temp$user[a[1]]) &(tmp2$study.day %in% temp$study.day[a[1]+1])]))
+#p1=unique(na.omit(tmp2$city.coor[(tmp2$user==temp$user[a[1]]) &(tmp2$study.day %in% temp$study.day[c#(a[1]-1,a[1]+1)])]))
+p2.y=unique(na.omit(tmp2$city.coor[(tmp2$user==temp$user[a[2]]) &(tmp2$study.day %in% temp$study.day[a[2]-1])]))
+p2.t=unique(na.omit(tmp2$city.coor[(tmp2$user==temp$user[a[2]]) &(tmp2$study.day %in% temp$study.day[a[4]+1])]))
+
+#p2=unique(na.omit(tmp2$city.coor[(tmp2$user==temp$user[a[2]]) &(tmp2$study.day %in% temp$study.day[c(a[2]-1,a[4]+1)])]))
+p3.y=unique(na.omit(tmp2$city.coor[(tmp2$user==temp$user[a[5]]) &(tmp2$study.day %in% temp$study.day[c(a[5]-1)])]))
+
+p4.y=unique(na.omit(tmp2$city.coor[(tmp2$user==temp$user[a[6]]) &(tmp2$study.day %in% temp$study.day[a[6]-1])]))
+p4.t=unique(na.omit(tmp2$city.coor[(tmp2$user==temp$user[a[6]]) &(tmp2$study.day %in% temp$study.day[a[6]+1])]))
+
+#p4=unique(na.omit(tmp2$city.coor[(tmp2$user==temp$user[a[6]]) &(tmp2$study.day %in% temp$study.day[c(a[6]-1,a[7]+1)])]))
+p5.y=unique(na.omit(tmp2$city.coor[(tmp2$user==temp$user[a[7]]) &(tmp2$study.day %in% temp$study.day[a[7]-1])]))
+p5.t=unique(na.omit(tmp2$city.coor[(tmp2$user==temp$user[a[7]]) &(tmp2$study.day %in% temp$study.day[a[7]+1])]))
+
+#p5=unique(na.omit(tmp2$city.coor[(tmp2$user==temp$user[a[8]]) &(tmp2$study.day %in% temp$study.day[c(a[8]-1,a[10]+1)])]))
+p6.y=unique(na.omit(tmp2$city.coor[(tmp2$user==temp$user[a[8]]) &(tmp2$study.day %in% temp$study.day[a[8]-1])]))
+p6.t=unique(na.omit(tmp2$city.coor[(tmp2$user==temp$user[a[8]]) &(tmp2$study.day %in% temp$study.day[a[8]+1])]))
+
+
+#p6=unique(na.omit(tmp2$city.coor[(tmp2$user==temp$user[a[11]]) &(tmp2$study.day %in% temp$study.day[c(a[11]-1,a[11]+1)])]))
+p7.y=unique(na.omit(tmp2$city.coor[(tmp2$user==temp$user[a[9]]) &(tmp2$study.day %in% temp$study.day[a[9]-1])]))
+p7.t=unique(na.omit(tmp2$city.coor[(tmp2$user==temp$user[a[9]]) &(tmp2$study.day %in% temp$study.day[a[9]-1])]))
+#p7=unique(na.omit(tmp2$city.coor[(tmp2$user==temp$user[a[12]]) &(tmp2$study.day %in% temp$study.day[c(a[12]-1,a[12]+1)])]))
+p8.y=unique(na.omit(tmp2$city.coor[(tmp2$user==temp$user[a[10]]) &(tmp2$study.day %in% temp$study.day[a[10]-1])]))
+p8.t=unique(na.omit(tmp2$city.coor[(tmp2$user==temp$user[a[10]]) &(tmp2$study.day %in% temp$study.day[a[10]+1])]))
+#p8=unique(na.omit(tmp2$city.coor[(tmp2$user==temp$user[a[13]]) &(tmp2$study.day %in% temp$study.day[c(a[13]-1,a[13]+1)])]))
+p9.y=unique(na.omit(tmp2$city.coor[(tmp2$user==temp$user[a[11]]) &(tmp2$study.day %in% temp$study.day[a[11]-1])]))
+p9.t=unique(na.omit(tmp2$city.coor[(tmp2$user==temp$user[a[11]]) &(tmp2$study.day %in% temp$study.day[a[12]+1])]))
+#p9=unique(na.omit(tmp2$city.coor[(tmp2$user==temp$user[a[14]]) &(tmp2$study.day %in% temp$study.day[c(a[14]-1,a[14]+1)])]))
+p10.y=unique(na.omit(tmp2$city.coor[(tmp2$user==temp$user[a[13]]) &(tmp2$study.day %in% temp$study.day[a[13]-1])]))
+p10.t=unique(na.omit(tmp2$city.coor[(tmp2$user==temp$user[a[13]]) &(tmp2$study.day %in% temp$study.day[a[13]+1])]))
+#p10=unique(na.omit(tmp2$city.coor[(tmp2$user==temp$user[a[15]]) &(tmp2$study.day %in% temp$study.day[c(a[15]-1,a[15]+1)])]))
+p11.y=unique(na.omit(tmp2$city.coor[(tmp2$user==temp$user[a[14]]) &(tmp2$study.day %in% temp$study.day[a[14]-1])]))
+p11.t=unique(na.omit(tmp2$city.coor[(tmp2$user==temp$user[a[14]]) &(tmp2$study.day %in% temp$study.day[a[14]+1])]))
+#p11=unique(na.omit(tmp2$city.coor[(tmp2$user==temp$user[a[16]]) &(tmp2$study.day %in% temp$study.day[c(a[16]-1,a[17]+1)])]))
+
+@
+
+\begin{itemize}
+\item 1. \Sexpr{with(temp, paste("user",user[a[1]],"-","day",study.day.nogap[a[1]],sep=""))} were missing. On the day before (\Sexpr{with(temp, paste("day",study.day.nogap[a[1]-1],sep=""))}), the user was in \Sexpr{p1.y} during a day. On the day after (\Sexpr{with(temp, paste("day",study.day.nogap[a[1]+1],sep=""))}), the user was in \Sexpr{p1.t} during a day.
+(Also, was in Ann Arbor at the time of EMA at the time t-1, t, t+1)
+
+\item 2. \Sexpr{with(temp, paste("user",user[a[2]],"-","day",study.day.nogap[a[2]],",",study.day.nogap[a[3]],",",study.day.nogap[a[4]],sep=""))} were missing. On the day before (\Sexpr{with(temp, paste("day",study.day.nogap[a[2]-1],sep=""))}), the user was in \Sexpr{p2.y} during a day. On the day after (\Sexpr{with(temp, paste("day",study.day.nogap[a[4]+1],sep=""))}), the user was in \Sexpr{p2.t} during a day. 
+
+\item 3. \Sexpr{with(temp, paste("user",user[a[5]],"-","day",study.day.nogap[a[5]],sep=""))} was missing. On the day before (\Sexpr{with(temp, paste("day",study.day.nogap[a[5]-1],sep=""))}), the user was in \Sexpr{p3.y} during a day. And this was the last study day.
+
+\item 4. \Sexpr{with(temp, paste("user",user[a[6]],"-","day",study.day.nogap[a[6]],sep=""))} were missing. On the day before (\Sexpr{with(temp, paste("day",study.day.nogap[a[6]-1],sep=""))}), the user was in \Sexpr{p4.y} during a day. On the day after (\Sexpr{with(temp, paste("day",study.day.nogap[a[6]+1],sep=""))}), the user was in \Sexpr{p4.t} during a day.
+
+\item 5. \Sexpr{with(temp, paste("user",user[a[7]],"-","day",study.day.nogap[a[7]],sep=""))} were missing. On the day before (\Sexpr{with(temp, paste("day",study.day.nogap[a[7]-1],sep=""))}), the user was in \Sexpr{p5.y} during a day. On the day after (\Sexpr{with(temp, paste("day",study.day.nogap[a[7]+1],sep=""))}), the user was in \Sexpr{p5.t} during a day.
+
+\item 6. \Sexpr{with(temp, paste("user",user[a[8]],"-","day",study.day.nogap[a[8]],sep=""))} was missing. On the day before (\Sexpr{with(temp, paste("day",study.day.nogap[a[8]-1],sep=""))}), the user was in \Sexpr{p6.y} during a day. On the day after (\Sexpr{with(temp, paste("day",study.day.nogap[a[8]+1],sep=""))}), the user was in \Sexpr{p6.t} during a day.
+
+\item 7. \Sexpr{with(temp, paste("user",user[a[9]],"-","day",study.day.nogap[a[9]],sep=""))} was missing. On the day before (\Sexpr{with(temp, paste("day",study.day.nogap[a[9]-1],sep=""))}), the user was in \Sexpr{p7.y} during a day. On the day after (\Sexpr{with(temp, paste("day",study.day.nogap[a[9]+1],sep=""))}), the user was in \Sexpr{p7.t} during a day.
+
+\item 8. \Sexpr{with(temp, paste("user",user[a[10]],"-","day",study.day.nogap[a[10]],sep=""))} was missing. On the day before (\Sexpr{with(temp, paste("day",study.day.nogap[a[10]-1],sep=""))}), the user was in \Sexpr{p8.y} during a day. On the day after (\Sexpr{with(temp, paste("day",study.day.nogap[a[10]+1],sep=""))}), the user was in \Sexpr{p8.t} during a day.
+
+\item 9. \Sexpr{with(temp, paste("user",user[a[11]],"-","day",study.day.nogap[a[11]],"day",study.day.nogap[a[12]],sep=""))} was missing. On the day before (\Sexpr{with(temp, paste("day",study.day.nogap[a[11]-1],sep=""))}), the user was in \Sexpr{p9.y} during a day. On the day after (\Sexpr{with(temp, paste("day",study.day.nogap[a[12]+1],sep=""))}), the user was in \Sexpr{p9.t} during a day.
+
+\item 10. \Sexpr{with(temp, paste("user",user[a[13]],"-","day",study.day.nogap[a[13]],sep=""))} was missing. On the day before (\Sexpr{with(temp, paste("day",study.day.nogap[a[13]-1],sep=""))}), the user was in \Sexpr{p10.y} during a day. On the day after (\Sexpr{with(temp, paste("day",study.day.nogap[a[13]+1],sep=""))}), the user was in \Sexpr{p10.t} during a day.
+
+\item 11. \Sexpr{with(temp, paste("user",user[a[14]],"-","day",study.day.nogap[a[14]],sep=""))} were missing. On the day before (\Sexpr{with(temp, paste("day",study.day.nogap[a[14]-1],sep=""))}), the user was in \Sexpr{p11.y} during a day. On the day after (\Sexpr{with(temp, paste("day",study.day.nogap[a[14]+1],sep=""))}), the user was in \Sexpr{p11.t} during a day.
+
+\end{itemize}
+
+
+\subsection{Weekday and Weekend}
+We have study date. All weekday and weekend can be recovered from that. No missingness.
+
+
+\section{Daily moderators on EMA}
+<<setting_ema, echo=FALSE, eval=TRUE>>=
+## Included ema.set to daily to analyze ema.set
+temp1=temp[temp$connect,]
+@
+In this section, total $\Sexpr{nrow(temp)}$ day-person data points were considered. $\Sexpr{nrow(temp[temp$connect,])}$ day-person data points were ``connected'', which means there were notification records or screens were turned on between EMA notification and EMA interaction or responded to at least one of a planning question or EMA questions. Therefore, ``disconnected'' means there were no notified records, planning response, EMA responses and engagement records. 
+
+\subsection{EMA hectic reports}
+<<hectic, echo=FALSE, results="asis">>=
+## Included ema.set to daily to analyze ema.set
+tmp=with(temp,is.na(hectic))
+tmp[!temp$connect]="Disconnected"
+a=with(temp,table(is.na(jbsteps),tmp))
+a=a[,c(2,3,1)]
+a=cbind(a, margin.table(a, 1))
+a=rbind(a, margin.table(a, 2))
+rownames(a)=c("Not missing","Missing","Sum")
+colnames(a)=c("Not missing","Missing","Disconnected","Sum")
+a=rbind(colnames(a),a)
+rownames(a)[rownames(a)==""]="jbsteps\\hectic"
+print(xtable(a,auto=T), include.colnames = FALSE)
+b=sort(table(temp$user[is.na(temp$jbsteps)]),decreasing = T)
+@
+Among $\Sexpr{a[3,4]}$ missing jbstep values, $\Sexpr{b[1]}$ values are from user $\Sexpr{names(b)[1]}$ and $\Sexpr{b[2]}$ values are from user $\Sexpr{names(b)[2]}$. Therefore, we might be able to expect improvement here.
+
+<<hectic_rolling, echo=FALSE, results="asis", fig.height=3>>=
+
+hectic_rolling=matrix(0,nrow(temp),3)
+hectic_rolling[,3]=temp$hectic
+hectic_rolling[2:nrow(temp),2]=temp$hectic[1:(nrow(temp)-1)] 
+hectic_rolling[3:nrow(temp),1]=temp$hectic[1:(nrow(temp)-2)]
+hectic_rolling=as.data.frame(hectic_rolling)
+names(hectic_rolling)=c( "2daybefore","1daybefore","today")
+
+hectic_rolling[which(temp$study.day==0),1:2]=0
+hectic_rolling[which(temp$study.day==1),1]=0
+
+hectic_rolling$n.NA=apply(hectic_rolling,1,function(x) sum(is.na(x)))
+hectic_rolling$mean=apply(hectic_rolling[,1:3],1,function(x) mean(x, na.rm=TRUE))
+hectic_rolling[which(temp$study.day==0),5]=hectic_rolling[which(temp$study.day==0),3]
+hectic_rolling[which(temp$study.day==1),5]=apply(hectic_rolling[which(temp$study.day==1),2:3],1,function(x) mean(x, na.rm=TRUE))
+
+hectic_rolling=cbind(subset(temp,select=c(user,study.day.nogap)),hectic_rolling)
+hectic_rolling=as.data.frame(hectic_rolling)
+
+a=table(hectic_rolling$n.NA, useNA="ifany")
+names(a)[is.na(names(a))]="NA"
+xx=barplot(a,names.arg = names(a),ylim=c(0,max(a)+200),xlab="Number of missing in 3 days rolling")
+text(x = xx, y = a, label = a, pos = 3, cex = 1)
+@
+
+
+\subsection{EMA stress reports}
+<<stress, echo=FALSE, results="asis">>=
+## Included ema.set to daily to analyze ema.set
+tmp=with(temp,is.na(stressful))
+tmp[!temp$connect]="Disconnected"
+a=with(temp,table(is.na(jbsteps),tmp))
+a=a[,c(2,3,1)]
+a=cbind(a, margin.table(a, 1))
+a=rbind(a, margin.table(a, 2))
+rownames(a)=c("Not missing","Missing","Sum")
+colnames(a)=c("Not missing","Missing","Disconnected","Sum")
+a=rbind(colnames(a),a)
+rownames(a)[rownames(a)==""]="jbsteps\\stress"
+print(xtable(a,auto=T), include.colnames = FALSE)
+@
+
+<<stress_rolling, echo=FALSE, results="asis", fig.height=3>>=
+## Included ema.set to daily to analyze ema.set
+stressful_rolling=matrix(0,nrow(temp),3)
+stressful_rolling[,3]=temp$stressful
+stressful_rolling[2:nrow(temp),2]=temp$stressful[1:(nrow(temp)-1)] 
+stressful_rolling[3:nrow(temp),1]=temp$stressful[1:(nrow(temp)-2)]
+stressful_rolling=as.data.frame(stressful_rolling)
+names(stressful_rolling)=c("2daybefore","1daybefore","today")
+
+stressful_rolling[which(temp$study.day==0),1:2]=0
+stressful_rolling[which(temp$study.day==1),1]=0
+
+stressful_rolling$n.NA=apply(stressful_rolling,1,function(x) sum(is.na(x)))
+stressful_rolling$mean=apply(stressful_rolling[,1:3],1,function(x) mean(x, na.rm=TRUE))
+stressful_rolling[which(temp$study.day==0),5]=stressful_rolling[which(temp$study.day==0),3]
+stressful_rolling[which(temp$study.day==1),5]=apply(stressful_rolling[which(temp$study.day==1),2:3],1,function(x) mean(x, na.rm=TRUE))
+
+stressful_rolling=cbind(subset(temp,select=c(user,study.day.nogap)),stressful_rolling)
+stressful_rolling=as.data.frame(stressful_rolling)
+
+a=table(stressful_rolling$n.NA, useNA="ifany")
+names(a)[is.na(names(a))]="NA"
+xx=barplot(a,names.arg = names(a),ylim=c(0,max(a)+200),xlab="Number of missing in 3 days rolling")
+text(x = xx, y = a, label = a, pos = 3, cex = 1)
+
+@
+
+
+\subsection{EMA reports for urge to walk}
+<<urge, echo=FALSE, results="asis">>=
+## Included ema.set to daily to analyze ema.set
+tmp=with(temp,is.na(urge))
+tmp[!temp$connect]="Disconnected"
+a=with(temp,table(is.na(jbsteps),tmp))
+a=a[,c(2,3,1)]
+a=cbind(a, margin.table(a, 1))
+a=rbind(a, margin.table(a, 2))
+rownames(a)=c("Not missing","Missing","Sum")
+colnames(a)=c("Not missing","Missing","Disconnected","Sum")
+a=rbind(colnames(a),a)
+rownames(a)[rownames(a)==""]="jbsteps\\urge"
+print(xtable(a,auto=T), include.colnames = FALSE)
+@
+
+<<urge_rolling, echo=FALSE, results="asis", fig.height=3>>=
+urge_rolling=matrix(0,nrow(temp),7)
+urge_rolling[,7]=temp$urge
+urge_rolling[2:nrow(temp),6]=temp$urge[1:(nrow(temp)-1)] 
+urge_rolling[3:nrow(temp),5]=temp$urge[1:(nrow(temp)-2)]
+urge_rolling[4:nrow(temp),4]=temp$urge[1:(nrow(temp)-3)]
+urge_rolling[5:nrow(temp),3]=temp$urge[1:(nrow(temp)-4)]
+urge_rolling[6:nrow(temp),2]=temp$urge[1:(nrow(temp)-5)]
+urge_rolling[7:nrow(temp),1]=temp$urge[1:(nrow(temp)-6)]
+
+urge_rolling=as.data.frame(urge_rolling)
+names(urge_rolling)=c("6daybefore","5daybefore","4daybefore","3daybefore","2daybefore","1daybefore","today")
+
+urge_rolling[which(temp$study.day==0),1:6]=0
+urge_rolling[which(temp$study.day==1),1:5]=0
+urge_rolling[which(temp$study.day==2),1:4]=0
+urge_rolling[which(temp$study.day==3),1:3]=0
+urge_rolling[which(temp$study.day==4),1:2]=0
+urge_rolling[which(temp$study.day==5),1]=0
+
+
+urge_rolling$n.NA=apply(urge_rolling[,1:7],1,function(x) sum(is.na(x)))
+urge_rolling$mean=apply(urge_rolling[,1:7],1,function(x) mean(x, na.rm=TRUE))
+urge_rolling[which(temp$study.day==0),9]=urge_rolling[which(temp$study.day==0),7]
+urge_rolling[which(temp$study.day==1),9]=apply(urge_rolling[which(temp$study.day==1),6:7],1,function(x) mean(x, na.rm=TRUE))
+urge_rolling[which(temp$study.day==2),9]=apply(urge_rolling[which(temp$study.day==2),5:7],1,function(x) mean(x, na.rm=TRUE))
+urge_rolling[which(temp$study.day==3),9]=apply(urge_rolling[which(temp$study.day==3),4:7],1,function(x) mean(x, na.rm=TRUE))
+urge_rolling[which(temp$study.day==4),9]=apply(urge_rolling[which(temp$study.day==4),3:7],1,function(x) mean(x, na.rm=TRUE))
+urge_rolling[which(temp$study.day==5),9]=apply(urge_rolling[which(temp$study.day==5),2:7],1,function(x) mean(x, na.rm=TRUE))
+
+urge_rolling=cbind(subset(temp,select=c(user,study.day.nogap)),urge_rolling)
+urge_rolling=as.data.frame(urge_rolling)
+
+a=table(urge_rolling$n.NA, useNA="ifany")
+names(a)[is.na(names(a))]="NA"
+xx=barplot(a,names.arg = names(a),ylim=c(0,max(a)+200),xlab="Number of missing in 7 days rolling")
+text(x = xx, y = a, label = a, pos = 3, cex = 1)
+uniq_s=length(with(temp,unique(response[planning %in% "structured"])))
+uniq_uns=length(with(temp,unique(response[planning %in% "unstructured"])))
+uniq_intersect=length(intersect(with(temp,unique(response[planning %in% "structured"])),with(temp,unique(response[planning %in% "unstructured"]))))
+@
+
+Spagetti plot(interaction plot) of average 7 day urge are presented with smoothing(loess) line. 
+<<urge_rolling1, echo=FALSE, results="asis", fig.height=6>>=
+urge_rolling=cbind(subset(temp,select=c(user,study.day.nogap)),urge_rolling)
+a=colnames(urge_rolling)
+urge_rolling=as.data.frame(urge_rolling)
+interaction.plot(urge_rolling$study.day.nogap,
+                 urge_rolling$user, urge_rolling$mean, xlab="time", ylab="Mean", legend=F)
+lw1 <- loess(mean ~ study.day.nogap,data=urge_rolling)
+j <- order(lw1$x)
+lines(lw1$x[j],predict(lw1)[j],col="red",lwd=3)
+@
+
+\subsection{EMA reports for other non-walking activities}
+
+Even though structural planning questions in which participants can select options were given half of the time, selection options were so diverse. There are $\Sexpr{uniq_s}$ unique answeres among $\Sexpr{sum(temp$planning=="structured",na.rm=TRUE)}$. In contrast, There are $\Sexpr{uniq_uns}$ unique answeres among $\Sexpr{sum(temp$planning=="unstructured",na.rm=TRUE)}$ in unstructured planning response. Also, I suspect that structured and unstructured questions were mixed since  
+$\Sexpr{uniq_intersect}$ are unique intersection number of unique responses to structured and unstructured planning. They have a lot of common responses.\\
+It is not plausible to make frequency table by just using answers from structured answers. So number of responses that contained certain words are listed here. I looked through responses and picked some words.
+This table is not rigorous just give some sense of how people responded to planning. 
+
+
+<<other_activity, echo=FALSE, results="asis">>=
+planning=temp[temp$planning %in% c("structured","unstructured"),]
+
+str=c()
+str=c(str,length(with(planning, grep("walk",response))))
+str=c(str,length(with(planning, grep("yoga",response))))
+str=c(str,length(with(planning, grep("run",response))))
+str=c(str,length(with(planning, grep("stretch",response))))
+str=c(str,length(with(planning, grep("step",response))))
+str=c(str,length(with(planning, grep("elipical",response))))
+str=c(str,length(with(planning, grep("jump",response)))) #jumping jacks
+str=c(str,length(with(planning, grep("squat",response))))
+str=c(str,length(with(planning, grep("bik",response))))
+str=c(str,length(with(planning, grep("swim",response))))
+str=c(str,length(with(planning, grep("zumba",response))))
+str=c(str,length(with(planning, grep("gym",response))))
+str=c(str,length(with(planning, grep("weight",response))))
+str=c(str,length(with(planning, grep("stair",response))))
+str=c(str,length(with(planning, grep("danc",response))))
+str=c(str,length(with(planning, grep("no plan",response))))
+str=c(str,length(with(planning, grep("clean",response))))
+str=c(str,length(with(planning, grep("exercis",response))))
+str=c(str,length(with(planning, grep("longboard",response))))
+str=c(str,length(with(planning, grep("badminton",response))))
+str=c(str,length(with(planning, grep("KanJam",response))))
+names(str)=c("walk","yoga","run","stretch","step","elipical","jump","squat","bik","swim","zumba","gym"
+      ,"weight","stair","danc","no plan","clean","exercis","longboard","badminton","KanJam")
+str=as.table(sort(str))
+print(xtable(t(as.table(str[1:7])), auto=TRUE),include.rownames = F)
+print(xtable(t(as.table(str[8:14])), auto=TRUE),include.rownames = F)
+print(xtable(t(as.table(str[15:21])), auto=TRUE),include.rownames = F)
+@
+
+%<<other_activity1, echo=FALSE, results="asis">>=
+%set.seed(5)
+%a=sample(1:nrow(planning),10)
+%print(planning$response[a])
+%@
+
+Most responses contained words such as ``walk'', ``run'' or ``step''. 
+
+\end{document}
