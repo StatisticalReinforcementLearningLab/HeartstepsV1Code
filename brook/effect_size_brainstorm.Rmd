@@ -1,7 +1,7 @@
 ---
 title: "Heartsteps Effect Size"
-author: "Brook Luers"
-date: "August 4, 2016"
+author: 
+date: 
 output: 
     beamer_presentation:
       colortheme: "dove"
@@ -110,23 +110,48 @@ ybar_t <-
   mutate(ybardiff = ybar1 - ybar0,
          tm1 = decision.index.nogap - 1)
 
-```
+s2pool_t <- 
+  suggest.analysis %>%
+  filter(avail) %>%
+  group_by(decision.index.nogap) %>%
+  summarise(s2 = var(jbsteps30.log))
 
-
-## Ratio of variances for each treatment group
-```{r plot-sd-ratio-time, echo=FALSE}
-
-data.frame(t=timepoints) %>%
-  left_join(s2_yt, by=c('t'='tm1')) %>%
-  filter(!is.na(s2t)) %>%
-  dcast(t ~ send, value.var='s2t') %>% 
-  rename(s2_1 = `TRUE`, s2_0 = `FALSE`) %>%
-  ggplot(aes(x=t, y= s2_1 / s2_0)) + 
-  geom_point() +
-  ptheme + xlab(expression(t)) + ylab('ratio of sample variances at t+1')+
-  ggtitle('Comparing variances for treated/untreated')
+s2pool <-
+  with(filter(s2pool_t, decision.index.nogap > 0),
+       mean(s2))
 
 ```
+
+
+## Effect size for a difference in means
+
+In general, $\text{effect size} = \text{test statistic} \times \text{study size}$.
+
+E.g. Cohen's $d$:
+$$
+\begin{aligned} 
+d &= \frac{\overline{x}_1 - \overline{x}_2}{s_{\text{pooled}}} \\
+t &= d \times \sqrt{\frac{n_1n_2}{n_1+n_2}}
+\end{aligned}
+$$
+
+## Proximal main effect
+
+$$ \beta(t) = \mathrm{E}\left[\left.Y_{t+1}^{(A_t=1\ldots)} - Y_{t+1}^{(A_t=0\ldots)} \right|I_t=1\right]$$
+
+Assuming it's a smooth function of time.
+
+## Standardized effect in the sample size calculation
+
+$H_1: \beta(t) / \overline{\sigma} = d(t) = \text{standardized effect}$
+
+\vspace{12pt}
+
+Average variance: $\overline{\sigma}^2 = \frac{1}{T} \sum_{t=1}^T \mathrm{E}\left[\mathrm{Var}\left(Y_{t+1} | I_t=1, A_t\right)\right]$
+
+## Estimate $\beta(t)$
+
+with $\overline{Y}^{(A_t=1)}_{t+1} - \overline{Y}^{(A_t=0)}_{t+1}$ (available subjects only)
 
 ## Difference in sample means over time
 
@@ -143,7 +168,7 @@ p.ybar.time
 
 ```
 
-## Kernel smoothers
+## Smooth $\hat{\beta}(t)$
 
 ```{r smooth-data, echo=FALSE}
 
@@ -155,27 +180,82 @@ ybar_smooth <-
   mutate(ysmooth = with(filter(ybar_t, tm1>=0),
                         ksmooth(tm1, ybardiff,
                                 kernel='normal', x.points=t,
-                                bandwidth=unique(bwidth))[['y']]))
+                                bandwidth=unique(bwidth))[['y']]),
+         ysmooth_std = with(filter(ybar_t, tm1 >= 0),
+                            ksmooth(tm1, ybardiff / sqrt(s2pool),
+                                    kernel='normal', x.points=t,
+                                    bandwidth=unique(bwidth))[['y']]))
 
 ```
 
 ```{r smooth-plot-gaussian, echo=FALSE}
 ybar_smooth %>% ungroup %>%
+  filter(bwidth==20) %>% 
   ggplot(aes(x=t, y=ysmooth)) +
-  geom_line(aes(color=as.factor(bwidth))) +
+  geom_line() +
   geom_point(aes(x=tm1, y=ybardiff), data=filter(ybar_t, tm1>=0),
-             shape=1) +
-  ptheme + xlab('t')
+             shape=1)+ 
+  ptheme + xlab('t') +
+  ylab(expression(bar(y)[t+1]^(A[t]==1) - bar(y)[t+1]^(A[t]==0)))
 
 ```
 
-## Loess
+## Standardize by...
 
-```{r smooth-plot-loess, echo=FALSE}
+SD pooled over time and treatment group? 
 
-p.ybar.time +
-  geom_smooth(method='loess', span=0.25, se=F,
-              color='darkgreen')
+$\hat{\overline{\sigma}}^2 = \sqrt{\frac{1}{T}\sum \hat{\mathrm{Var}}(Y_{t+1} | I_t=1)}$
+
+## Variances over time
+
+```{r plot-var-time, echo=FALSE, fig.width=6,fig.height=4.5}
+
+data.frame(t=timepoints) %>%
+  left_join(s2_yt, by=c('t'='tm1')) %>%
+  filter(!is.na(s2t)) %>%
+  ggplot(aes(x=t, y=s2t)) + geom_point(aes(color=send), shape=1) +
+  ptheme + scale_color_brewer(palette='Dark2',
+                              name='',
+                              breaks=c('FALSE','TRUE'),
+                              labels=c('No suggestion','Suggestion')) +
+  theme(legend.position='bottom') +
+  ylab('Sample variance at t+1') 
+```
+
+
+## Ratio of variances for each treatment group
+```{r plot-sd-ratio-time, echo=FALSE}
+
+data.frame(t=timepoints) %>%
+  left_join(s2_yt, by=c('t'='tm1')) %>%
+  filter(!is.na(s2t)) %>%
+  dcast(t ~ send, value.var='s2t') %>% 
+  rename(s2_1 = `TRUE`, s2_0 = `FALSE`) %>%
+  ggplot(aes(x=t, y= s2_1 / s2_0)) + 
+  geom_point(shape=1) +
+  ptheme + xlab(expression(t)) + ylab('ratio of sample variances at t+1')
+  #ggtitle('Comparing variances for treated/untreated')
 
 ```
 
+
+## Divide the smoother by the pooled SD
+
+```{r plot-smooth-gauss-std, echo=FALSE}
+
+ybar_smooth %>% ungroup %>%
+  filter(bwidth==20) %>% 
+  ggplot(aes(x=t, y=ysmooth_std)) +
+  geom_line() +
+  geom_point(aes(x=tm1, y=ybardiff / sqrt(s2pool)), data=filter(ybar_t, tm1>=0),
+             shape=1)+ 
+  ptheme + xlab('t') + 
+  ylab(expression(frac(bar(y)[t+1]^(A[t]==1) - bar(y)[t+1]^(A[t]==0), s[plain(pool)])))
+
+```
+
+## Issues
+
+- Assumptions for kernel smoother CI
+- Interpretable?
+- Do I need a ratio CI?
