@@ -53,6 +53,17 @@ user.nojb <- sapply(ids, function(x) {
           user.days$start.udate[[ifelse(index < 10, paste0('0', index), paste(index))]]))
 })
 
+# use primary data.frame instead of suggest (above)
+user.nojb2 <- sapply(ids, function(x) {
+  index <- which(user.days$user == x)
+  sum(!(unique(primary$study.date[primary$user == x]) %in% 
+          user.days$start.udate[[ifelse(index < 10, paste0('0', index), paste(index))]]))
+})
+
+sapply(ids, function(x) {
+  index <- which(user.days$user == x)
+  length(unique(primary$study.date[primary$user == x]))
+})
 
 ##### Descriptive Plots #####
 
@@ -144,13 +155,17 @@ rm(y)
 ## make small-sample variance corrections (uses xgeepack.R functions)
 
 ## Model 1: No time effect
-model1 <- fit(jbsteps30.log ~ jbsteps30pre.log + I(send - .6))
+model1 <- geeglm(jbsteps30.log ~ jbsteps30pre.log + I(send - .6),
+                 id = user, weights = as.numeric(avail), 
+                 scale.fix = T, data = primary)
 # estimate(model1, normal = FALSE)
 
 ## Model 2: Linear day-on-study effect and interaction between linear 
 ## day on study and centered treatment status
-model2 <- fit(jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
-                I(send - .6) + study.day.nogap:I(send - .6))
+model2 <- geeglm(jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
+                I(send - .6) + study.day.nogap:I(send - .6),
+                id = user, weights = as.numeric(avail), 
+                scale.fix = T, data = primary)
 # estimate(model2, normal = FALSE)
 
 
@@ -184,11 +199,17 @@ model2 <- fit(jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
 
 ## Minimal model: intercept and step count in prior 30 minutes. First, use all
 ## participants, then split by treated/untreated
-minmod       <- fit(jbsteps30.log ~ jbsteps30pre.log)
-minmod.send0 <- fit(jbsteps30.log ~ jbsteps30pre.log, 
-                    data = subset(primary, send == F))
-minmod.send1 <- fit(jbsteps30.log ~ jbsteps30pre.log,
-                    data = subset(primary, send == T))
+minmod       <- geeglm(jbsteps30.log ~ jbsteps30pre.log,
+                       id = user, weights = as.numeric(avail), 
+                       scale.fix = T, data = primary)
+minmod.send0 <- geeglm(jbsteps30.log ~ jbsteps30pre.log, 
+                       id = user, weights = as.numeric(avail), 
+                       scale.fix = T,
+                       data = subset(primary, send == F))
+minmod.send1 <- geeglm(jbsteps30.log ~ jbsteps30pre.log,
+                       id = user, weights = as.numeric(avail), 
+                       scale.fix = T,
+                       data = subset(primary, send == T))
 
 ### LOESS plots: Raw residuals
 
@@ -284,14 +305,20 @@ mean.resid.interaction <- recordPlot()
 
 ### LOESS Plots: Mean residuals with quadratic time
 primary$study.day.nogap.sq <- primary$study.day.nogap ^ 2
-quadmod       <- fit(jbsteps30.log ~ jbsteps30pre.log + 
-                      study.day.nogap + study.day.nogap.sq)
-quadmod.send0 <- fit(jbsteps30.log ~ jbsteps30pre.log + 
-                      study.day.nogap + study.day.nogap.sq, 
-                    data = subset(primary, send == F))
-quadmod.send1 <- fit(jbsteps30.log ~ jbsteps30pre.log + 
+quadmod       <- geeglm(jbsteps30.log ~ jbsteps30pre.log + 
                       study.day.nogap + study.day.nogap.sq,
-                    data = subset(primary, send == T))
+                      id = user, weights = as.numeric(avail), 
+                      scale.fix = T, data = primary)
+quadmod.send0 <- geeglm(jbsteps30.log ~ jbsteps30pre.log + 
+                          study.day.nogap + study.day.nogap.sq, 
+                        id = user, weights = as.numeric(avail), 
+                        scale.fix = T,
+                        data = subset(primary, send == F))
+quadmod.send1 <- geeglm(jbsteps30.log ~ jbsteps30pre.log + 
+                          study.day.nogap + study.day.nogap.sq,
+                        id = user, weights = as.numeric(avail), 
+                        scale.fix = T,
+                        data = subset(primary, send == T))
 
 resids <- cbind(resids[, 1:3], 
                 study.day.nogap.sq = primary$study.day.nogap.sq,
@@ -328,11 +355,12 @@ abline(0, 0, col = "grey50")
 mean.resid.interaction.quad <- recordPlot()
 
 ##### Active vs. Sedentary Suggestions #####
-model3 <- fit(jbsteps30.log ~ jbsteps30pre.log + study.day.nogap + 
-                I(send.active - 0.3) + I(send.sedentary - 0.3) + 
-                study.day.nogap:I(send.active - 0.3) + 
-                study.day.nogap:I(send.sedentary - 0.3),
-              data = primary)
+model3 <- geeglm(jbsteps30.log ~ jbsteps30pre.log + study.day.nogap + 
+                   I(send.active - 0.3) + I(send.sedentary - 0.3) + 
+                   study.day.nogap:I(send.active - 0.3) + 
+                   study.day.nogap:I(send.sedentary - 0.3),
+                 id = user, weights = as.numeric(avail),
+                 data = primary, scale.fix = T)
 # estimate(model3, normal = FALSE)
 
 model4 <-  geeglm(jbsteps30.log ~ jbsteps30pre.log + I(send.active - 0.3) +
@@ -345,103 +373,188 @@ model4 <-  geeglm(jbsteps30.log ~ jbsteps30pre.log + I(send.active - 0.3) +
 sens1 <- subset(primary, user != 35)
 
 ## Model 1: No time effect
-model1.sens1 <- fit(jbsteps30.log ~ jbsteps30pre.log + I(send - .6), data = sens1)
+model1.sens1 <- geeglm(jbsteps30.log ~ jbsteps30pre.log + I(send - .6), 
+                       id = user, weights = as.numeric(avail), 
+                       scale.fix = T, data = sens1)
 # estimate(model1.sens1, normal = FALSE)
 
 ## Model 2: Linear day-on-study effect and interaction between linear 
 ## day on study and centered treatment status
-model2.sens1 <- fit(jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
-                      I(send - .6) + study.day.nogap:I(send - .6), data = sens1)
+model2.sens1 <- geeglm(jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
+                      I(send - .6) + study.day.nogap:I(send - .6),
+                    id = user, weights = as.numeric(avail), 
+                    scale.fix = T, data = sens1)
 # estimate(model2.sens1, normal = FALSE)
 
 ## Model 3: Active and sedentary suggestions
-model3.sens1 <- fit(jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
-                      I(send.active - 0.3) + I(send.sedentary - 0.3) + 
-                      study.day.nogap:I(send.active - 0.3) + 
-                      study.day.nogap:I(send.sedentary - 0.3),
-                    data = sens1)
+model3.sens1 <- geeglm(jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
+                         I(send.active - 0.3) + I(send.sedentary - 0.3) + 
+                         study.day.nogap:I(send.active - 0.3) + 
+                         study.day.nogap:I(send.sedentary - 0.3),
+                       id = user, weights = as.numeric(avail), 
+                       scale.fix = T, data = sens1)
 # estimate(model3.sens1, normal = FALSE)
 
 ### Require 37 days on study
 sens2 <- subset(analysis.data(0:36)$data, user != 35)
 
 ## Model 1: No time effect
-model1.sens2 <- fit(jbsteps30.log ~ jbsteps30pre.log + I(send - .6), data = sens2)
+model1.sens2 <- geeglm(jbsteps30.log ~ jbsteps30pre.log + I(send - .6), 
+                       id = user, weights = as.numeric(avail), 
+                       scale.fix = T, data = sens2)
 # estimate(model1.sens2, normal = FALSE)
 
 ## Model 2: Linear day-on-study effect and interaction between linear 
 ## day on study and centered treatment status
-model2.sens2 <- fit(jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
-                      I(send - .6) + study.day.nogap:I(send - .6), data = sens2)
+model2.sens2 <- geeglm(jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
+                         I(send - .6) + study.day.nogap:I(send - .6), 
+                       id = user, weights = as.numeric(avail), 
+                       scale.fix = T, data = sens2)
 # estimate(model2.sens2, normal = FALSE)
 
 ## Model 3: Active and sedentary suggestions
-model3.sens2 <- fit(jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
-                      I(send.active - 0.3) + I(send.sedentary - 0.3) + 
-                      study.day.nogap:I(send.active - 0.3) + 
-                      study.day.nogap:I(send.sedentary - 0.3),
-                    data = sens2)
+model3.sens2 <- geeglm(jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
+                         I(send.active - 0.3) + I(send.sedentary - 0.3) + 
+                         study.day.nogap:I(send.active - 0.3) + 
+                         study.day.nogap:I(send.sedentary - 0.3),
+                       id = user, weights = as.numeric(avail), 
+                       scale.fix = T, data = sens2)
 # estimate(model3.sens2, normal = FALSE)
 
 ### Require 38 days on study
 sens3 <- subset(analysis.data(0:37)$data, user != 35)
 
 ## Model 1: No time effect
-model1.sens3 <- fit(jbsteps30.log ~ jbsteps30pre.log + I(send - .6), data = sens3)
+model1.sens3 <- geeglm(jbsteps30.log ~ jbsteps30pre.log + I(send - .6),
+                       id = user, weights = as.numeric(avail), 
+                       scale.fix = T, data = sens3)
 # estimate(model1.sens3, normal = FALSE)
 
 ## Model 2: Linear day-on-study effect and interaction between linear 
 ## day on study and centered treatment status
-model2.sens3 <- fit(jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
-                      I(send - .6) + study.day.nogap:I(send - .6), data = sens3)
+model2.sens3 <- geeglm(jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
+                         I(send - .6) + study.day.nogap:I(send - .6), 
+                       id = user, weights = as.numeric(avail), 
+                       scale.fix = T, data = sens3)
 # estimate(model2.sens3, normal = FALSE)
 
 ## Model 3: Active and sedentary suggestions
-model3.sens3 <- fit(jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
-                      I(send.active - 0.3) + I(send.sedentary - 0.3) + 
-                      study.day.nogap:I(send.active - 0.3) + 
-                      study.day.nogap:I(send.sedentary - 0.3),
-                    data = sens3)
+model3.sens3 <- geeglm(jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
+                         I(send.active - 0.3) + I(send.sedentary - 0.3) + 
+                         study.day.nogap:I(send.active - 0.3) + 
+                         study.day.nogap:I(send.sedentary - 0.3),
+                       id = user, weights = as.numeric(avail), 
+                       scale.fix = T, data = sens3)
 # estimate(model3.sens3, normal = FALSE)
 
 ### Require 41 days on study
 sens4 <- subset(analysis.data(0:40)$data, user != 35)
 
 ## Model 1: No time effect
-model1.sens4 <- fit(jbsteps30.log ~ jbsteps30pre.log + I(send - .6), data = sens4)
+model1.sens4 <- geeglm(jbsteps30.log ~ jbsteps30pre.log + I(send - .6), 
+                       id = user, weights = as.numeric(avail), 
+                       scale.fix = T, data = sens4)
 # estimate(model1.sens4, normal = FALSE)
 
 ## Model 2: Linear day-on-study effect and interaction between linear 
 ## day on study and centered treatment status
-model2.sens4 <- fit(jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
-                      I(send - .6) + study.day.nogap:I(send - .6), data = sens4)
+model2.sens4 <- geeglm(jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
+                         I(send - .6) + study.day.nogap:I(send - .6), 
+                       id = user, weights = as.numeric(avail), 
+                       scale.fix = T, data = sens4)
 # estimate(model2.sens4, normal = FALSE)
 
 ## Model 3: Active and sedentary suggestions
-model3.sens4 <- fit(jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
-                      I(send.active - 0.3) + I(send.sedentary - 0.3) + 
-                      study.day.nogap:I(send.active - 0.3) + 
-                      study.day.nogap:I(send.sedentary - 0.3),
-                    data = sens4)
+model3.sens4 <- geeglm(jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
+                         I(send.active - 0.3) + I(send.sedentary - 0.3) + 
+                         study.day.nogap:I(send.active - 0.3) + 
+                         study.day.nogap:I(send.sedentary - 0.3),
+                       id = user, weights = as.numeric(avail), 
+                       scale.fix = T, data = sens4)
 # estimate(model3.sens4, normal = FALSE)
 
 ### Require 42 days on study
 sens5 <- subset(analysis.data(0:41)$data, user != 35)
 
 ## Model 1: No time effect
-model1.sens5 <- fit(jbsteps30.log ~ jbsteps30pre.log + I(send - .6), data = sens5)
+model1.sens5 <- geeglm(jbsteps30.log ~ jbsteps30pre.log + I(send - .6),
+                       id = user, weights = as.numeric(avail), 
+                       scale.fix = T, data = sens5)
 # estimate(model1.sens5, normal = FALSE)
 
 ## Model 2: Linear day-on-study effect and interaction between linear 
 ## day on study and centered treatment status
-model2.sens5 <- fit(jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
-                      I(send - .6) + study.day.nogap:I(send - .6), data = sens5)
+model2.sens5 <- geeglm(jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
+                         I(send - .6) + study.day.nogap:I(send - .6),
+                       id = user, weights = as.numeric(avail), 
+                       scale.fix = T, data = sens5)
 # estimate(model2.sens5, normal = FALSE)
 
 ## Model 3: Active and sedentary suggestions
-model3.sens5 <- fit(jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
-                      I(send.active - 0.3) + I(send.sedentary - 0.3) + 
-                      study.day.nogap:I(send.active - 0.3) + 
-                      study.day.nogap:I(send.sedentary - 0.3),
-                    data = sens5)
+model3.sens5 <- geeglm(jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
+                         I(send.active - 0.3) + I(send.sedentary - 0.3) + 
+                         study.day.nogap:I(send.active - 0.3) + 
+                         study.day.nogap:I(send.sedentary - 0.3),
+                       id = user, weights = as.numeric(avail), 
+                       scale.fix = T, data = sens5)
+# estimate(model3.sens5, normal = FALSE)
+
+### Remove ID 14's original travel dates
+## 9/18/15 - 9/24/15
+sens6 <- primary
+u14travel <- seq.Date(from = as.Date("2015-09-18"), 
+                      to = as.Date("2015-09-24"),
+                      by = "day")
+sens6$study.day.nogap[sens6$user == 14 & sens6$study.date %in% u14travel] <- NA
+sens6$study.day.nogap[sens6$user == 14 & sens6$study.date >= as.Date("2015-09-25")] <-
+  sens6$study.day.nogap[sens6$user == 14 & sens6$study.date >= as.Date("2015-09-25")] - 7
+sens6 <- subset(sens6, !is.na(study.day.nogap))
+
+## Model 1: No time effect
+model1.sens4 <- geeglm(jbsteps30.log ~ jbsteps30pre.log + I(send - .6), 
+                       id = user, weights = as.numeric(avail), 
+                       scale.fix = T, data = sens4)
+# estimate(model1.sens4, normal = FALSE)
+
+## Model 2: Linear day-on-study effect and interaction between linear 
+## day on study and centered treatment status
+model2.sens4 <- geeglm(jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
+                         I(send - .6) + study.day.nogap:I(send - .6), 
+                       id = user, weights = as.numeric(avail), 
+                       scale.fix = T, data = sens4)
+# estimate(model2.sens4, normal = FALSE)
+
+## Model 3: Active and sedentary suggestions
+model3.sens4 <- geeglm(jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
+                         I(send.active - 0.3) + I(send.sedentary - 0.3) + 
+                         study.day.nogap:I(send.active - 0.3) + 
+                         study.day.nogap:I(send.sedentary - 0.3),
+                       id = user, weights = as.numeric(avail), 
+                       scale.fix = T, data = sens4)
+# estimate(model3.sens4, normal = FALSE)
+
+### Require 42 days on study
+sens5 <- subset(analysis.data(0:41)$data, user != 35)
+
+## Model 1: No time effect
+model1.sens6 <- geeglm(jbsteps30.log ~ jbsteps30pre.log + I(send - .6),
+                       id = user, weights = as.numeric(avail), 
+                       scale.fix = T, data = sens6)
+# estimate(model1.sens5, normal = FALSE)
+
+## Model 2: Linear day-on-study effect and interaction between linear 
+## day on study and centered treatment status
+model2.sens6 <- geeglm(jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
+                         I(send - .6) + study.day.nogap:I(send - .6),
+                       id = user, weights = as.numeric(avail), 
+                       scale.fix = T, data = sens6)
+# estimate(model2.sens5, normal = FALSE)
+
+## Model 3: Active and sedentary suggestions
+model3.sens6 <- geeglm(jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
+                         I(send.active - 0.3) + I(send.sedentary - 0.3) + 
+                         study.day.nogap:I(send.active - 0.3) + 
+                         study.day.nogap:I(send.sedentary - 0.3),
+                       id = user, weights = as.numeric(avail), 
+                       scale.fix = T, data = sens6)
 # estimate(model3.sens5, normal = FALSE)
