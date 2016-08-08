@@ -1,0 +1,268 @@
+---
+title: "Heartsteps Effect Size"
+author: 
+date: 
+output: 
+    beamer_presentation:
+      colortheme: "dove"
+      toc: false
+      incremental: false
+      fig_width: 6
+      fig_height: 4
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(ggplot2)
+library(RColorBrewer)
+library(dplyr)
+library(gridExtra)
+library(knitr)
+library(grid)
+library(reshape2)
+library(geepack)
+library(Matrix)
+
+source('../init.R', chdir=TRUE)
+source('../xgeepack.R')
+if (!exists('suggest')){
+  load(paste(sys.var$mbox.data,'csv.RData',sep=''))
+  load(paste(sys.var$mbox.data,"analysis.RData",sep=''))
+}
+
+gridline <- element_line(color='lightgrey',linetype='dashed')
+ptheme <-
+  theme_bw(base_size = 11) +
+  theme(panel.grid.major.x=gridline,
+        panel.grid.minor.x=element_blank(),
+        panel.grid.major.y=gridline,
+        panel.grid.minor.y=element_blank(),
+        strip.background=element_rect(fill=NA,color='white'),
+        legend.position='right',
+        legend.direction='vertical')
+```
+
+
+```{r data, echo=FALSE}
+
+unavail_sent_slots <-
+            filter(suggest, !avail & !is.na(notification.message))%>%
+                select(user, study.day.nogap, slot, avail, notification.message) %>%
+  mutate('Message sent' = !is.na(notification.message)) %>% select(-notification.message) %>%
+  rename('User' = user, 'Non-travel study day'= study.day.nogap,
+         'Decision slot' = slot, 'Available' = avail)
+no_message_tag <- 
+            filter(suggest, send & !travel & study.day.nogap <= 42 & is.na(send.sedentary)) %>%
+                select(user, study.day.nogap, slot, 
+                      notification.message) %>%
+  rename('User' = user,
+         'Non-travel study day' = study.day.nogap,
+         'Decision slot' = slot,
+         'Sent mesasge' = notification.message)
+
+ntravel <- sum(suggest$travel)
+npost41 <- with(suggest, sum(study.day.nogap > 41, na.rm=T))
+nexclude <- 
+  ntravel + npost41 + nrow(unavail_sent_slots) + nrow(no_message_tag)
+
+suggest.included <- 
+  suggest %>%
+  filter(!travel & study.day.nogap <= 41) %>%
+  anti_join(mutate(no_message_tag, no_message_tag = T),
+            by=c('user'='User','study.day.nogap'='Non-travel study day',
+                 'slot'='Decision slot')) %>%
+  anti_join(mutate(unavail_sent_slots, unavail_sent_slots = T),
+            by=c('user'='User','study.day.nogap'='Non-travel study day',
+                 'slot'='Decision slot'))
+
+navail <- sum(suggest.included$avail)
+
+# jbsteps30.zero is the zero-imputed raw step count in the 30 minutes after decision
+# jbsteps30.log = log(jbsteps30.zero + 0.5)
+# jbsteps30pre.zero is the zero-imputed raw step count in the 30 minutes prior to decision
+# jbsteps30pre.log = log(jbsteps30pre.zero + 0.5)
+# A_t = send
+suggest.analysis <-
+  suggest.included %>%
+    arrange(user, study.day.nogap, decision.index.nogap)
+
+```
+
+```{r effect-calcs, echo=FALSE}
+
+
+timepoints <-
+  with(suggest.analysis, sort(unique(decision.index.nogap)))
+
+s2_yt <-
+  suggest.analysis %>%
+  filter(avail) %>% # available only
+  group_by(decision.index.nogap, send) %>%
+  summarise(s2t = var(jbsteps30.log)) %>% # zero imputed, log(steps + 0.5)
+
+ybar_t <- 
+  suggest.analysis %>%
+  filter(avail) %>%
+  group_by(decision.index.nogap) %>%
+  summarise(ybar1 = mean(jbsteps30.log[which(send)]),
+            ybar0 = mean(jbsteps30.log[which(!send)])) %>%
+  mutate(ybardiff = ybar1 - ybar0)
+
+ybar_day <-
+  suggest.analysis %>%
+  filter(avail) %>%
+  group_by(study.day.nogap) %>%
+  summarise(ybar1 = mean(jbsteps30.log[which(send)]),
+            ybar0 = mean(jbsteps30.log[which(!send)])) %>%
+  mutate(ybardiff = ybar1 - ybar0)
+
+s2pool_t <- 
+  suggest.analysis %>%
+  filter(avail) %>%
+  group_by(decision.index.nogap) %>%
+  summarise(s2 = var(jbsteps30.log))
+
+s2pool <-
+  with(filter(s2pool_t, decision.index.nogap > 0),
+       mean(s2))
+
+```
+
+
+## Effect size for a difference in means
+
+In general, $\text{effect size} = \text{test statistic} \times \text{study size}$.
+
+E.g. Cohen's $d$:
+$$
+\begin{aligned} 
+d &= \frac{\overline{x}_1 - \overline{x}_2}{s_{\text{pooled}}} \\
+t &= d \times \sqrt{\frac{n_1n_2}{n_1+n_2}}
+\end{aligned}
+$$
+
+## Proximal main effect
+
+$$ \beta(t) = \mathrm{E}\left[\left.Y_{t+1}^{(A_t=1\ldots)} - Y_{t+1}^{(A_t=0\ldots)} \right|I_t=1\right]$$
+
+Assuming it's a smooth function of time.
+
+## Standardized effect in the sample size calculation
+
+$H_1: \beta(t) / \overline{\sigma} = d(t) = \text{standardized effect}$
+
+\vspace{12pt}
+
+Average variance: $\overline{\sigma}^2 = \frac{1}{T} \sum_{t=1}^T \mathrm{E}\left[\mathrm{Var}\left(Y_{t+1} | I_t=1, A_t\right)\right]$
+
+## Estimate $\beta(t)$
+
+with $\overline{Y}^{(A_t=1)}_{t+1} - \overline{Y}^{(A_t=0)}_{t+1}$ (available subjects only)
+
+## Difference in sample means over time
+
+```{r plot-means-time, echo=FALSE}
+
+p.ybar.time <- 
+  ybar_t %>%
+  ggplot(aes(x=decision.index.nogap, y=ybardiff)) +
+  geom_point(shape=1) +
+  ptheme + xlab(expression(t)) + ylab(expression(bar(y)[t+1]^(A[t]==1) - bar(y)[t+1]^(A[t]==0)))
+p.ybar.time
+
+```
+
+```{r plot-means-day, echo=FALSE}
+
+ybar_day %>%
+  ggplot(aes(x=study.day.nogap, y=ybardiff)) +
+  geom_point(shape=1) +
+  ptheme + xlab('study day') + stat_smooth() +
+  ylab('difference in means')
+
+```
+
+
+## Smooth $\hat{\beta}(t)$
+
+```{r smooth-data, echo=FALSE}
+
+nsmooth <- 150
+ybar_smooth <-
+  expand.grid(t=seq(0, max(timepoints), length.out=nsmooth),
+              bwidth = c(10,20)) %>%
+  group_by(bwidth) %>%
+  mutate(ysmooth = with(ybar_t,
+                        ksmooth(decision.index.nogap, ybardiff,
+                                kernel='normal', x.points=t,
+                                bandwidth=unique(bwidth))[['y']]),
+         ysmooth_std = with(ybar_t, 
+                            ksmooth(decision.index.nogap,
+                                    ybardiff / sqrt(s2pool),
+                                    kernel='normal', x.points=t,
+                                    bandwidth=unique(bwidth))[['y']]))
+
+```
+
+```{r smooth-plot-gaussian, echo=FALSE}
+ybar_smooth %>% ungroup %>%
+  filter(bwidth==20) %>% 
+  ggplot(aes(x=t, y=ysmooth)) +
+  geom_line() +
+  geom_point(aes(x=decision.index.nogap, y=ybardiff), data=ybar_t,
+             shape=1)+ 
+  ptheme + xlab('t') +
+  ylab(expression(bar(y)[t+1]^(A[t]==1) - bar(y)[t+1]^(A[t]==0)))
+
+```
+
+## Standardize by...
+
+SD pooled over time and treatment group? 
+
+$\hat{\overline{\sigma}}^2 = \sqrt{\frac{1}{T}\sum \hat{\mathrm{Var}}(Y_{t+1} | I_t=1)}$
+
+## Variances over time
+
+```{r plot-var-time, echo=FALSE, fig.width=6,fig.height=4.5}
+
+s2_yt %>%
+  ggplot(aes(x=decision.index.nogap, y=s2t)) + geom_point(aes(color=send), shape=1) +
+  ptheme + scale_color_brewer(palette='Dark2',
+                              name='',
+                              breaks=c('FALSE','TRUE'),
+                              labels=c('No suggestion','Suggestion')) +
+  theme(legend.position='bottom') +
+  ylab('Sample variance at t+1') 
+```
+
+
+## Ratio of variances for each treatment group
+```{r plot-sd-ratio-time, echo=FALSE}
+
+s2_yt %>% ungroup %>%
+  dcast(decision.index.nogap ~ send, value.var='s2t') %>% 
+  rename(s2_1 = `TRUE`, s2_0 = `FALSE`) %>%
+  ggplot(aes(x=decision.index.nogap, y= s2_1 / s2_0)) + 
+  geom_point(shape=1) +
+  ptheme + xlab(expression(t)) + ylab('ratio of sample variances at t+1')
+  #ggtitle('Comparing variances for treated/untreated')
+
+```
+
+
+## Divide the smoother by the pooled SD
+
+```{r plot-smooth-gauss-std, echo=FALSE}
+
+ybar_smooth %>% ungroup %>%
+  filter(bwidth==20) %>% 
+  ggplot(aes(x=t, y=ysmooth_std)) +
+  geom_line() +
+  geom_point(aes(x=decision.index.nogap, y=ybardiff / sqrt(s2pool)), data=ybar_t,
+             shape=1)+ 
+  ptheme + xlab('t') + 
+  ylab(expression(frac(bar(y)[t+1]^(A[t]==1) - bar(y)[t+1]^(A[t]==0), s[plain(pool)])))
+
+```
+
