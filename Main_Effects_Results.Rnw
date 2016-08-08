@@ -46,6 +46,8 @@
 \raggedbottom
 \allowdisplaybreaks
 
+\setcounter{section}{-1}
+
 \title{\bfseries HeartSteps Main Effects Analysis}
 \author{}
 \date{\vskip -2em\normalsize\today}
@@ -67,6 +69,17 @@ source("Main Effects Analysis.R")
 color.name <- "blue"
 @
 
+\section{Changes from Previous Versions}
+\label{sec:changes}
+\subsection{July 15 - August 8}
+Participant travel dates were changed to more accurately reflect GPS locations. Recall that travel time is entirely removed from the data used for analysis.
+\begin{enumerate}
+  \item Previously, participant 14 was marked as traveling from 9/18/2015 - 9/24/2015. These dates were chosen basded on knowledge that the participant traveled to Hawaii during the study and the fact that she was missing Jawbone step counts over this period. However, GPS data indicates that the participant was in Ann Arbor duing this time, but in Hawaii from 9/1/2015 - 9/5/2015. The participant's data was changed to exclude 9/1/2015 - 9/5/2015, and include 9/18/2015 - 9/24/2015.
+  \item Participant 18 was previously never marked as traveling, despite reporting a trip to Michigan's Upper Peninsula where he experienced poor connectivity. To remedy this, his data during the trip, from 9/20/2015 - 9/22/2015, has been removed from analysis.
+\end{enumerate}
+See ``Data Management Decisions.docx'' on Box for more details.
+
+
 \section{Participants Excluded}
 \label{sec:participant-exclusion}
 A total of \Sexpr{length(unique(users$user))} participants were recruited. Of those, we are excluding all data from \Sexpr{length(with(users, user[exclude == T]))}.
@@ -78,7 +91,7 @@ excluded because their phones were not set to an English locale. This resulted i
 \item Participants \Sexpr{v <- with(users, user[days <= 13]); paste(paste(v[1:length(v) - 1], collapse = ", ", sep = ""), "and", v[length(v)], collapse = ",", sep = " ")} dropped out of the study after 12 or fewer days. (Participant \Sexpr{v[1]} was on-study for \Sexpr{with(users, days[user == v[1]])} days; participant \Sexpr{v[2]} for \Sexpr{with(users, days[user == v[2]])} day; participant \Sexpr{v[3]} for \Sexpr{with(users, days[user == v[3]])} days; participant \Sexpr{v[4]} for \Sexpr{with(users, days[user == v[4]])} days.) Participants 36 and 38 left the study because they were too uncomfortable using a study phone.
 \end{itemize}
 
-\noindent After eliminating the above individuals, \textbf{\Sexpr{sum(!users$exclude)}} remain in the sample. The included participants were all on-study for at least \textbf{\Sexpr{min(aggregate(study.day.nogap ~ user, primary, max)$study.day.nogap) + 1}} days.
+\noindent After eliminating the above individuals, \textbf{\Sexpr{sum(!users$exclude)}} remain in the sample. The included participants were all on-study for at least \textbf{\Sexpr{max(days) + 1}} days.
 
 \section{Availability}
 \label{sec:avail}
@@ -111,6 +124,7 @@ Two participants (IDs 3 and 6) reported periods of international travel during w
 \item Participant 14 traveled to Hawaii for \Sexpr{sum(daily$travel[daily$user == 14])} days and experienced issues with the app while there. See~\Cref{sec:jawbone}.
 \item Participant 15 experienced extended technical issues stemming from her disabling connectivity on her phone (e.g., Bluetooth, location, etc.). Her study was extended by 12 days.
 \item Participant 17 reported technical and reception (both cellular and Wi-Fi) issues during the study (her office is in a basement). Her study was extended by 1 week.
+\item Participant 18 traveled to the Upper Peninsula for \Sexpr{sum(daily$travel[daily$user == 18])} days and experienced poor connectivity while there. These days were 
 \item Participant 39 lost his Jawbone. Additionally, the device may have been faulty or the participant disabled connectivity: Audrey and Nick noticed his Jawbone data was not being uploaded for some time. His study was extended by 3 weeks.
 \end{enumerate}
 
@@ -203,10 +217,10 @@ When step count is missing (in \textit{any} of the above scenarios), we impute z
 replayPlot(missing.step.plot)
 @
 
-We notice large spikes of missingness for users 14 and 35 in~\Cref{fig:missing-step-plot}.
+We notice large spikes of missingness for participant 14 and 35 in~\Cref{fig:missing-step-plot}.
 \begin{itemize}
-  \item User 14 went on vacation to Hawaii, and the dates of this trip could not be confirmed by study organizers. It may be reasonable to believe that she did not wear the Jawbone while on this trip. 
-  \item User 35 has no Jawbone data after 18 days on-study. He dropped out of communication with study organizers; we believe this is due to a lost Jawbone. We do have Google Fit data which, when Jawbone data is available, is highly correlated with Jawbone step count 
+  \item It was previously believed that participant 14 was on vacation in Hawaii and did not bring her Jawbone. This could not be confirmed by GPS data (see~Cref{sec:changes}).
+  \item Participant 35 has no Jawbone data after 18 days on-study. He dropped out of communication with study organizers; we believe this is due to a lost Jawbone. We do have Google Fit data which, when Jawbone data is available, is highly correlated with Jawbone step count 
   ($\hat{\rho}$ = \Sexpr{with(suggest[suggest$user == 35 & !is.na(suggest$jbsteps30), ], round(cor(jbsteps30, gfsteps30), 3))}). 
 \end{itemize}
 
@@ -388,7 +402,7 @@ where
 names(model4$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$", "$\\beta_{1}$", "$\\beta_{2}$")
 print(xtable(estimate(model4), floating = FALSE, digits = 3,
              caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:actsed-marginal-model}",
-             label = "tab:actsed-model"), 
+             label = "tab:actsed-marginal-model"), 
       sanitize.rownames.function = identity)
 @
 
@@ -455,25 +469,53 @@ names(model1.sens1$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$", "$\\beta
 print(xtable(estimate(model1.sens1, normal = FALSE),
              caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-no-day-effect} after removing participant 35",
              label = "tab:model-no-day-effect-sens1",
-             floating = FALSE, digits = 3), 
-      sanitize.rownames.function = identity)
+             floating = TRUE, digits = 3), 
+      sanitize.rownames.function = identity, table.placement = "H")
 
 names(model2.sens1$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$",
                                       "$\\alpha_{2}$", "$\\beta_{1}$",
                                       "$\\beta_{2}$")
 print(xtable(estimate(model2.sens1, normal = FALSE),
              caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-with-day-effect} after removing participant 35",
-             label = "tab:model-with-day-effect-sens1", floating = FALSE, digits = 3), 
-      sanitize.rownames.function = identity)
+             label = "tab:model-with-day-effect-sens1", floating = TRUE, digits = 3), 
+      sanitize.rownames.function = identity, table.placement = "H")
 
 names(model3.sens1$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$",
                                       "$\\alpha_{2}$", "$\\beta_{1}$",
                                       "$\\beta_{2}$", "$\\beta_{3}$",
                                       "$\\beta_{4}$")
-print(xtable(estimate(model3.sens1, normal = FALSE), floating = FALSE, digits = 3,
+print(xtable(estimate(model3.sens1, normal = FALSE), floating = TRUE, digits = 3,
              caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:actsed-model} after removing participant 35",
              label = "tab:actsed-model-sens1"), 
-      sanitize.rownames.function = identity)
+      sanitize.rownames.function = identity, table.placement = "H")
+@
+
+Next, we remove the original travel days recorded for participant 14 (9/18/2015 - 9/24/2015, see~\Cref{sec:changes}). This removal is \textit{in addition to} removing data from 9/1/2015 - 9/5/2015, when GPS data indicates the participant was in Hawaii. Note that after excluding these days, participant 14 was on-study for \Sexpr{length(unique(sens6$study.day.nogap[sens6$user == 14]))} days, which is \Sexpr{ifelse(length(unique(sens6$study.day.nogap[sens6$user == 14])) < max(days) + 1, paste("below the threshold for"), paste("long enough for"))} inclusion in the primary analysis.
+
+<<sens6-rmID14, results = "asis">>=
+names(model1.sens6$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$", "$\\beta_{1}$")
+print(xtable(estimate(model1.sens6, normal = FALSE),
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-no-day-effect} after removing original travel dates for participant 14",
+             label = "tab:model-no-day-effect-sens6",
+             floating = TRUE, digits = 3), 
+      sanitize.rownames.function = identity, table.placement = "H")
+
+names(model2.sens6$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$",
+                                      "$\\alpha_{2}$", "$\\beta_{1}$",
+                                      "$\\beta_{2}$")
+print(xtable(estimate(model2.sens6, normal = FALSE),
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-with-day-effect} after removing original travel dates for participant 14",
+             label = "tab:model-with-day-effect-sens6", floating = TRUE, digits = 3), 
+      sanitize.rownames.function = identity, table.placement = "H")
+
+names(model3.sens6$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$",
+                                      "$\\alpha_{2}$", "$\\beta_{1}$",
+                                      "$\\beta_{2}$", "$\\beta_{3}$",
+                                      "$\\beta_{4}$")
+print(xtable(estimate(model3.sens6, normal = FALSE), floating = TRUE, digits = 3,
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:actsed-model} after removing original travel dates for participant 14",
+             label = "tab:actsed-model-sens6"), 
+      sanitize.rownames.function = identity, table.placement = "H")
 @
 
 \subsection{Increase Minimum-Required Time-on-Study}
