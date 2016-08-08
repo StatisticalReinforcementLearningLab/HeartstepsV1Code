@@ -99,7 +99,6 @@ s2_yt <-
   filter(avail) %>% # available only
   group_by(decision.index.nogap, send) %>%
   summarise(s2t = var(jbsteps30.log)) %>% # zero imputed, log(steps + 0.5)
-  mutate(tm1 = decision.index.nogap - 1)
 
 ybar_t <- 
   suggest.analysis %>%
@@ -107,8 +106,15 @@ ybar_t <-
   group_by(decision.index.nogap) %>%
   summarise(ybar1 = mean(jbsteps30.log[which(send)]),
             ybar0 = mean(jbsteps30.log[which(!send)])) %>%
-  mutate(ybardiff = ybar1 - ybar0,
-         tm1 = decision.index.nogap - 1)
+  mutate(ybardiff = ybar1 - ybar0)
+
+ybar_day <-
+  suggest.analysis %>%
+  filter(avail) %>%
+  group_by(study.day.nogap) %>%
+  summarise(ybar1 = mean(jbsteps30.log[which(send)]),
+            ybar0 = mean(jbsteps30.log[which(!send)])) %>%
+  mutate(ybardiff = ybar1 - ybar0)
 
 s2pool_t <- 
   suggest.analysis %>%
@@ -158,15 +164,24 @@ with $\overline{Y}^{(A_t=1)}_{t+1} - \overline{Y}^{(A_t=0)}_{t+1}$ (available su
 ```{r plot-means-time, echo=FALSE}
 
 p.ybar.time <- 
-  data.frame(t=timepoints) %>%
-  left_join(ybar_t, by=c('t'='tm1')) %>%
-  filter(!is.na(ybar1)) %>%
-  ggplot(aes(x=t, y=ybardiff)) +
+  ybar_t %>%
+  ggplot(aes(x=decision.index.nogap, y=ybardiff)) +
   geom_point(shape=1) +
   ptheme + xlab(expression(t)) + ylab(expression(bar(y)[t+1]^(A[t]==1) - bar(y)[t+1]^(A[t]==0)))
 p.ybar.time
 
 ```
+
+```{r plot-means-day, echo=FALSE}
+
+ybar_day %>%
+  ggplot(aes(x=study.day.nogap, y=ybardiff)) +
+  geom_point(shape=1) +
+  ptheme + xlab('study day') + stat_smooth() +
+  ylab('difference in means')
+
+```
+
 
 ## Smooth $\hat{\beta}(t)$
 
@@ -177,12 +192,13 @@ ybar_smooth <-
   expand.grid(t=seq(0, max(timepoints), length.out=nsmooth),
               bwidth = c(10,20)) %>%
   group_by(bwidth) %>%
-  mutate(ysmooth = with(filter(ybar_t, tm1>=0),
-                        ksmooth(tm1, ybardiff,
+  mutate(ysmooth = with(ybar_t,
+                        ksmooth(decision.index.nogap, ybardiff,
                                 kernel='normal', x.points=t,
                                 bandwidth=unique(bwidth))[['y']]),
-         ysmooth_std = with(filter(ybar_t, tm1 >= 0),
-                            ksmooth(tm1, ybardiff / sqrt(s2pool),
+         ysmooth_std = with(ybar_t, 
+                            ksmooth(decision.index.nogap,
+                                    ybardiff / sqrt(s2pool),
                                     kernel='normal', x.points=t,
                                     bandwidth=unique(bwidth))[['y']]))
 
@@ -193,7 +209,7 @@ ybar_smooth %>% ungroup %>%
   filter(bwidth==20) %>% 
   ggplot(aes(x=t, y=ysmooth)) +
   geom_line() +
-  geom_point(aes(x=tm1, y=ybardiff), data=filter(ybar_t, tm1>=0),
+  geom_point(aes(x=decision.index.nogap, y=ybardiff), data=ybar_t,
              shape=1)+ 
   ptheme + xlab('t') +
   ylab(expression(bar(y)[t+1]^(A[t]==1) - bar(y)[t+1]^(A[t]==0)))
@@ -210,10 +226,8 @@ $\hat{\overline{\sigma}}^2 = \sqrt{\frac{1}{T}\sum \hat{\mathrm{Var}}(Y_{t+1} | 
 
 ```{r plot-var-time, echo=FALSE, fig.width=6,fig.height=4.5}
 
-data.frame(t=timepoints) %>%
-  left_join(s2_yt, by=c('t'='tm1')) %>%
-  filter(!is.na(s2t)) %>%
-  ggplot(aes(x=t, y=s2t)) + geom_point(aes(color=send), shape=1) +
+s2_yt %>%
+  ggplot(aes(x=decision.index.nogap, y=s2t)) + geom_point(aes(color=send), shape=1) +
   ptheme + scale_color_brewer(palette='Dark2',
                               name='',
                               breaks=c('FALSE','TRUE'),
@@ -226,12 +240,10 @@ data.frame(t=timepoints) %>%
 ## Ratio of variances for each treatment group
 ```{r plot-sd-ratio-time, echo=FALSE}
 
-data.frame(t=timepoints) %>%
-  left_join(s2_yt, by=c('t'='tm1')) %>%
-  filter(!is.na(s2t)) %>%
-  dcast(t ~ send, value.var='s2t') %>% 
+s2_yt %>% ungroup %>%
+  dcast(decision.index.nogap ~ send, value.var='s2t') %>% 
   rename(s2_1 = `TRUE`, s2_0 = `FALSE`) %>%
-  ggplot(aes(x=t, y= s2_1 / s2_0)) + 
+  ggplot(aes(x=decision.index.nogap, y= s2_1 / s2_0)) + 
   geom_point(shape=1) +
   ptheme + xlab(expression(t)) + ylab('ratio of sample variances at t+1')
   #ggtitle('Comparing variances for treated/untreated')
@@ -247,15 +259,10 @@ ybar_smooth %>% ungroup %>%
   filter(bwidth==20) %>% 
   ggplot(aes(x=t, y=ysmooth_std)) +
   geom_line() +
-  geom_point(aes(x=tm1, y=ybardiff / sqrt(s2pool)), data=filter(ybar_t, tm1>=0),
+  geom_point(aes(x=decision.index.nogap, y=ybardiff / sqrt(s2pool)), data=ybar_t,
              shape=1)+ 
   ptheme + xlab('t') + 
   ylab(expression(frac(bar(y)[t+1]^(A[t]==1) - bar(y)[t+1]^(A[t]==0), s[plain(pool)])))
 
 ```
 
-## Issues
-
-- Assumptions for kernel smoother CI
-- Interpretable?
-- Do I need a ratio CI?
