@@ -81,6 +81,113 @@ suggest.analysis <-
 
 ```
 
+## Notation
+* $Y_{t+1}$ is log(stepcount + 0.5) in the 30 minutes following the $t$th decision point.
+* $Z_t$ is log(stepcount + 0.5) in the 30 minutes prior to the $t$th decision point.
+* $A_{t}$ is the indicator of treatment (suggestion) at decision point $t$.
+* $A_{1,t}$ is the indicator of an active suggestion at point $t$.
+* $A_{2,t}$ is the indicator of a sedentary suggestion at point $t$.
+
 ## Previous 30-minute step count
 
+$$Y_{t+1} = \alpha_0 + \alpha_1 Z_t + \beta_1(A_t - 0.6) + \beta_2 Z_t (A_t - 0.6)$$
 
+```{r zt-mod1, echo=FALSE}
+
+m1.zt <- 
+  geeglm(
+  jbsteps30.log ~ jbsteps30pre.log + I(send - 0.6) + jbsteps30pre.log * I(send-0.6),
+  id = user, 
+  corstr = 'independence',
+  weights = as.numeric(suggest.analysis$avail),
+  scale.fix = TRUE,
+  data = suggest.analysis
+)
+
+vcov1.zt <- vcov.heartsteps.bgl(m1.zt, small=T)
+se1.zt <- diag(vcov1.zt)
+coef1.zt <- coef(m1.zt)
+
+test1.zt <- pointwise.table.small(coef1.zt,
+                               vcov1.zt,
+                               n=length(m1.zt$geese$clusz),
+                               alpha=0.05)
+
+```
+
+```{r zt-mod1-results, echo=FALSE, results='asis'}
+
+tt <- cbind('Estimate' = coef1.zt,
+            "SE" = sqrt(se1.zt),
+            test1.zt)
+rownames(tt) <- c('$\\alpha_0$', '$\\alpha_1$','$\\beta_1$', '$\\beta_2$')
+colnames(tt)[3:6] <- c('Hotelling','p-value','95% LCL','95% UCL')
+
+kable(tt,
+      digits = c(3,4,2,2,3,3),
+      padding=0)
+
+```
+
+### Active versus sedentary
+
+$$Y_{t+1} = \alpha_0 + \alpha_1 Z_t + \beta_1(A_{1,t} - 0.3) + \beta_2(A_{2,t} - 0.3) + \beta_3 Z_t (A_{1,t} - 0.3) + \beta_4 Z_t (A_{2,t} - 0.3)$$
+
+
+```{r zt-mod2, echo=FALSE}
+
+m2.zt <- 
+  geeglm(
+  jbsteps30.log ~ jbsteps30pre.log + I(send.active - 0.3) + 
+    I(send.sedentary - 0.3) + jbsteps30pre.log * I(send.active - 0.3) +
+    jbsteps30pre.log * I(send.sedentary - 0.3),
+  id = user, 
+  corstr = 'independence',
+  weights = as.numeric(suggest.analysis$avail),
+  scale.fix = TRUE,
+  data = suggest.analysis
+)
+
+vcov2.zt <- vcov.heartsteps.bgl(m2.zt, small=T)
+se2.zt <- diag(vcov2.zt)
+coef2.zt <- coef(m2.zt)
+
+test2.zt <- pointwise.table.small(coef2.zt,
+                               vcov2.zt,
+                               n=length(m2.zt$geese$clusz),
+                               alpha=0.05)
+
+```
+
+```{r zt-mod2-results, echo=FALSE, results='asis'}
+
+tt <- cbind('Estimate' = coef2.zt,
+            "SE" = sqrt(se2.zt),
+            test2.zt)
+rownames(tt) <- c('$\\alpha_0$', '$\\alpha_1$','$\\beta_1$', '$\\beta_2$',
+                  '$\\beta_3$', '$\\beta_4$')
+colnames(tt)[3:6] <- c('Hotelling','p-value','95% LCL','95% UCL')
+
+#kable(tt,
+#      digits = c(3,4,2,1,3,3),
+#      padding=0,
+#      format.args=list(format='f'))
+
+print(xtable(tt,
+             digits=c(0,3,3,2,3,3,3),
+             format='f'
+             ),
+      sanitize.rownames.function=identity,
+      floating=F
+      )
+
+```
+
+
+## Previous day's self-reported stress
+
+Part of the EMA.
+
+## Amount of activity up to the decision point
+
+Average step count per hour?
