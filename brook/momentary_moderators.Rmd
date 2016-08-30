@@ -1,0 +1,86 @@
+---
+title: "Momentary Moderators"
+author: "Brook Luers"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(RColorBrewer)
+library(dplyr)
+library(gridExtra)
+library(knitr)
+library(grid)
+library(reshape2)
+library(geepack)
+library(Matrix)
+
+source('../init.R', chdir=TRUE)
+source('../xgeepack.R')
+if (!exists('suggest')){
+  load(paste(sys.var$mbox.data,'csv.RData',sep=''))
+  load(paste(sys.var$mbox.data,"analysis.RData",sep=''))
+}
+source('estimation_functions_brook.R')
+gridline <- element_line(color='lightgrey',linetype='dashed')
+ptheme <-
+  theme_bw(base_size = 11) +
+  theme(panel.grid.major.x=gridline,
+        panel.grid.minor.x=element_blank(),
+        panel.grid.major.y=gridline,
+        panel.grid.minor.y=element_blank(),
+        strip.background=element_rect(fill=NA,color='white'),
+        legend.position='right',
+        legend.direction='vertical')
+```
+
+
+
+```{r data, echo=FALSE}
+
+unavail_sent_slots <-
+            filter(suggest, !avail & !is.na(notification.message))%>%
+                select(user, study.day.nogap, slot, avail, notification.message) %>%
+  mutate('Message sent' = !is.na(notification.message)) %>% select(-notification.message) %>%
+  rename('User' = user, 'Non-travel study day'= study.day.nogap,
+         'Decision slot' = slot, 'Available' = avail)
+no_message_tag <- 
+            filter(suggest, send & !travel & study.day.nogap <= 42 & is.na(send.sedentary)) %>%
+                select(user, study.day.nogap, slot, 
+                      notification.message) %>%
+  rename('User' = user,
+         'Non-travel study day' = study.day.nogap,
+         'Decision slot' = slot,
+         'Sent mesasge' = notification.message)
+
+ntravel <- sum(suggest$travel)
+npost41 <- with(suggest, sum(study.day.nogap > 41, na.rm=T))
+nexclude <- 
+  ntravel + npost41 + nrow(unavail_sent_slots) + nrow(no_message_tag)
+
+suggest.included <- 
+  suggest %>%
+  filter(!travel & study.day.nogap <= 41) %>%
+  anti_join(mutate(no_message_tag, no_message_tag = T),
+            by=c('user'='User','study.day.nogap'='Non-travel study day',
+                 'slot'='Decision slot')) %>%
+  anti_join(mutate(unavail_sent_slots, unavail_sent_slots = T),
+            by=c('user'='User','study.day.nogap'='Non-travel study day',
+                 'slot'='Decision slot'))
+
+# jbsteps30.zero is the zero-imputed raw step count in the 30 minutes after decision
+# jbsteps30.log = log(jbsteps30.zero + 0.5)
+# jbsteps30pre.zero is the zero-imputed raw step count in the 30 minutes prior to decision
+# jbsteps30pre.log = log(jbsteps30pre.zero + 0.5)
+# A_t = send
+suggest.analysis <-
+  suggest.included %>%
+    arrange(user, study.day.nogap, decision.index.nogap)
+
+```
+
+## Previous 30-minute step count
+
+
