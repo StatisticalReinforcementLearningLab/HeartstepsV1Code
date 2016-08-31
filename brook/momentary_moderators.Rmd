@@ -94,8 +94,6 @@ mod.maineff <-
     data = suggest.analysis
   )
 
-
-
 ```
 
 
@@ -110,6 +108,7 @@ mod.maineff <-
 
 (This and all models that follow weight by availability)
 
+## Marginal model with interaction (no time trend)
 $$Y_{t+1} \sim \alpha_0 + \alpha_1 Z_t + \beta_1(A_t - 0.6) + \beta_2 Z_t (A_t - 0.6)$$
 
 ```{r zt-mod1, echo=FALSE}
@@ -133,7 +132,10 @@ test1.zt <- pointwise.table.small(coef1.zt,
                                n=length(m1.zt$geese$clusz),
                                alpha=0.05)
 
+
+
 ```
+
 
 ```{r zt-mod1-results, echo=FALSE, results='asis'}
 
@@ -143,11 +145,72 @@ tt <- cbind('Estimate' = coef1.zt,
 rownames(tt) <- c('$\\alpha_0$', '$\\alpha_1$','$\\beta_1$', '$\\beta_2$')
 colnames(tt)[3:6] <- c('Hotelling','p-value','95% LCL','95% UCL')
 
-kable(tt,
-      digits = c(3,4,2,2,3,3),
-      align='r',
-      format='markdown'
-      )
+#kable(tt,
+#      digits = c(3,4,2,2,3,3),
+#      align='r',
+#      format='markdown'
+#      )
+cat('\\begin{center}')
+print(xtable(tt,
+             digits=c(0,3,4,2,2,3,3),
+             format='f'),
+      sanitize.rownames.function=identity,
+      floating=F,
+      comment=F)
+cat('\\end{center}')
+
+```
+
+## Interactions with linear time trend
+$$Y_{t+1} \sim \alpha_0 + \alpha_1 Z_t + \alpha_2 d(t) + \beta_1(A_t - 0.6) + \beta_2 d(t) (A_t - 0.6) + \beta_3 Z_t(A_t-0.6) + \beta_4 d(t) Z_t$$
+```{r zt-mod1-time, echo=FALSE}
+m1.zt.time <- 
+  geeglm(
+    jbsteps30.log ~ jbsteps30pre.log + study.day.nogap + I(send - 0.6) +
+      study.day.nogap:I(send-0.6) +
+      jbsteps30pre.log:I(send-0.6) + study.day.nogap:jbsteps30pre.log,
+  id = user, 
+  corstr = 'independence',
+  weights = as.numeric(suggest.analysis$avail),
+  scale.fix = TRUE,
+  data = suggest.analysis
+  )
+
+vcov.zt1.time <- vcov.heartsteps.bgl(m1.zt.time, small=T)
+se.zt1.time <- diag(vcov.zt1.time)
+coef.zt1.time <- coef(m1.zt.time)
+
+test.zt1.time <- pointwise.table.small(coef.zt1.time,
+                               vcov.zt1.time,
+                               n=length(m1.zt.time$geese$clusz),
+                               alpha=0.05)
+
+```
+
+```{r zt-mod1-time-results, echo=FALSE, results='asis'}
+tt <- cbind('Estimate' = coef.zt1.time,
+            "SE" = sqrt(se.zt1.time),
+            test.zt1.time)
+rownames(tt) <- c('$\\alpha_0$', '$\\alpha_1$', '$\\alpha_2$', 
+                  '$\\beta_1$', '$\\beta_2$', '$\\beta_3$', '$\\beta_4$')
+colnames(tt)[3:6] <- c('Hotelling','p-value','95% LCL','95% UCL')
+tt[,1] <- round(tt[,1], 3)
+#kable(tt,
+#      digits = c(3,4,2,3,3,3),
+#      align='r',
+#      format.args=list(trim=T)
+#      )
+
+cat('\\begin{center}')
+print(xtable(tt,
+             digits=c(0,3,4,2,3,3,3),
+             format='f'),
+      sanitize.rownames.function=identity,
+      floating=F,
+      comment=F)
+cat('\\end{center}')
+
+
 
 ```
 
@@ -190,20 +253,20 @@ rownames(tt) <- c('$\\alpha_0$', '$\\alpha_1$','$\\beta_1$', '$\\beta_2$',
                   '$\\beta_3$', '$\\beta_4$')
 colnames(tt)[3:6] <- c('Hotelling','p-value','95% LCL','95% UCL')
 
-kable(tt,
-      digits = c(4,4,2,1,3,3),
-      padding=0)
-
-#print(xtable(tt,
-#             digits=c(0,3,3,2,3,3,3),
-#             format='f'
-#             ),
-#      sanitize.rownames.function=identity,
-#      floating=F
-#      )
+#kable(tt,
+#      digits = c(4,4,2,1,3,3),
+#      padding=0)
+cat('\\begin{center}')
+print(xtable(tt,
+             digits=c(0,3,3,2,2,3,3),
+             format='f'
+             ),
+      sanitize.rownames.function=identity,
+      floating=F
+      )
+cat('\\end{center}')
 
 ```
-
 
 # Previous day's self-reported stress
 
@@ -240,6 +303,9 @@ suggest.stress <-
          stress_prev_day = stressful,
          jbsteps30pre.log, jbsteps30.log, send,
          send.active, send.sedentary, avail)
+
+
+nrow(suggest.stress)
 
 
 ```
@@ -285,7 +351,7 @@ prop_missing_stress %>%
 
 Let $E_{d(t) - 1}$ be the numeric stress rating (1--5) on the previous day.
 
-This model excludes all decision points where the previous day's stress rating is missing.
+This model excludes all decision points where the previous day's stress rating is missing (`r sum(is.na(suggest.stress$stress_prev_day))` out of `r nrow(suggest.stress)` decision points).
 
 $$Y_{t+1} \sim \alpha_0 + \alpha_1 Z_t + \beta_1(A_t - 0.6) + \beta_2 E_{d(t) - 1} + \beta_3 E_{d(t)-1}(A_t - 0.6)$$
 
@@ -325,9 +391,17 @@ rownames(tt) <- c('$\\alpha_0$', '$\\alpha_1$','$\\beta_1$', '$\\beta_2$',
                   '$\\beta_3$')
 colnames(tt)[3:6] <- c('Hotelling','p-value','95% LCL','95% UCL')
 
-kable(tt,
-      digits = c(4,2,2,1,3,3),
-      align='r')
+#kable(tt,
+#      digits = c(4,2,2,1,3,3),
+#      align='r')
+cat('\\begin{center}')
+print(xtable(tt,
+             digits=c(0,4,3,2,2,3,3),
+             format='f'),
+      sanitize.rownames.function=identity,
+      floating=F,
+      comment=F)
+cat('\\end{center}')
 
 ```
 
@@ -390,10 +464,62 @@ rownames(tt) <- c('$\\alpha_0$', '$\\alpha_1$','$\\beta_1$', '$\\beta_2$',
                   '$\\beta_3$', '$\\beta_4$', '$\\beta_5$')
 colnames(tt)[3:6] <- c('Hotelling','p-value','95% LCL','95% UCL')
 
-kable(tt,
-      digits = c(4,3,2,1,3,3),
-      padding=0)
+#kable(tt,
+#      digits = c(4,3,2,1,3,3),
+#      padding=0)
+cat('\\begin{center}')
+print(xtable(tt,
+             digits=c(0,3,3,2,2,3,3),
+             format='f'),
+      sanitize.rownames.function=identity,
+      floating=F,
+      comment=F)
+cat('\\end{center}')
 
 ```
 
 # Amount of activity up to the decision point
+
+```{r cumulative-activity, echo=FALSE}
+
+hour_cutoff <- 5
+
+## To fix:
+# need to handle slots where no steps were accumulated
+# need to calculate length of slot for those cases
+# e.g. no steps before first decision point of day after 5 a.m.
+#   still want the time between 5 a.m. and that decision point
+# or just subtract 5 a.m. from each decision point!
+jbslotpre.cutoff <-
+  jbslotpre %>%
+  filter(as.POSIXct(start.datetime) >= as.POSIXct(start.date) + hour_cutoff*60*60 &
+           study.date == start.date)
+
+jbslotpre.cutoff <-
+  jbslotpre.cutoff %>%
+  inner_join(select(suggest.analysis, user,study.date, decision.index.nogap),
+             by=c('user'='user',
+                  'study.date'='study.date',
+                  'decision.index.nogap'='decision.index.nogap'))
+
+jbslotpre.cumulative <-
+  jbslotpre.cutoff %>%
+  group_by(user, decision.index.nogap) %>%
+  summarise(study.date=unique(study.date),
+            slot_steps = sum(steps),
+            slot_time_min = difftime(max(decision.utime),
+                                     min(start.utime), units='mins')) %>%
+  right_join(
+    select(suggest.analysis, user, decision.index.nogap, study.date),
+    by=c('user'='user','decision.index.nogap'='decision.index.nogap',
+         'study.date'='study.date')
+  )
+
+  #group_by(user, study.date) %>%
+  #mutate(cum_day_steps = cumsum(slot_steps),
+  #       cum_day_min = cumsum(as.numeric(slot_time_min))) 
+
+
+  
+```
+
