@@ -2,11 +2,14 @@
 title: "Momentary Moderators"
 author: "Brook Luers"
 date: "`r format(Sys.time(), '%B %d, %Y')`"
-output: pdf_document
+output: 
+  pdf_document:
+    number_sections: true
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE,
+                      fig.align='center')
 library(ggplot2)
 library(RColorBrewer)
 library(dplyr)
@@ -35,7 +38,6 @@ ptheme <-
         legend.position='right',
         legend.direction='vertical')
 ```
-
 
 
 ```{r data, echo=FALSE}
@@ -81,16 +83,34 @@ suggest.analysis <-
 
 ```
 
-## Notation
+```{r maineff-model, echo=FALSE}
+mod.maineff <- 
+  geeglm(
+    jbsteps30.log ~ jbsteps30pre.log + I(send - 0.6),
+    id = user, 
+    corstr = 'independence',
+    weights = as.numeric(suggest.analysis$avail),
+    scale.fix = TRUE,
+    data = suggest.analysis
+  )
+
+
+
+```
+
+
+# Notation
 * $Y_{t+1}$ is log(stepcount + 0.5) in the 30 minutes following the $t$th decision point.
 * $Z_t$ is log(stepcount + 0.5) in the 30 minutes prior to the $t$th decision point.
 * $A_{t}$ is the indicator of treatment (suggestion) at decision point $t$.
 * $A_{1,t}$ is the indicator of an active suggestion at point $t$.
 * $A_{2,t}$ is the indicator of a sedentary suggestion at point $t$.
 
-## Previous 30-minute step count
+# Previous 30-minute step count
 
-$$Y_{t+1} = \alpha_0 + \alpha_1 Z_t + \beta_1(A_t - 0.6) + \beta_2 Z_t (A_t - 0.6)$$
+(This and all models that follow weight by availability)
+
+$$Y_{t+1} \sim \alpha_0 + \alpha_1 Z_t + \beta_1(A_t - 0.6) + \beta_2 Z_t (A_t - 0.6)$$
 
 ```{r zt-mod1, echo=FALSE}
 
@@ -125,13 +145,15 @@ colnames(tt)[3:6] <- c('Hotelling','p-value','95% LCL','95% UCL')
 
 kable(tt,
       digits = c(3,4,2,2,3,3),
-      padding=0)
+      align='r',
+      format='markdown'
+      )
 
 ```
 
-### Active versus sedentary
+## Active versus sedentary
 
-$$Y_{t+1} = \alpha_0 + \alpha_1 Z_t + \beta_1(A_{1,t} - 0.3) + \beta_2(A_{2,t} - 0.3) + \beta_3 Z_t (A_{1,t} - 0.3) + \beta_4 Z_t (A_{2,t} - 0.3)$$
+$$Y_{t+1} \sim \alpha_0 + \alpha_1 Z_t + \beta_1(A_{1,t} - 0.3) + \beta_2(A_{2,t} - 0.3) + \beta_3 Z_t (A_{1,t} - 0.3) + \beta_4 Z_t (A_{2,t} - 0.3)$$
 
 
 ```{r zt-mod2, echo=FALSE}
@@ -168,26 +190,210 @@ rownames(tt) <- c('$\\alpha_0$', '$\\alpha_1$','$\\beta_1$', '$\\beta_2$',
                   '$\\beta_3$', '$\\beta_4$')
 colnames(tt)[3:6] <- c('Hotelling','p-value','95% LCL','95% UCL')
 
-#kable(tt,
-#      digits = c(3,4,2,1,3,3),
-#      padding=0,
-#      format.args=list(format='f'))
+kable(tt,
+      digits = c(4,4,2,1,3,3),
+      padding=0)
 
-print(xtable(tt,
-             digits=c(0,3,3,2,3,3,3),
-             format='f'
-             ),
-      sanitize.rownames.function=identity,
-      floating=F
-      )
+#print(xtable(tt,
+#             digits=c(0,3,3,2,3,3,3),
+#             format='f'
+#             ),
+#      sanitize.rownames.function=identity,
+#      floating=F
+#      )
 
 ```
 
 
-## Previous day's self-reported stress
+# Previous day's self-reported stress
 
-Part of the EMA.
+```{r ema-data, echo=FALSE}
 
-## Amount of activity up to the decision point
+# Hyesun's code
+#temp <- daily[!is.na(daily$study.day.nogap),]
+#temp <- temp[temp$study.day.nogap %in% 0:41,]
+#temp1 = with(temp, temp[!is.na(ema.set.length),])
 
-Average step count per hour?
+daily.analysis <-
+  daily %>% filter(!travel & study.day.nogap <= 41)
+
+npdays <- nrow(daily.analysis)
+nmissdays <- sum(is.na(daily.analysis$stressful))
+
+prop_missing_stress <- 
+  daily.analysis %>% 
+  select(user, study.date, stressful) %>%
+  group_by(user) %>%
+  summarise(n_missing = sum(is.na(stressful)),
+            tot = n(),
+            prop_missing = n_missing / tot) %>%
+  arrange(desc(prop_missing))
+
+suggest.stress <- 
+  suggest.analysis %>% 
+  left_join(
+    daily.analysis %>% select(user, study.date, stressful) %>%
+    mutate(study.date.plus1 = study.date + 1),
+    by=c('user'='user', 'study.date' = 'study.date.plus1')
+  ) %>%
+  select(user, study.date, study.day.nogap, decision.index.nogap,
+         stress_prev_day = stressful,
+         jbsteps30pre.log, jbsteps30.log, send,
+         send.active, send.sedentary, avail)
+
+
+```
+
+## Missingness of self-reported stress
+
+```{r missing-residuals, echo=FALSE, include=FALSE}
+temp <- 
+  data.frame(fitted=mod.maineff$fitted.values,
+                  resid = mod.maineff$y - mod.maineff$fitted.values,
+                  stress_prev = suggest.stress$stress_prev_day) %>%
+         mutate(stress_prev_c = as.character(stress_prev))
+temp$stress_prev_c[which(is.na(temp$stress_prev))] <- "Missing"
+temp$stress_prev_f <- factor(temp$stress_prev_c,
+                             levels=c(1:5, 'Missing'))
+temp$decision.index.nogap <- suggest.stress$decision.index.nogap
+
+ggplot(temp) + 
+  geom_point(aes(x=decision.index.nogap, y=resid, 
+                 color=stress_prev_f))+
+    scale_color_manual(values=c(brewer.pal(5, 'Blues'), 'red')) +
+    ptheme
+
+```
+
+Of the `r npdays` person-days used in our analyses, about `r 100 * round(nmissdays / npdays, 2)` percent (`r nmissdays` / `r npdays`) are missing a self-reported stress rating. 
+
+```{r plot-missing-stress, echo=FALSE, fig.width=4, fig.height=3.5,out.width='0.5\\textwidth'}
+prop_missing_stress %>%
+  mutate(user = factor(user, levels=rev(user))) %>%
+  ggplot(aes(y=as.factor(user), x=prop_missing)) + 
+  geom_point() + ptheme +
+  geom_segment(aes(xend=0, yend=user), linetype='dashed') +
+  scale_x_continuous(breaks=c(0,.2,.4,.6),
+                     labels=c('0','0.2','0.4','0.6')) +
+  xlab('Proportion of study days missing stress report')+
+  ylab('User') +
+  theme(panel.grid.major.y=element_blank())
+
+```
+
+## Complete-case analysis with stress as a moderator
+
+Let $E_{d(t) - 1}$ be the numeric stress rating (1--5) on the previous day.
+
+This model excludes all decision points where the previous day's stress rating is missing.
+
+$$Y_{t+1} \sim \alpha_0 + \alpha_1 Z_t + \beta_1(A_t - 0.6) + \beta_2 E_{d(t) - 1} + \beta_3 E_{d(t)-1}(A_t - 0.6)$$
+
+```{r stress-model-complete, echo=FALSE}
+
+suggest.stress.complete <-
+  filter(suggest.stress, !is.na(stress_prev_day))
+
+mod.stress.complete <-
+  geeglm(
+  jbsteps30.log ~ jbsteps30pre.log + I(send - 0.6) + stress_prev_day +
+    stress_prev_day * I(send - 0.6),
+  id = user, 
+  corstr = 'independence',
+  weights = as.numeric(suggest.stress.complete$avail),
+  scale.fix = TRUE,
+  data = suggest.stress.complete
+)
+
+vcov.stress.complete <- vcov.heartsteps.bgl(mod.stress.complete, small=T)
+se.stress.complete <- diag(vcov.stress.complete)
+coef.stress.complete <- coef(mod.stress.complete)
+
+test.stress.complete <- pointwise.table.small(coef.stress.complete,
+                               vcov.stress.complete,
+                               n=length(mod.stress.complete$geese$clusz),
+                               alpha=0.05)
+
+```
+
+```{r stress-model-complete-results, echo=FALSE, results='asis'}
+
+tt <- cbind('Estimate' = coef.stress.complete,
+            "SE" = sqrt(se.stress.complete),
+            test.stress.complete)
+rownames(tt) <- c('$\\alpha_0$', '$\\alpha_1$','$\\beta_1$', '$\\beta_2$',
+                  '$\\beta_3$')
+colnames(tt)[3:6] <- c('Hotelling','p-value','95% LCL','95% UCL')
+
+kable(tt,
+      digits = c(4,2,2,1,3,3),
+      align='r')
+
+```
+
+## Categorical stress ratings, including missing category
+
+Let's try categorizing stress levels so we can explicitly model the missing values.
+
+| $E_{d(t) -1}$ | Stress category |
+|-----------------------:|----------------:|
+|1 or 2  | Low stress|
+|3, 4 or 5  | High stress|
+| NA   | Missing|
+
+Let $W_{\text{High}}$ and $W_{\text{Missing}}$ be indicators for high and missing stress values.
+
+The following model uses "Low stress" as the reference category.
+
+$$
+\begin{aligned}
+Y_{t+1} \sim \alpha_0 + \alpha_1 Z_t &+ \beta_1(A_t - 0.6) + \beta_2 W_{\text{High}} + \beta_3W_{\text{Missing}} \\
+&+ \beta_4W_{\text{High}}(A_t-0.6) + \beta_5W_{\text{Missing}}(A_t-0.6)
+\end{aligned}
+$$
+
+```{r stress-cat-model, echo=FALSE}
+
+stresschar <- character(nrow(suggest.stress))
+stresschar[which(is.na(suggest.stress$stress_prev_day))] <- "Missing"
+stresschar[which(suggest.stress$stress_prev_day <= 2)] <- "Low stress"
+stresschar[which(suggest.stress$stress_prev_day > 2)] <- "High stress"
+suggest.stress$stress_prev_cat <- relevel(as.factor(stresschar),
+                                          ref='Low stress')
+
+mod.stress.cat <-
+  geeglm(
+  jbsteps30.log ~ jbsteps30pre.log + I(send - 0.6)*stress_prev_cat,
+  id = user, 
+  corstr = 'independence',
+  weights = as.numeric(suggest.stress$avail),
+  scale.fix = TRUE,
+  data = suggest.stress
+)
+
+vcov.stress.cat <- vcov.heartsteps.bgl(mod.stress.cat, small=T)
+se.stress.cat <- diag(vcov.stress.cat)
+coef.stress.cat <- coef(mod.stress.cat)
+
+test.stress.cat <- pointwise.table.small(coef.stress.cat,
+                               vcov.stress.cat,
+                               n=length(mod.stress.cat$geese$clusz),
+                               alpha=0.05)
+
+```
+
+```{r stress-cat-model-results, echo=FALSE, results='asis'}
+tt <- cbind('Estimate' = coef.stress.cat,
+            "SE" = sqrt(se.stress.cat),
+            test.stress.cat)
+rownames(tt) <- c('$\\alpha_0$', '$\\alpha_1$','$\\beta_1$', '$\\beta_2$',
+                  '$\\beta_3$', '$\\beta_4$', '$\\beta_5$')
+colnames(tt)[3:6] <- c('Hotelling','p-value','95% LCL','95% UCL')
+
+kable(tt,
+      digits = c(4,3,2,1,3,3),
+      padding=0)
+
+```
+
+# Amount of activity up to the decision point
