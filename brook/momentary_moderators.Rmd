@@ -484,20 +484,11 @@ cat('\\end{center}')
 
 hour_cutoff <- 5
 
-## To fix:
-# need to handle slots where no steps were accumulated
-# need to calculate length of slot for those cases
-# e.g. no steps before first decision point of day after 5 a.m.
-#   still want the time between 5 a.m. and that decision point
-# or just subtract 5 a.m. from each decision point!
 jbslotpre.cutoff <-
   jbslotpre %>%
-  filter(as.POSIXct(start.datetime) >= as.POSIXct(start.date) + hour_cutoff*60*60 &
-           study.date == start.date)
-
-jbslotpre.cutoff <-
-  jbslotpre.cutoff %>%
-  inner_join(select(suggest.analysis, user,study.date, decision.index.nogap),
+  filter(as.POSIXct(start.datetime) >= trunc(as.POSIXct(start.date), 'day') +
+           hour_cutoff*60*60 & study.date == start.date) %>%
+  inner_join(select(suggest.analysis, user, study.date, decision.index.nogap),
              by=c('user'='user',
                   'study.date'='study.date',
                   'decision.index.nogap'='decision.index.nogap'))
@@ -505,21 +496,39 @@ jbslotpre.cutoff <-
 jbslotpre.cumulative <-
   jbslotpre.cutoff %>%
   group_by(user, decision.index.nogap) %>%
-  summarise(study.date=unique(study.date),
-            slot_steps = sum(steps),
-            slot_time_min = difftime(max(decision.utime),
-                                     min(start.utime), units='mins')) %>%
+  summarise(study.date = unique(study.date),
+            slot_steps = sum(steps)
+            ) %>%
   right_join(
-    select(suggest.analysis, user, decision.index.nogap, study.date),
+    select(suggest.analysis, user, decision.index.nogap, study.date,
+           study.day.nogap, jbsteps30pre.log, jbsteps30.log,
+           decision.utime) %>%
+      mutate(study.date.starttime = 
+           trunc(as.POSIXct(study.date), 'day') + hour_cutoff*60*60),
     by=c('user'='user','decision.index.nogap'='decision.index.nogap',
          'study.date'='study.date')
-  )
+  ) %>% ungroup %>%
+  mutate(decision.daytime.hours = 
+           difftime(decision.utime, study.date.starttime, units='hours'))
 
-  #group_by(user, study.date) %>%
-  #mutate(cum_day_steps = cumsum(slot_steps),
-  #       cum_day_min = cumsum(as.numeric(slot_time_min))) 
+## WRONG
+## FIX:
+##  use gmtoff to get the local decision time
+##  then subtract 5 a.m. on that day from the local decision time
+## also need to investigate user 14 and see whether the decision timestamps are accurate
 
+jbslotpre.cumulative$slot_steps[which(is.na(jbslotpre.cumulative$slot_steps))] <- 0
 
-  
+jbslotpre.cumulative <-
+  jbslotpre.cumulative %>%
+  group_by(user, study.date) %>%
+  mutate(steps_cumulative = cumsum(slot_steps))
+
+jbslotpre.cumulative <-
+  jbslotpre.cumulative %>% ungroup %>%
+  mutate(steps_cumulative_log = log(steps_cumulative + 0.5),
+         step_rate_cumulative_hour = steps_cumulative / as.numeric(decision.daytime.hours))
+
 ```
+
 
