@@ -236,6 +236,17 @@ daily$planning.today[!daily$connect] <-
   daily$planning[!daily$connect] <- "disconnected"
 daily$planning[with(daily, respond & is.na(planning))] <- "no_planning"
 
+## add daily step counts that are from jawbone website.
+## this data included the daily step count variable with Google fit imputed for User 35.
+daily.jb = read.csv("daily.jbsteps.csv")
+
+daily.jb$DATE=as.character(daily.jb$DATE)
+daily.jb$DATE=as.Date(daily.jb$DATE, "%Y%m%d")
+
+daily=merge(daily, subset(daily.jb,select=c(user, DATE, m_steps)),
+            by.x=c("user","study.date"), by.y = c("user","DATE"), 
+            all.x=TRUE)
+
 ## add daily step counts,
 ## aligned with the days (00:00 - 23:59) in the *intake* time zone
 ## FIXME: align step counts with timing of EMA?
