@@ -273,6 +273,63 @@ cat('\\end{center}')
 
 ```
 
+## Active versus sedentary, moderated by time trend and prior step count
+$$\begin{aligned}
+Y_{t+1} \sim \alpha_0 &+ \alpha_1 \tilde{Z}_t + \alpha_2 d(t) + \beta_1(A_{1,t} - 0.3) + \beta_2(A_{2,t} - 0.3)\\
+&+ \beta_3 \tilde{Z}_t(A_{1,t}-0.3) + \beta_4 \tilde{Z}_t(A_{2,t}-0.3) + \beta_5 d(t)(A_{1,t}-0.3) + \beta_6 d(t) (A_{2,t} - 0.3) + \beta_7d(t) \tilde{Z}_t
+\end{aligned}$$
+```{r zt-mod3, echo=FALSE}
+m3.zt <- 
+  geeglm(
+  jbsteps30.log ~ jbsteps30pre.log.cen + study.day.nogap +
+    I(send.active - 0.3) +  I(send.sedentary - 0.3) + jbsteps30pre.log.cen:I(send.active - 0.3) +
+    jbsteps30pre.log.cen:I(send.sedentary - 0.3) +
+    study.day.nogap:I(send.active - 0.3) + study.day.nogap:I(send.sedentary - 0.3) +
+    study.day.nogap:jbsteps30pre.log.cen,
+  id = user, 
+  corstr = 'independence',
+  weights = as.numeric(suggest.analysis$avail),
+  scale.fix = TRUE,
+  data = suggest.analysis
+)
+
+vcov3.zt <- vcov.heartsteps.bgl(m3.zt, small=T)
+se3.zt <- diag(vcov3.zt)
+coef3.zt <- coef(m3.zt)
+
+test3.zt <- pointwise.table.small(coef3.zt,
+                               vcov3.zt,
+                               n=length(m3.zt$geese$clusz),
+                               alpha=0.05)
+
+
+```
+
+```{r zt-mod3-results, echo=FALSE, results='asis'}
+
+tt <- cbind('Estimate' = coef3.zt,
+            "SE" = sqrt(se3.zt),
+            test3.zt)
+rownames(tt) <- c('$\\alpha_0$', '$\\alpha_1$', '$\\alpha_2$',
+                  '$\\beta_1$', '$\\beta_2$',
+                  '$\\beta_3$', '$\\beta_4$', '$\\beta_5$',
+                  '$\\beta_6$', '$\\beta_7$')
+colnames(tt)[3:6] <- c('Hotelling','p-value','95% LCL','95% UCL')
+
+cat('\\begin{center}')
+print(xtable(tt,
+             digits=c(0,3,3,2,3,3,3),
+             format='f'
+             ),
+      sanitize.rownames.function=identity,
+      floating=F
+      )
+cat('\\end{center}')
+
+```
+
+
+
 # Previous day's self-reported stress
 
 ```{r ema-data, echo=FALSE}
@@ -312,25 +369,6 @@ suggest.stress <-
 ```
 
 ## Missingness of self-reported stress
-
-```{r missing-residuals, echo=FALSE, include=FALSE}
-temp <- 
-  data.frame(fitted=mod.maineff$fitted.values,
-                  resid = mod.maineff$y - mod.maineff$fitted.values,
-                  stress_prev = suggest.stress$stress_prev_day) %>%
-         mutate(stress_prev_c = as.character(stress_prev))
-temp$stress_prev_c[which(is.na(temp$stress_prev))] <- "Missing"
-temp$stress_prev_f <- factor(temp$stress_prev_c,
-                             levels=c(1:5, 'Missing'))
-temp$decision.index.nogap <- suggest.stress$decision.index.nogap
-
-ggplot(temp) + 
-  geom_point(aes(x=decision.index.nogap, y=resid, 
-                 color=stress_prev_f))+
-    scale_color_manual(values=c(brewer.pal(5, 'Blues'), 'red')) +
-    ptheme
-
-```
 
 Of the `r npdays` person-days used in our analyses, about `r 100 * round(nmissdays / npdays, 2)` percent (`r nmissdays` / `r npdays`) are missing a self-reported stress rating. 
 
@@ -680,3 +718,85 @@ cat('\\end{center}')
 
 ```
 
+# Residual plots
+
+## Prior step count with linear time trend
+$$Y_{t+1} \sim \alpha_0 + \alpha_1 \tilde{Z}_t + \alpha_2 d(t) + \beta_1(A_t - 0.6) + \beta_2 d(t) (A_t - 0.6) + \beta_3 \tilde{Z}_t(A_t-0.6) + \beta_4 d(t) \tilde{Z}_t$$
+
+```{r resid-plot-func, echo=FALSE}
+resid_plot <- function(mod, mdat, time=FALSE){
+  pdat <-
+    data.frame(fitted = mod$fitted.values,
+               y = mod$y,
+               resid = mod$y - mod$fitted.values,
+               send = factor(mdat$send, 
+                             levels=c('TRUE','FALSE'),
+                             labels=c('Suggestion','No Suggestion')))
+  xvar <- 'fitted'
+  xlabel <- 'Fitted value'
+  if(time){
+    pdat$time <- mdat[,'decision.index.nogap']
+    xvar <- 'time'
+    xlabel <- 'Decision point'
+  }
+  ret <- ggplot(pdat, aes_string(x = xvar, y='resid'))
+  if(time){
+    ret <- ret + stat_smooth(aes(color=send), span = 0.5, se=F, size=1.5) +
+      geom_point(aes(color=send), shape=1, alpha=I(1/3))
+  } else{
+    ret <- ret + geom_point(aes(color=send), shape=1)
+  }
+  ret <- ret + scale_color_brewer(palette='Dark2',
+                                  name='')
+  ret <- ret + ptheme +
+    xlab(xlabel) + ylab('Residual')
+  ret <- ret + theme(legend.position='bottom')
+  return(ret)
+}
+```
+The right panel shows Loess smoothers for each treatment group over time.
+```{r resids-m1-zt-time,echo=FALSE,fig.width=8,fig.height=4, out.width='\\textwidth'}
+grid.arrange(resid_plot(m1.zt.time, suggest.analysis, time=F),
+             resid_plot(m1.zt.time, suggest.analysis, time=T) + ylab(''),
+             nrow=1)
+```
+
+## Active versus sedentary, moderated by time trend and prior step count
+$$\begin{aligned}
+Y_{t+1} \sim \alpha_0 &+ \alpha_1 \tilde{Z}_t + \alpha_2 d(t) + \beta_1(A_{1,t} - 0.3) + \beta_2(A_{2,t} - 0.3)\\
+&+ \beta_3 \tilde{Z}_t(A_{1,t}-0.3) + \beta_4 \tilde{Z}_t(A_{2,t}-0.3) + \beta_5 d(t)(A_{1,t}-0.3) + \beta_6 d(t) (A_{2,t} - 0.3) + \beta_7d(t) \tilde{Z}_t
+\end{aligned}$$
+
+The right panel shows Loess smoothers for each treatment group over time.
+```{r resids-m3-zt, echo=FALSE, fig.width=8, fig.height=4, out.width='\\textwidth'}
+grid.arrange(resid_plot(m3.zt, suggest.analysis, time=F),
+             resid_plot(m3.zt, suggest.analysis, time=T) + ylab(''),
+             nrow=1)
+```
+
+## Missingness of self-reported stress
+
+The following plot displays residuals from the main effects model
+
+$$Y_{t+1} \sim \alpha_0 + \alpha_1 Z_t + \beta_1(A_{t} - 0.6)$$
+
+shaded by the self-reported stress values.
+```{r missing-residuals, echo=FALSE, fig.width=5.5, fig.height=3, out.width='0.75\\textwidth'}
+temp <- 
+  data.frame(fitted=mod.maineff$fitted.values,
+                  resid = mod.maineff$y - mod.maineff$fitted.values,
+                  stress_prev = suggest.stress$stress_prev_day) %>%
+         mutate(stress_prev_c = as.character(stress_prev))
+temp$stress_prev_c[which(is.na(temp$stress_prev))] <- "Missing"
+temp$stress_prev_f <- factor(temp$stress_prev_c,
+                             levels=c(1:5, 'Missing'))
+temp$decision.index.nogap <- suggest.stress$decision.index.nogap
+
+ggplot(temp) + 
+  geom_point(aes(x=decision.index.nogap, y=resid, 
+                 color=stress_prev_f), alpha=I(1/1.5))+
+    scale_color_manual(values=c(brewer.pal(5, 'Blues'), 'red'),
+                       name='Previous day stress\nrating') +
+    ptheme + xlab('Decision point') + ylab('Residual')
+
+```
