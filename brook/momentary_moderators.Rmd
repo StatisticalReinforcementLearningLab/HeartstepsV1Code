@@ -796,7 +796,7 @@ jbslotpre.cumulative <-
       select(user, decision.index.nogap, study.date,
              study.day.nogap, jbsteps30pre.log, jbsteps30.log,
              decision.utime, decision.gmtoff = gmtoff,
-             avail, send) %>%
+             avail, send, slot) %>%
       mutate(decision.ltime = decision.utime + decision.gmtoff,
              study.date.starttime = trunc(as.POSIXct(decision.ltime),'day') + hour_cutoff*60*60,
              decision.day.hours = difftime(decision.ltime, study.date.starttime, units='hours')),
@@ -819,6 +819,12 @@ jbslotpre.cumulative <-
 jbslotpre.final <-
   filter(jbslotpre.cumulative,
          decision.day.hours >0 & !is.na(decision.day.hours))
+
+
+jbslotpre.final$step_rate_cumulative_log <- 
+  log(jbslotpre.final$step_rate_cumulative_hour + 0.5)
+jbslotpre.final$step_rate_cumulative_log_cen <-
+  jbslotpre.final$step_rate_cumulative_log - log(0.5)
 
 ```
 
@@ -857,7 +863,7 @@ grid.arrange(
 
 ```
 
-```{r plot-decision-timestamps, echo=FALSE, include=FALSE}
+```{r plot-decision-timestamps, echo=FALSE, include=FALSE, out.width='0.75\\textwidth'}
 
 suggest.analysis %>%
   mutate(decision.ltime = decision.utime + gmtoff,
@@ -866,16 +872,31 @@ suggest.analysis %>%
 
 ```
 
+Here is a histogram of $\tilde{R}_t$.
+
+```{r plot-cumulative-histogram, echo=FALSE, fig.width=6, fig.height=4, out.width='0.6\\textwidth'}
+
+jbslotpre.final %>%
+  ggplot(aes(x=step_rate_cumulative_log_cen)) +
+  geom_histogram(aes(y=(..count..) / (sum(..count..)),
+                     fill=as.factor(slot)),color='black',
+                 closed='left', boundary=0, bins=25)+
+  ptheme +
+  xlab(expression(tilde(R)[t]))+ylab('Proportion of \ndecision points')+
+  scale_fill_brewer(palette='YlGnBu', name='Decision slot',
+                    breaks=c(1,2,3,4,5),
+                    labels=c('Early morning','','','','After dinner'))+
+  theme(legend.position='right')
+
+```
+
+
 ## Model with cumulative step rate as a moderator
 * Let $R_t$ be the log cumulative hourly step rate up to the $t$th decision point.
 * Let $\tilde{R}_t = R_t - \log(0.5)$ so that $\tilde{R}_t =0$ when there have been no steps between `r hour_cutoff` a.m. and the current decision point.
 
 ```{r cumulative-model, echo=FALSE}
 
-jbslotpre.final$step_rate_cumulative_log <- 
-  log(jbslotpre.final$step_rate_cumulative_hour + 0.5)
-jbslotpre.final$step_rate_cumulative_log_cen <-
-  jbslotpre.final$step_rate_cumulative_log - log(0.5)
 
 mod.cumsteps <- 
   geeglm(
@@ -908,7 +929,7 @@ colnames(tt)[3:6] <- c('Hotelling','p-value','95% LCL','95% UCL')
 
 cat('\\begin{center}')
 print(xtable(tt,
-             digits=c(0,3,3,2,2,3,3),
+             digits=c(0,3,3,2,3,3,3),
              format='f'
              ),
       sanitize.rownames.function=identity,
@@ -919,7 +940,7 @@ cat('\\end{center}')
 ```
 
 ## Same model, including prior 30-minute step count
-$$ Y_{t+1} \sim \alpha_0 + \alpha_1\tilde{R}_t + \alpha_2 \tilde{Z}_t + \beta_1(A_t - 0.6) + \beta_2\tilde{R}_t(A_t-0.6)$$
+$$ Y_{t+1} \sim \alpha_0 + \alpha_1 \tilde{Z}_t + \alpha_2\tilde{R}_t +\beta_1(A_t - 0.6) + \beta_2\tilde{R}_t(A_t-0.6)$$
 ```{r cumulative-model-2, echo=FALSE}
 jbslotpre.final$jbsteps30pre.log.cen <-
   jbslotpre.final$jbsteps30pre.log - log(0.5)
@@ -949,13 +970,21 @@ test.cumsteps2 <- pointwise.table.small(coef.cumsteps2,
 tt <- cbind('Estimate' = coef.cumsteps2,
             "SE" = sqrt(se.cumsteps2),
             test.cumsteps2)
+rownames(tt) <- names(coef.cumsteps2)
+
+coefNames2.cumsteps <-
+  c("(Intercept)", "jbsteps30pre.log.cen",
+    "step_rate_cumulative_log_cen", "I(send - 0.6)",
+    "step_rate_cumulative_log_cen:I(send - 0.6)")
+tt <- tt[coefNames2.cumsteps, ]
+
 rownames(tt) <- c('$\\alpha_0$', '$\\alpha_1$', '$\\alpha_2$',
                   '$\\beta_1$', '$\\beta_2$')
 colnames(tt)[3:6] <- c('Hotelling','p-value','95% LCL','95% UCL')
 
 cat('\\begin{center}')
 print(xtable(tt,
-             digits=c(0,3,3,2,2,3,3),
+             digits=c(0,3,3,2,3,3,3),
              format='f'
              ),
       sanitize.rownames.function=identity,
@@ -964,6 +993,61 @@ print(xtable(tt,
 cat('\\end{center}')
 
 ```
+### With linear time trend
+$$ Y_{t+1} \sim \alpha_0 + \alpha_1 \tilde{Z}_t + \alpha_2\tilde{R}_t + \alpha_3 d(t) +\beta_1(A_t - 0.6) + \beta_2\tilde{R}_t(A_t-0.6) + \beta_3 d(t) (A_t -0.6)$$
+
+
+```{r mod-cumsteps3, echo=FALSE}
+mod.cumsteps3 <-
+  geeglm(
+    jbsteps30.log ~ jbsteps30pre.log.cen + step_rate_cumulative_log_cen + study.day.nogap  + I(send - 0.6) + step_rate_cumulative_log_cen:I(send-0.6) + study.day.nogap:I(send - 0.6),
+    id = user,
+    corstr='independence',
+    weights = as.numeric(jbslotpre.final$avail),
+    scale.fix = TRUE,
+    data=jbslotpre.final
+  )
+
+vcov.cumsteps3 <- vcov.heartsteps.bgl(mod.cumsteps3, small=T)
+se.cumsteps3 <- diag(vcov.cumsteps3)
+coef.cumsteps3 <- coef(mod.cumsteps3)
+
+test.cumsteps3 <- pointwise.table.small(coef.cumsteps3,
+                               vcov.cumsteps3,
+                               n=length(mod.cumsteps3$geese$clusz),
+                               alpha=0.05)
+```
+
+```{r mod-cumsteps3-results, echo=FALSE, results='asis'}
+tt <- cbind('Estimate' = coef.cumsteps3,
+            "SE" = sqrt(se.cumsteps3),
+            test.cumsteps3)
+rownames(tt) <- names(coef.cumsteps3)
+
+coefNames3.cumsteps <-
+  c("(Intercept)", "jbsteps30pre.log.cen",
+    "step_rate_cumulative_log_cen", "study.day.nogap",
+    "I(send - 0.6)",
+    "step_rate_cumulative_log_cen:I(send - 0.6)", 
+    "study.day.nogap:I(send - 0.6)")
+tt <- tt[coefNames3.cumsteps, ]
+
+rownames(tt) <- c('$\\alpha_0$', '$\\alpha_1$', '$\\alpha_2$','$\\alpha_3$',
+                  '$\\beta_1$', '$\\beta_2$', '$\\beta_3$')
+colnames(tt)[3:6] <- c('Hotelling','p-value','95% LCL','95% UCL')
+
+cat('\\begin{center}')
+print(xtable(tt,
+             digits=c(0,3,3,2,3,3,3),
+             format='f'
+             ),
+      sanitize.rownames.function=identity,
+      floating=F
+      )
+cat('\\end{center}')
+
+```
+
 
 # Residual plots
 
