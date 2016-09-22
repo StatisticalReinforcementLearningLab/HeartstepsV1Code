@@ -826,6 +826,12 @@ jbslotpre.final$step_rate_cumulative_log <-
 jbslotpre.final$step_rate_cumulative_log_cen <-
   jbslotpre.final$step_rate_cumulative_log - log(0.5)
 
+## Indicator of zero cumulative step rate up to decision ponit
+jbslotpre.final$step_rate_0_indicator <- 
+  as.numeric(with(jbslotpre.final, step_rate_cumulative_hour==0))
+jbslotpre.final$step_rate_nonzero_indicator <-
+  with(jbslotpre.final, 1 - step_rate_0_indicator)
+
 ```
 
 This is an attempt to calculate the cumulative step count (and hourly step rate) from the start of each day up to each decision point.
@@ -895,7 +901,7 @@ jbslotpre.final %>%
 * Let $R_t$ be the log cumulative hourly step rate up to the $t$th decision point.
 * Let $\tilde{R}_t = R_t - \log(0.5)$ so that $\tilde{R}_t =0$ when there have been no steps between `r hour_cutoff` a.m. and the current decision point.
 
-```{r cumulative-model, echo=FALSE}
+```{r cumulative-model, echo=FALSE, include=FALSE}
 
 
 mod.cumsteps <- 
@@ -919,8 +925,8 @@ test.cumsteps <- pointwise.table.small(coef.cumsteps,
                                alpha=0.05)
 
 ```
-$$ Y_{t+1} \sim \alpha_0 + \alpha_1\tilde{R}_t + \beta_1(A_t - 0.6) + \beta_2\tilde{R}_t(A_t-0.6)$$
-```{r cumulative-model-results, echo=FALSE, results='asis'}
+
+```{r cumulative-model-results, echo=FALSE, results='asis', include=FALSE}
 tt <- cbind('Estimate' = coef.cumsteps,
             "SE" = sqrt(se.cumsteps),
             test.cumsteps)
@@ -939,7 +945,6 @@ cat('\\end{center}')
 
 ```
 
-## Same model, including prior 30-minute step count
 $$ Y_{t+1} \sim \alpha_0 + \alpha_1 \tilde{Z}_t + \alpha_2\tilde{R}_t +\beta_1(A_t - 0.6) + \beta_2\tilde{R}_t(A_t-0.6)$$
 ```{r cumulative-model-2, echo=FALSE}
 jbslotpre.final$jbsteps30pre.log.cen <-
@@ -1033,6 +1038,123 @@ coefNames3.cumsteps <-
 tt <- tt[coefNames3.cumsteps, ]
 
 rownames(tt) <- c('$\\alpha_0$', '$\\alpha_1$', '$\\alpha_2$','$\\alpha_3$',
+                  '$\\beta_1$', '$\\beta_2$', '$\\beta_3$')
+colnames(tt)[3:6] <- c('Hotelling','p-value','95% LCL','95% UCL')
+
+cat('\\begin{center}')
+print(xtable(tt,
+             digits=c(0,3,3,2,3,3,3),
+             format='f'
+             ),
+      sanitize.rownames.function=identity,
+      floating=F
+      )
+cat('\\end{center}')
+
+```
+
+## Indicator of zero prior cumulative steps
+Let $Q_t = 0$ if and only if $\tilde{R}_t=0$ (when the cumulative step rate up to time $t$ is zero).
+
+$$
+Y_{t+1} \sim \alpha_0 + \alpha_1\tilde{Z}_t + \beta_1Q_t(A_t - 0.6) + \beta_2 (1 - Q_t) (A_t - 0.6)
+$$
+
+```{r mod-cumsteps4, echo=FALSE}
+mod.cumsteps4 <-
+  geeglm(
+    jbsteps30.log ~ jbsteps30pre.log.cen + step_rate_0_indicator:I(send - 0.6) + 
+      step_rate_nonzero_indicator:I(send - 0.6),
+    id = user,
+    corstr='independence',
+    weights = as.numeric(jbslotpre.final$avail),
+    scale.fix = TRUE,
+    data=jbslotpre.final
+  )
+
+vcov.cumsteps4 <- vcov.heartsteps.bgl(mod.cumsteps4, small=T)
+se.cumsteps4 <- diag(vcov.cumsteps4)
+coef.cumsteps4 <- coef(mod.cumsteps4)
+
+test.cumsteps4 <- pointwise.table.small(coef.cumsteps4,
+                               vcov.cumsteps4,
+                               n=length(mod.cumsteps4$geese$clusz),
+                               alpha=0.05)
+```
+
+```{r mod-cumsteps4-results, echo=FALSE, results='asis'}
+tt <- cbind('Estimate' = coef.cumsteps4,
+            "SE" = sqrt(se.cumsteps4),
+            test.cumsteps4)
+rownames(tt) <- names(coef.cumsteps4)
+
+coefNames4.cumsteps <-
+  c("(Intercept)", "jbsteps30pre.log.cen",
+    "step_rate_0_indicator:I(send - 0.6)",
+    "I(send - 0.6):step_rate_nonzero_indicator")
+tt <- tt[coefNames4.cumsteps, ]
+
+rownames(tt) <- c('$\\alpha_0$', '$\\alpha_1$',
+                  '$\\beta_1$', '$\\beta_2$')
+colnames(tt)[3:6] <- c('Hotelling','p-value','95% LCL','95% UCL')
+
+cat('\\begin{center}')
+print(xtable(tt,
+             digits=c(0,3,3,2,3,3,3),
+             format='f'
+             ),
+      sanitize.rownames.function=identity,
+      floating=F
+      )
+cat('\\end{center}')
+
+```
+
+### With linear time trend
+
+$$
+Y_{t+1} \sim \alpha_0 + \alpha_1\tilde{Z}_t + \alpha_2 d(t) + \beta_1 Q_t(A_t - 0.6) + \beta_2 (1 - Q_t) (A_t - 0.6) + \beta_3 d(t) (A_t - 0.6)
+$$
+
+```{r mod-cumsteps5, echo=FALSE}
+
+mod.cumsteps5 <-
+  geeglm(
+    jbsteps30.log ~ jbsteps30pre.log.cen + study.day.nogap + 
+      step_rate_0_indicator:I(send - 0.6) + 
+      step_rate_nonzero_indicator:I(send - 0.6) + 
+      study.day.nogap:I(send - 0.6),
+    id = user,
+    corstr='independence',
+    weights = as.numeric(jbslotpre.final$avail),
+    scale.fix = TRUE,
+    data=jbslotpre.final
+  )
+
+vcov.cumsteps5 <- vcov.heartsteps.bgl(mod.cumsteps5, small=T)
+se.cumsteps5 <- diag(vcov.cumsteps5)
+coef.cumsteps5 <- coef(mod.cumsteps5)
+
+test.cumsteps5 <- pointwise.table.small(coef.cumsteps5,
+                               vcov.cumsteps5,
+                               n=length(mod.cumsteps5$geese$clusz),
+                               alpha=0.05)
+
+```
+
+```{r mod-cumsteps5-results, echo=FALSE, results='asis'}
+tt <- cbind('Estimate' = coef.cumsteps5,
+            "SE" = sqrt(se.cumsteps5),
+            test.cumsteps5)
+rownames(tt) <- names(coef.cumsteps5)
+
+coefNames5.cumsteps <-
+  c("(Intercept)", "jbsteps30pre.log.cen", "study.day.nogap",
+    "step_rate_0_indicator:I(send - 0.6)",
+    "I(send - 0.6):step_rate_nonzero_indicator", "study.day.nogap:I(send - 0.6)")
+tt <- tt[coefNames5.cumsteps, ]
+
+rownames(tt) <- c('$\\alpha_0$', '$\\alpha_1$', '$\\alpha_2$',
                   '$\\beta_1$', '$\\beta_2$', '$\\beta_3$')
 colnames(tt)[3:6] <- c('Hotelling','p-value','95% LCL','95% UCL')
 
