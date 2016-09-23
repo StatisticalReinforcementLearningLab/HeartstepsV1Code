@@ -1053,17 +1053,18 @@ cat('\\end{center}')
 
 ```
 
-## Indicator of zero prior cumulative steps
-Let $Q_t = 0$ if and only if $\tilde{R}_t=0$ (when the cumulative step rate up to time $t$ is zero).
+## Indicator of zero prior step rate
+Let $Q_t = 0$ if $\tilde{R}_t=0$ and $Q_t=1$ otherwise.
 
 $$
-Y_{t+1} \sim \alpha_0 + \alpha_1\tilde{Z}_t + \beta_1Q_t(A_t - 0.6) + \beta_2 (1 - Q_t) (A_t - 0.6)
+Y_{t+1} \sim \alpha_0 + \alpha_1\tilde{Z}_t + \alpha_2\tilde{R}_t + \beta_1Q_t(A_t - 0.6) + \beta_2 (1 - Q_t) (A_t - 0.6)
 $$
 
 ```{r mod-cumsteps4, echo=FALSE}
 mod.cumsteps4 <-
   geeglm(
-    jbsteps30.log ~ jbsteps30pre.log.cen + step_rate_0_indicator:I(send - 0.6) + 
+    jbsteps30.log ~ jbsteps30pre.log.cen + step_rate_cumulative_log_cen +
+      step_rate_0_indicator:I(send - 0.6) + 
       step_rate_nonzero_indicator:I(send - 0.6),
     id = user,
     corstr='independence',
@@ -1089,12 +1090,12 @@ tt <- cbind('Estimate' = coef.cumsteps4,
 rownames(tt) <- names(coef.cumsteps4)
 
 coefNames4.cumsteps <-
-  c("(Intercept)", "jbsteps30pre.log.cen",
+  c("(Intercept)", "jbsteps30pre.log.cen", "step_rate_cumulative_log_cen",
     "step_rate_0_indicator:I(send - 0.6)",
     "I(send - 0.6):step_rate_nonzero_indicator")
 tt <- tt[coefNames4.cumsteps, ]
 
-rownames(tt) <- c('$\\alpha_0$', '$\\alpha_1$',
+rownames(tt) <- c('$\\alpha_0$', '$\\alpha_1$', '$\\alpha_2$',
                   '$\\beta_1$', '$\\beta_2$')
 colnames(tt)[3:6] <- c('Hotelling','p-value','95% LCL','95% UCL')
 
@@ -1113,7 +1114,7 @@ cat('\\end{center}')
 ### With linear time trend
 
 $$
-Y_{t+1} \sim \alpha_0 + \alpha_1\tilde{Z}_t + \alpha_2 d(t) + \beta_1 Q_t(A_t - 0.6) + \beta_2 (1 - Q_t) (A_t - 0.6) + \beta_3 d(t) (A_t - 0.6)
+Y_{t+1} \sim \alpha_0 + \alpha_1\tilde{Z}_t + \alpha_2 d(t) + \alpha_3 \tilde{R}_t + \beta_1 Q_t(A_t - 0.6) + \beta_2 (1 - Q_t) (A_t - 0.6) + \beta_3 d(t) (A_t - 0.6)
 $$
 
 ```{r mod-cumsteps5, echo=FALSE}
@@ -1121,6 +1122,7 @@ $$
 mod.cumsteps5 <-
   geeglm(
     jbsteps30.log ~ jbsteps30pre.log.cen + study.day.nogap + 
+      step_rate_cumulative_log_cen +
       step_rate_0_indicator:I(send - 0.6) + 
       step_rate_nonzero_indicator:I(send - 0.6) + 
       study.day.nogap:I(send - 0.6),
@@ -1150,11 +1152,12 @@ rownames(tt) <- names(coef.cumsteps5)
 
 coefNames5.cumsteps <-
   c("(Intercept)", "jbsteps30pre.log.cen", "study.day.nogap",
+    "step_rate_cumulative_log_cen",
     "step_rate_0_indicator:I(send - 0.6)",
     "I(send - 0.6):step_rate_nonzero_indicator", "study.day.nogap:I(send - 0.6)")
 tt <- tt[coefNames5.cumsteps, ]
 
-rownames(tt) <- c('$\\alpha_0$', '$\\alpha_1$', '$\\alpha_2$',
+rownames(tt) <- c('$\\alpha_0$', '$\\alpha_1$', '$\\alpha_2$', '$\\alpha_3$',
                   '$\\beta_1$', '$\\beta_2$', '$\\beta_3$')
 colnames(tt)[3:6] <- c('Hotelling','p-value','95% LCL','95% UCL')
 
@@ -1169,7 +1172,6 @@ print(xtable(tt,
 cat('\\end{center}')
 
 ```
-
 
 # Residual plots
 
