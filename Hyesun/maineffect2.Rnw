@@ -1,0 +1,730 @@
+\documentclass{article}
+
+\usepackage{float}
+\usepackage{amsmath}
+\usepackage{cleveref}
+\usepackage[a4paper, portrait, margin=1in]{geometry}
+
+\title{\bfseries Daily main effect analysis}
+\begin{document}
+\maketitle
+\begin{center}
+\author{Hyesun Yoo}
+\end{center}
+
+<<data, echo = FALSE, include = FALSE>>=
+###weather is overloaded. I used newly recieved data 
+sys.var_mbox.data = "Z:/HeartSteps/Data"
+sys.var_repo = "C:/Users/user/Documents/GitHub/heartstepsdata"
+setwd(sys.var_repo)
+source("init.R")
+setwd(sys.var_mbox.data)
+load("csv.RData")
+load("analysis.RData")
+daily.jb = read.csv("daily.jbsteps.csv")
+setwd("Z:/HeartSteps/Hyesun's")
+load("location_for_decision.RData")
+load("weather.RData")
+setwd("C:/Users/user/Documents/GitHub/heartstepsdata/Hyesun")
+library("lattice")
+color <- "chartreuse"
+color.name <- "green"
+@
+
+\section{Main effect analysis - planning without day effect}
+
+<<setting, echo=FALSE, eval=TRUE>>=
+## Included ema.set to daily to analyze ema.set
+daily <- merge(daily,
+               aggregate(subset(ema, select = c(ema.set)),
+                         by = with(ema, list(user, ema.date)),
+                         function(x) na.omit(x)[1]),
+               by.x = c("user", "study.date"),
+               by.y = paste("Group", 1:2, sep = "."), all.x = TRUE)
+
+##############attach daily jbsteps##############################
+daily.jb$DATE=as.character(daily.jb$DATE)
+daily.jb$DATE = as.Date(daily.jb$DATE, "%Y%m%d")
+
+daily=merge(daily, subset(daily.jb,select=c(user, DATE, m_steps)), by.x=c("user","study.date")
+        , by.y = c("user","DATE"), all.x=TRUE)
+
+## daily log jawbone steps and pre log jawbone steps
+daily$dailyjb.log=log(daily$m_steps+1/2)
+daily$dailyjbpre.log=c(0,daily$dailyjb.log[-nrow(daily)])
+daily$dailyjbpre.log[daily$study.day==0] = 0
+
+## daily sqrt jbsteps and pre sqrt jbsteps
+daily$dailyjb.sqrt=sqrt(daily$m_steps)
+daily$dailyjbpre.sqrt=c(0,daily$dailyjb.sqrt[-nrow(daily)])
+daily$dailyjbpre.sqrt[daily$study.day==0] = 0
+
+## lag2 ##no effect
+daily$dailyjbpre2.sqrt=c(0, 0, daily$dailyjb.sqrt[-((nrow(daily)-1):nrow(daily))])
+daily$dailyjbpre2.sqrt[daily$study.day==0] = 0
+daily$dailyjbpre2.sqrt[daily$study.day==1] = 0
+
+## quadratic study day nogap
+daily$study.day.nogap.sq=(daily$study.day.nogap)^2
+
+## study.day.pre
+daily$study.day.nogap.pre=daily$study.day.nogap-1
+daily$study.day.nogap.pre.sq=(daily$study.day.nogap.pre)^2
+
+##daily plan TRUE and pre plan TRUE
+daily$planTrue=(daily$planning %in% c("structured","unstructured"))
+daily$planTrue.pre=c(0,daily$planTrue[-nrow(daily)])
+daily$planTrue.pre[daily$study.day==0] = 0
+daily$planWeight=(daily$planning %in% c("structured","unstructured","no_planning"))
+daily$planWeight.pre=c(0,daily$planWeight[-nrow(daily)])
+
+## unstructured planning 
+daily$USplanTrue=(daily$planning %in% c("unstructured"))
+daily$USplanTrue.pre=c(0,daily$USplanTrue[-nrow(daily)])
+daily$USplanTrue.pre[daily$study.day==0] = 0
+
+daily$SplanTrue=(daily$planning %in% c("structured"))
+daily$SplanTrue.pre=c(0,daily$SplanTrue[-nrow(daily)])
+daily$SplanTrue.pre[daily$study.day==0] = 0
+
+## respond 
+#daily$respond.pre=c(0,daily$respond[-nrow(daily)])
+#daily$respond.pre[daily$study.day==0] = 0
+
+## setting city and state######################################
+decision$city.coor=location_for_decision$city.coor
+decision$state.coor=location_for_decision$state.coor
+
+
+## attaching city and state####################################
+tmp=aggregate(paste(city.coor,state.coor,sep="_")~date.stamp+user,data=decision, 
+               FUN = function(x) length(unique(x)))
+names(tmp)[1]="study.date" ;names(tmp)[3]="city.number"
+temp1=merge(daily, tmp, by.x = c("user", "study.date"), by.y = c("user", "study.date"),
+      all.x = TRUE)
+
+## add city and state to suggest data frame#############################
+suggest_temp <- merge(suggest,subset(decision,
+                                  select=c("user", "date.stamp", "slot","city.coor","state.coor")),
+                   by.x = c("user", "study.date", "slot"),
+                   by.y = c("user", "date.stamp", "slot"), all.x = TRUE)
+
+## add precipitation data to suggest data frame ############################
+## precipitation has "None" value as well
+suggest_temp <- merge(suggest_temp,subset(weather,select=c("study.date","city.coor","state.coor","precip")),
+                   by.x=c("study.date", "city.coor","state.coor"),
+                   by.y=c("study.date", "city.coor","state.coor"), all.x = TRUE, sort=FALSE)
+
+suggest_temp <- with(suggest_temp, suggest_temp[order(user, study.date, slot),])
+suggest_temp$temperature[suggest_temp$temperature==(-1024)] <- NA
+suggest_temp$precipitation.chance[suggest_temp$precipitation.chance=="unknown"] <- NA
+suggest_temp$precipitation.chance[suggest_temp$precipitation.chance==(-1)] <- NA
+
+
+###add average temperature based of "suggest" data to "daily" data frame
+tmp <- aggregate(temperature~study.date+user
+              , data=suggest_temp, FUN = function(x) mean(x, na.rm = TRUE), na.action = na.pass)
+tmp1 <- aggregate(temperature~study.date+user
+               , data=suggest_temp, FUN = function(x) paste(sum(!is.na(x)),"/",length(x),sep=""), 
+               na.action = na.pass)
+
+tmp <- cbind(tmp,tmp1[,3])
+names(tmp)[1] <- "study.date" ;names(tmp)[3] <- "temp_mean";names(tmp)[4] <- "temp_day_used";
+
+temp1 <- merge(temp1, tmp,
+         by.x = c("user", "study.date"), by.y = c("user", "study.date"),
+         all.x = TRUE)
+
+###add daily precipitation based on "suggest" data to "daily" data frame
+tmp <- aggregate(as.numeric(precip)~study.date+user
+               , data=suggest_temp, FUN = function(x) mean(x, na.rm = TRUE), na.action = na.pass)
+tmp1 <- aggregate(precip~study.date+user
+               , data=suggest_temp, FUN = function(x) paste(sum(!is.na(x)),"/",length(x),sep=""),
+               na.action = na.pass)
+
+tmp <- cbind(tmp,tmp1[,3])
+names(tmp)[1] <- "study.date" ;names(tmp)[3] <- "daily.precip_mean";names(tmp)[4] <- "daily.precip_mean_used";
+
+temp1 <- merge(temp1, tmp,
+         by.x = c("user", "study.date"), by.y = c("user", "study.date"),
+         all.x = TRUE)
+
+temp1 <- with(temp1,temp1[order(user,study.date),])
+
+temp <- temp1[!is.na(temp1$study.day.nogap),]
+temp <- temp[temp$study.day.nogap %in% 0:41,]
+@
+
+Here are notations for model.
+\begin{itemize}
+  \item $Y_{t+1}$ is square root transformed Jawbone step count on the day following the $t^{\text{th}}$ planning randomization,
+  \item $Z_{t}$ is square root transformed Jawbone step count on the day of $t^{\text{th}}$ planning randomization,
+  \item $A_{t}$ is an indicator of whether or not planning intervention was provided at occasion $t$,
+  \item $A_{1, t}$ is an indicator of whether or not unstructured planning intervention was provided at occasion $t$,
+  \item $A_{2, t}$ is an indicator of whether or not structured planning intervention was provided at occasion $t$,
+\end{itemize}
+
+
+\subsection{Only using weekday(Mon-Fri)}
+<<weekday, echo=FALSE, eval=TRUE>>=
+temp=temp[temp$study.day.nogap!=0,]
+temp=temp[temp$study.day.nogap!=1,]
+
+temp=temp[!is.na(temp$dailyjb.sqrt) & !is.na(temp$dailyjbpre.sqrt),]
+tmp1=temp[as.logical(temp$planWeight.pre),]
+## there is missing value in context.wday which is wrong########################################
+tmp1$wday=strftime(tmp1$study.date,'%u')
+
+## Weekday wday is coded as 1:5 is Mon-Fri#############################################################################
+tmp2=tmp1[tmp1$wday %in% 1:5,]
+@
+Here I only used $\Sexpr{nrow(tmp2)}$ weekday datapoints among $\Sexpr{nrow(tmp1)}$.
+\begin{equation}
+  Y_{t+1} \sim \alpha_{0} + \alpha_{1} Z_{t} + \beta_{1}\left( A_{t} - 0.5 \right),
+  \label{eqn:model-no-day-effect0} 
+\end{equation}
+
+<<n_used_days, echo=F,fig.height=5,fig.cap="number of the days used", fig.pos="H">>=
+b=table(tmp2$study.day.nogap)
+xx=barplot(b, ylim=c(0,30),xlab="study day(exclude travel)")
+text(x = xx, y = b, label = b,pos = 3, cex = 0.7)
+@
+
+
+<<maineffect_planning_w, echo=F, results="asis">>=
+model.plan1 <- geeglm(dailyjb.sqrt~ dailyjbpre.sqrt + I(planTrue.pre - .5),
+                 id = user, scale.fix = T, data = tmp2)
+
+names(model.plan1$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$", "$\\beta_{1}$")
+print(xtable(estimate(model.plan1, normal = FALSE),
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-no-day-effect0}",
+             label = "tab:model-no-day-effect0", floating = FALSE, digits = 3), 
+      sanitize.rownames.function = identity)
+@
+
+<<mean_residual_model1w, echo=FALSE,fig.height=5, fig.cap="plot of mean residuals from model~\\labelcref{eqn:model-no-day-effect0} averaged over study day. span = 1/3 (left) and span = 2/3 (right)", fig.pos="H">>=
+data_tmp=tmp2
+a=data_tmp$dailyjb.sqrt-coef(model.plan1)[1]-coef(model.plan1)[2]*data_tmp$dailyjbpre.sqrt-coef(model.plan1)[3]*I(data_tmp$planTrue.pre - .5)
+y=cbind(a,data_tmp[,"study.day.nogap"])
+colnames(y)=c("resid","day")
+y=aggregate(resid~day, data=y, mean)
+
+par(mfrow=c(1,2))
+with(y, scatter.smooth(resid ~ day, type = "l", span = 1/3,lpars=list(col="blue"),
+                       xlab="Study day(exclude travel day)", ylab="Mean residuals"))
+abline(h=0)
+with(y, scatter.smooth(resid ~ day, type = "l", span = 2/3,lpars=list(col="blue"), 
+                       xlab="Study day(exclude travel day)", ylab="Mean residuals"))
+abline(h=0)
+@
+
+<<residual_overdays_model1w, echo=FALSE, fig.height=4, fig.cap="residuals over study day from model~\\labelcref{eqn:model-no-day-effect0} ", fig.pos="H">>=
+data_tmp$residual=a
+
+##for dotted residuals. 
+with(data_tmp,interaction.plot(study.day.nogap, user, residual,legend=FALSE,type="p",pch=16,ylim=c(-100,100), 
+                               xlab="Study day(exclude travel day)", ylab="residuals"))
+abline(h=0, lwd=3)
+abline(h=50, lwd=1)
+abline(h=-50, lwd=1)
+@
+
+<<residual_overdays_l_model1w, echo=FALSE, fig.height=4, fig.cap="residuals over study day for each user from model~\\labelcref{eqn:model-no-day-effect0}. Each user's residuals are connected.", fig.pos="H">>=
+xyplot(residual ~ study.day.nogap, data = data_tmp, groups = user, type = "l",  panel = function(x,y,groups, ...){
+  panel.xyplot(x, y, groups,...)
+  panel.abline(h=0, lwd=3)
+  }, color="black",
+       title = "weekday", ylim=c(-100,100), xlab="Study day(exclude travel day)", ylab="residuals")
+@
+
+<<fitted_rawresidual_model1w, echo=FALSE, fig.height=5, fig.cap="fitted values vs residuals  from model~\\labelcref{eqn:model-no-day-effect0} ",fig.pos="H">>=
+##pearson residuals and raw residuals are the same.
+par(mfrow=c(1,1))
+xx=fitted(model.plan1)
+rr=data_tmp$residual
+plot(xx,rr, xlab="fitted values", ylab="residuals")
+abline(h=0)
+m<-lowess(rr~xx, f=2/3)
+lines(m)
+@
+
+<<boxplot_res_m1weekday, echo=FALSE, fig.height=5, fig.cap="plan yesterday==True vs residuals from model~\\labelcref{eqn:model-no-day-effect0} ",fig.pos="H">>=
+boxplot(residual~planTrue.pre,data=data_tmp,xlab="plan yesterday(1:plan yesterday TRUE)")
+@
+
+
+
+\begin{equation}
+		\label{eqn:actsed-marginal-model}
+		Y_{t+1} &\sim \alpha_{0} + \alpha_{1} Z_{t} + \beta_{1} \left(A_{1, t} - 0.25\right) + \beta_{2} \left(A_{2, t} - 0.25\right), 
+  \label{eqn:model-no-day-effect1} 
+\end{equation}
+
+
+<<maineffect_planning2_w, echo=F, results="asis">>=
+model.plan1.2 <-  geeglm(dailyjb.sqrt ~ dailyjbpre.sqrt + I(USplanTrue.pre - 0.25) +
+                    I(SplanTrue.pre - 0.25), id = user, 
+                  data = tmp2, scale.fix = T)
+
+
+names(model.plan1.2$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$", "$\\beta_{1}$", "$\\beta_{2}$")
+print(xtable(estimate(model.plan1.2, normal = FALSE),
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-no-day-effect1}",
+             label = "tab:model-no-day-effect1", floating = FALSE, digits = 3), 
+      sanitize.rownames.function = identity)
+@
+
+
+<<mean_residual_model2w, echo=FALSE,fig.height=5, fig.cap="plot of mean residuals from model~\\labelcref{eqn:model-no-day-effect1} averaged over study day. span = 1/3 (left) and span = 2/3 (right)", fig.pos="H">>=
+data_tmp=tmp2
+a=data_tmp$dailyjb.sqrt-coef(model.plan1.2)[1]-coef(model.plan1.2)[2]*data_tmp$dailyjbpre.sqrt-
+  coef(model.plan1.2)[3]*I(data_tmp$USplanTrue.pre - .25)-coef(model.plan1.2)[4]*I(data_tmp$SplanTrue.pre - .25)
+y=cbind(a,data_tmp[,"study.day.nogap"])
+colnames(y)=c("resid","day")
+y=aggregate(resid~day, data=y, mean)
+
+par(mfrow=c(1,2))
+with(y, scatter.smooth(resid ~ day, type = "l", span = 1/3,lpars=list(col="blue"),
+                       xlab="Study day(exclude travel day)", ylab="Mean residuals"))
+abline(h=0)
+with(y, scatter.smooth(resid ~ day, type = "l", span = 2/3,lpars=list(col="blue"), 
+                       xlab="Study day(exclude travel day)", ylab="Mean residuals"))
+abline(h=0)
+@
+
+<<residual_overdays_model2w, echo=FALSE, fig.height=4, fig.cap="residuals over study day from model~\\labelcref{eqn:model-no-day-effect1} ", fig.pos="H">>=
+data_tmp$residual=a
+## for dotted residuals. 
+with(data_tmp,interaction.plot(study.day.nogap, user, residual,legend=FALSE,type="p",pch=16,ylim=c(-100,100), 
+                               xlab="Study day(exclude travel day)", ylab="residuals"))
+abline(h=0, lwd=3)
+abline(h=50, lwd=1)
+abline(h=-50, lwd=1)
+@
+
+<<residual_overdays_l_model2w, echo=FALSE, fig.height=4, fig.cap="residuals over study day for each user from model~\\labelcref{eqn:model-no-day-effect1}. Each user's residuals are connected.", fig.pos="H">>=
+xyplot(residual ~ study.day.nogap, data = data_tmp, groups = user, type = "l",  panel = function(x,y,groups, ...){
+  panel.xyplot(x, y, groups,...)
+  panel.abline(h=0, lwd=3)
+  }, color="black",
+     title = "weekday", ylim=c(-100,100), xlab="Study day(exclude travel day)", ylab="residuals")
+@
+
+<<fitted_rawresidual_model2w, echo=FALSE, fig.height=5, fig.cap="fitted values vs residuals  from model~\\labelcref{eqn:model-no-day-effect1} ",fig.pos="H">>=
+##pearson residuals and raw residuals are the same.
+par(mfrow=c(1,1))
+xx=fitted(model.plan1.2)
+rr=data_tmp$residual
+plot(xx,rr, xlab="fitted values", ylab="residuals")
+abline(h=0)
+m<-lowess(rr~xx, f=2/3)
+lines(m)
+@
+2
+<<boxplot_res_m2weekday, echo=FALSE, fig.height=5, fig.cap="plan yesterday==True vs residuals from model~\\labelcref{eqn:model-no-day-effect1} ",fig.pos="H">>=
+s=data_tmp$planTrue.pre
+s[data_tmp$SplanTrue.pre==TRUE]=2
+boxplot(residual~s,data=data_tmp,xlab="plan yesterday(1:unstructure plan yesterday TRUE, 2:structure plan yesterday TRUE)")
+@
+
+
+
+
+
+\begin{equation}
+  Y_{t+1} \sim \alpha_{0} + \alpha_{1} Z_{t} + \alpha_{2} d(t) + \beta_{1} \left(A_{t} - 0.5\right) + \beta_{2} d(t) \left(A_{t} - 0.5\right),
+  \label{eqn:model-with-day-effect0}
+\end{equation}
+
+
+
+<<maineffect_planningwithday_w, echo=F, results="asis">>=
+model.plan2 <- geeglm(dailyjb.sqrt ~ dailyjbpre.sqrt + study.day.nogap.pre + I(planTrue.pre - .5) + (study.day.nogap.pre):I(planTrue.pre - .5),
+                      id = user, weights = as.numeric(planWeight.pre), 
+                      scale.fix = T,data = tmp2)
+
+names(model.plan2$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$", "$\\alpha_{2}$",
+                                "$\\beta_{1}$", "$\\beta_{2}$")
+print(xtable(estimate(model.plan2, normal = FALSE),
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model ~\\labelcref{eqn:model-with-day-effect0}",
+             label = "tab:model-with-day-effect0", floating = FALSE, digits = 3), 
+      sanitize.rownames.function = identity)
+@
+
+\begin{equation}
+\begin{aligned}
+  &Y_{t+1} \sim \alpha_{0} + \alpha_{1} Z_{t} + \alpha_{2} d(t) + \beta_{1} \left(A_{1,t} - 0.25\right) + \beta_{2}  \left(A_{2,t} - 0.25\right) \\  
+  &+ \beta_{3} \left(A_{1,t} - 0.25\right)d(t) + \beta_{4} \left(A_{2,t} - 0.25\right)d(t), 
+  \label{eqn:model-with-day-effect1}
+\end{aligned}
+\end{equation}
+
+<<maineffect_planningwithday2_w, echo=F, results="asis">>=
+model.plan2.1 <- geeglm(dailyjb.sqrt ~ dailyjbpre.sqrt + study.day.nogap.pre + I(USplanTrue.pre - .25)+
+                         I(SplanTrue.pre - .25) + (study.day.nogap.pre):I(USplanTrue.pre - .25) + 
+                          (study.day.nogap.pre):I(SplanTrue.pre - .25) ,
+                      id = user, scale.fix = T,data = tmp2)
+
+names(model.plan2.1$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$", "$\\alpha_{2}$",
+                                "$\\beta_{1}$", "$\\beta_{2}$","$\\beta_{3}$", "$\\beta_{4}$")
+print(xtable(estimate(model.plan2.1, normal = FALSE),
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model ~\\labelcref{eqn:model-with-day-effect1}",
+             label = "tab:eqn:model-with-day-effect1", floating = FALSE, digits = 3), 
+      sanitize.rownames.function = identity)
+@
+
+\subsection{Only using weekend(Sat, Sun)}
+<<weekend, echo=FALSE, eval=TRUE>>=
+temp=temp[temp$study.day.nogap!=0,]
+temp=temp[temp$study.day.nogap!=1,]
+
+temp=temp[!is.na(temp$dailyjb.sqrt) & !is.na(temp$dailyjbpre.sqrt),]
+tmp1=temp[as.logical(temp$planWeight.pre),]
+## there is missing value in context.wday which is wrong########################################
+tmp1$wday=strftime(tmp1$study.date,'%u')
+
+## Weekday wday is coded as 1:5 is Mon-Fri#############################################################################
+tmp2=tmp1[tmp1$wday %in% 6:7,]
+@
+Here I only used $\Sexpr{nrow(tmp2)}$ weekend datapoints among $\Sexpr{nrow(tmp1)}$.
+
+\begin{equation*}
+  Y_{t+1} \sim \alpha_{0} + \alpha_{1} Z_{t} + \beta_{1}\left( A_{t} - 0.5 \right), \tag{\ref{eqn:model-no-day-effect0}}
+\end{equation*}
+
+<<n_used_days_weekend, echo=F,fig.height=5,fig.cap="number of the days used", fig.pos="H">>=
+b=table(tmp2$study.day.nogap)
+xx=barplot(b, ylim=c(0,30),xlab="study day(exclude travel)")
+text(x = xx, y = b, label = b,pos = 3, cex = 0.7)
+@
+
+<<maineffect_planning, echo=F, results="asis">>=
+model.plan1 <- geeglm(dailyjb.sqrt~ dailyjbpre.sqrt + I(planTrue.pre - .5),
+                 id = user, scale.fix = T, data = tmp2)
+
+names(model.plan1$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$", "$\\beta_{1}$")
+print(xtable(estimate(model.plan1, normal = FALSE),
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-no-day-effect0}",
+             label = "tab:model-no-day-effect0", floating = FALSE, digits = 3), 
+      sanitize.rownames.function = identity)
+@
+
+
+<<mean_residual_model1, echo=FALSE,fig.height=5, fig.cap="plot of mean residuals from model~\\labelcref{eqn:model-no-day-effect0} averaged over study day. span = 1/3 (left) and span = 2/3 (right). On day 6 peak, there are only two datapoints", fig.pos="H">>=
+data_tmp=tmp2
+a=data_tmp$dailyjb.sqrt-coef(model.plan1)[1]-coef(model.plan1)[2]*data_tmp$dailyjbpre.sqrt-coef(model.plan1)[3]*I(data_tmp$planTrue.pre - .5)
+y=cbind(a,data_tmp[,"study.day.nogap"])
+colnames(y)=c("resid","day")
+y=aggregate(resid~day, data=y, mean)
+
+par(mfrow=c(1,2))
+with(y, scatter.smooth(resid ~ day, type = "l", span = 1/3,lpars=list(col="blue"),
+                       xlab="Study day(exclude travel day)", ylab="Mean residuals"))
+abline(h=0)
+with(y, scatter.smooth(resid ~ day, type = "l", span = 2/3,lpars=list(col="blue"), 
+                       xlab="Study day(exclude travel day)", ylab="Mean residuals"))
+abline(h=0)
+@
+
+<<residual_overdays_model1, echo=FALSE, fig.height=4, fig.cap="residuals over study day from model~\\labelcref{eqn:model-no-day-effect0} ", fig.pos="H">>=
+data_tmp$residual=a
+
+##for dotted residuals. 
+with(data_tmp,interaction.plot(study.day.nogap, user, residual,legend=FALSE,type="p",pch=16,ylim=c(-100,100), 
+                               xlab="Study day(exclude travel day)", ylab="residuals"))
+abline(h=0, lwd=3)
+abline(h=50, lwd=1)
+abline(h=-50, lwd=1)
+@
+
+<<residual_overdays_l_model1, echo=FALSE, fig.height=4, fig.cap="residuals over study day for each user from model~\\labelcref{eqn:model-no-day-effect0}. Each user's residuals are connected.", fig.pos="H">>=
+xyplot(residual ~ study.day.nogap, data = data_tmp, groups = user, type = "l",  panel = function(x,y,groups, ...){
+  panel.xyplot(x, y, groups,...)
+  panel.abline(h=0, lwd=3)
+  }, color="black",
+       title = "weekday", ylim=c(-100,120), xlab="Study day(exclude travel day)", ylab="residuals")
+@
+
+<<fitted_rawresidual_model1, echo=FALSE, fig.height=5, fig.cap="fitted values vs residuals  from model~\\labelcref{eqn:model-no-day-effect0} ",fig.pos="H">>=
+##pearson residuals and raw residuals are the same.
+par(mfrow=c(1,1))
+xx=fitted(model.plan1)
+rr=data_tmp$residual
+plot(xx,rr, xlab="fitted values", ylab="residuals")
+abline(h=0)
+m<-lowess(rr~xx, f=2/3)
+lines(m)
+@
+
+<<boxplot_res_m1weekend, echo=FALSE, fig.height=5, fig.cap="plan yesterday==True vs residuals from model~\\labelcref{eqn:model-no-day-effect0} ",fig.pos="H">>=
+boxplot(residual~planTrue.pre,data=data_tmp,xlab="plan yesterday(1:plan yesterday TRUE)")
+@
+
+\begin{equation*}
+		\label{eqn:actsed-marginal-model}
+		Y_{t+1} &\sim \alpha_{0} + \alpha_{1} Z_{t} + \beta_{1} \left(A_{1, t} - 0.25\right) + \beta_{2} \left(A_{2, t} - 0.25\right), 
+    \tag{\ref{eqn:model-no-day-effect1}}  
+\end{equation*}
+
+<<maineffect_planning2, echo=F, results="asis">>=
+model.plan1.2 <-  geeglm(dailyjb.sqrt ~ dailyjbpre.sqrt + I(USplanTrue.pre - 0.25) +
+                    I(SplanTrue.pre - 0.25), id = user, 
+                  data = tmp2, scale.fix = T)
+
+
+names(model.plan1.2$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$", "$\\beta_{1}$", "$\\beta_{2}$")
+print(xtable(estimate(model.plan1.2, normal = FALSE),
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-no-day-effect1}",
+             label = "tab:model-no-day-effect1", floating = FALSE, digits = 3), 
+      sanitize.rownames.function = identity)
+@
+
+
+<<mean_residual_model2, echo=FALSE,fig.height=5, fig.cap="plot of mean residuals from model~\\labelcref{eqn:model-no-day-effect1} averaged over study day. span = 1/3 (left) and span = 2/3 (right). On day 6 peak, there are only two datapoints", fig.pos="H">>=
+data_tmp=tmp2
+a=data_tmp$dailyjb.sqrt-coef(model.plan1.2)[1]-coef(model.plan1.2)[2]*data_tmp$dailyjbpre.sqrt-
+  coef(model.plan1.2)[3]*I(data_tmp$USplanTrue.pre - .25)-coef(model.plan1.2)[4]*I(data_tmp$SplanTrue.pre - .25)
+y=cbind(a,data_tmp[,"study.day.nogap"])
+colnames(y)=c("resid","day")
+y=aggregate(resid~day, data=y, mean)
+
+par(mfrow=c(1,2))
+with(y, scatter.smooth(resid ~ day, type = "l", span = 1/3,lpars=list(col="blue"),
+                       xlab="Study day(exclude travel day)", ylab="Mean residuals"))
+abline(h=0)
+with(y, scatter.smooth(resid ~ day, type = "l", span = 2/3,lpars=list(col="blue"), 
+                       xlab="Study day(exclude travel day)", ylab="Mean residuals"))
+abline(h=0)
+@
+
+<<residual_overdays_model2, echo=FALSE, fig.height=4, fig.cap="residuals over study day from model~\\labelcref{eqn:model-no-day-effect1} ", fig.pos="H">>=
+par(mfrow=c(1,1))
+data_tmp$residual=a
+## for dotted residuals. 
+with(data_tmp,interaction.plot(study.day.nogap, user, residual,legend=FALSE,type="p",pch=16,ylim=c(-100,100), 
+                               xlab="Study day(exclude travel day)", ylab="residuals"))
+abline(h=0, lwd=3)
+abline(h=50, lwd=1)
+abline(h=-50, lwd=1)
+@
+
+<<residual_overdays_l_model2, echo=FALSE, fig.height=4, fig.cap="residuals over study day for each user from model~\\labelcref{eqn:model-no-day-effect1}. Each user's residuals are connected.", fig.pos="H">>=
+xyplot(residual ~ study.day.nogap, data = data_tmp, groups = user, type = "l",  panel = function(x,y,groups, ...){
+  panel.xyplot(x, y, groups,...)
+  panel.abline(h=0, lwd=3)
+  }, color="black",
+     title = "weekday", ylim=c(-100,120), xlab="Study day(exclude travel day)", ylab="residuals")
+@
+
+<<fitted_rawresidual_model2, echo=FALSE, fig.height=5, fig.cap="fitted values vs residuals from model~\\labelcref{eqn:model-no-day-effect1} ",fig.pos="H">>=
+##pearson residuals and raw residuals are the same.
+par(mfrow=c(1,1))
+xx=fitted(model.plan1.2)
+rr=data_tmp$residual
+plot(xx,rr, xlab="fitted values", ylab="residuals")
+abline(h=0)
+m<-lowess(rr~xx, f=2/3)
+lines(m)
+@
+
+<<boxplot_res_m2weekend, echo=FALSE, fig.height=5, fig.cap="plan yesterday==True vs residuals from model~\\labelcref{eqn:model-no-day-effect1} ",fig.pos="H">>=
+s=data_tmp$planTrue.pre
+s[data_tmp$SplanTrue.pre==TRUE]=2
+boxplot(residual~s,data=data_tmp,xlab="plan yesterday(1:unstructure plan yesterday TRUE, 2:structure plan yesterday TRUE)")
+@
+
+
+\begin{equation*}
+  Y_{t+1} \sim \alpha_{0} + \alpha_{1} Z_{t} + \alpha_{2} d(t) + \beta_{1} \left(A_{t} - 0.5\right) + \beta_{2} d(t) \left(A_{t} - 0.5\right),
+  \tag{\ref{eqn:model-with-day-effect0}}  
+\end{equation*}
+
+<<maineffect_planningwithday, echo=F, results="asis">>=
+model.plan2 <- geeglm(dailyjb.sqrt ~ dailyjbpre.sqrt + study.day.nogap.pre + I(planTrue.pre - .5) +
+                        (study.day.nogap.pre):I(planTrue.pre - .5),
+                      id = user, weights = as.numeric(planWeight.pre), 
+                      scale.fix = T,data = tmp2)
+
+names(model.plan2$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$", "$\\alpha_{2}$",
+                                "$\\beta_{1}$", "$\\beta_{2}$")
+print(xtable(estimate(model.plan2, normal = FALSE),
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model ~\\labelcref{eqn:model-with-day-effect0}",
+             label = "tab:model-with-day-effect0", floating = FALSE, digits = 3), 
+      sanitize.rownames.function = identity)
+@
+
+\begin{equation*}
+\begin{aligned}
+  &Y_{t+1} \sim \alpha_{0} + \alpha_{1} Z_{t} + \alpha_{2} d(t) + \beta_{1} \left(A_{1,t} - 0.25\right) + \beta_{2}  \left(A_{2,t} - 0.25\right) \\  
+  &+ \beta_{3} \left(A_{1,t} - 0.25\right)d(t) + \beta_{4} \left(A_{2,t} - 0.25\right)d(t), 
+\end{aligned}
+\tag{\ref{eqn:model-with-day-effect1}} 
+\end{equation*}
+
+
+<<maineffect_planningwithday2, echo=F, results="asis">>=
+model.plan2.1 <- geeglm(dailyjb.sqrt ~ dailyjbpre.sqrt + study.day.nogap.pre + I(USplanTrue.pre - .25)+
+                         I(SplanTrue.pre - .25) + (study.day.nogap.pre):I(USplanTrue.pre - .25) + 
+                          (study.day.nogap.pre):I(SplanTrue.pre - .25) ,
+                      id = user, scale.fix = T,data = tmp2)
+
+names(model.plan2.1$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$", "$\\alpha_{2}$",
+                                "$\\beta_{1}$", "$\\beta_{2}$","$\\beta_{3}$", "$\\beta_{4}$")
+print(xtable(estimate(model.plan2.1, normal = FALSE),
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model ~\\labelcref{eqn:model-with-day-effect1}",
+             label = "tab:eqn:model-with-day-effect1", floating = FALSE, digits = 3), 
+      sanitize.rownames.function = identity)
+@
+
+\section{Sensitivity Analysis}
+In this section, sensitivity analysis are performed on model (1) and (2).
+
+\begin{equation*}
+  Y_{t+1} \sim \alpha_{0} + \alpha_{1} Z_{t} + \beta_{1}\left( A_{t} - 0.5 \right), \tag{\ref{eqn:model-no-day-effect0} revisited}
+\end{equation*}
+
+\begin{equation*}
+		\label{eqn:actsed-marginal-model}
+		Y_{t+1} &\sim \alpha_{0} + \alpha_{1} Z_{t} + \beta_{1} \left(A_{1, t} - 0.25\right) + \beta_{2} \left(A_{2, t} - 0.25\right), 
+    \tag{\ref{eqn:model-no-day-effect1} revisited}  
+\end{equation*}
+
+\subsection{Using only 2-31 Days}
+This is sensitivity analysis excluding 32-41 days.
+\subsubsection{For Weekday}
+<<sensitivity_weekday2-31_model1, echo=FALSE, results="asis" >>=
+tmp2=tmp1[tmp1$wday %in% 1:5,]
+tmp3=tmp2[tmp2$study.day.nogap %in% 2:31,]
+
+model.plan1 <- geeglm(dailyjb.sqrt~ dailyjbpre.sqrt + I(planTrue.pre - .5),
+                 id = user, scale.fix = T, data = tmp3)
+
+names(model.plan1$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$", "$\\beta_{1}$")
+print(xtable(estimate(model.plan1, normal = FALSE),
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-no-day-effect0} weekday and 2-31 study days",
+             label = "tab:model-no-day-effect0", floating = TRUE, table.placement="H",  digits = 3), 
+      sanitize.rownames.function = identity)
+
+@
+Total $\Sexpr{nrow(tmp3)}$ person-day datapoints are used in this analysis.
+
+<<sensitivity_weekday2-31_model2, echo=FALSE, results="asis" >>=
+model.plan1.2 <-  geeglm(dailyjb.sqrt ~ dailyjbpre.sqrt + I(USplanTrue.pre - 0.25) +
+                    I(SplanTrue.pre - 0.25), id = user, 
+                  data = tmp3, scale.fix = T)
+
+
+names(model.plan1.2$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$", "$\\beta_{1}$", "$\\beta_{2}$")
+print(xtable(estimate(model.plan1.2, normal = FALSE),
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-no-day-effect1} weekday and 2-31 study days",
+             label = "tab:model-no-day-effect1", floating = TRUE, table.placement="H",  digits = 3), 
+      sanitize.rownames.function = identity)
+@
+
+
+\subsubsection{For Weekend}
+<<sensitivity_weekend2-31_model1, echo=FALSE, results="asis" >>=
+tmp2=tmp1[tmp1$wday %in% 6:7,]
+tmp3=tmp2[tmp2$study.day.nogap %in% 2:31,]
+
+model.plan1 <- geeglm(dailyjb.sqrt~ dailyjbpre.sqrt + I(planTrue.pre - .5),
+                 id = user, scale.fix = T, data = tmp3)
+
+names(model.plan1$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$", "$\\beta_{1}$")
+print(xtable(estimate(model.plan1, normal = FALSE),
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-no-day-effect0} weekend and 2-31 study days",
+             label = "tab:model-no-day-effect0", floating = TRUE, table.placement="H",  digits = 3), 
+      sanitize.rownames.function = identity)
+
+@
+Total $\Sexpr{nrow(tmp3)}$ person-day datapoints are used in this analysis.
+
+<<sensitivity_weekend2-31_model2, echo=FALSE, results="asis" >>=
+model.plan1.2 <-  geeglm(dailyjb.sqrt ~ dailyjbpre.sqrt + I(USplanTrue.pre - 0.25) +
+                    I(SplanTrue.pre - 0.25), id = user, 
+                  data = tmp3, scale.fix = T)
+
+
+names(model.plan1.2$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$", "$\\beta_{1}$", "$\\beta_{2}$")
+print(xtable(estimate(model.plan1.2, normal = FALSE),
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-no-day-effect1} weekend and 2-31 study days",
+             label = "tab:model-no-day-effect1", floating = TRUE, table.placement="H",  digits = 3), 
+      sanitize.rownames.function = identity)
+@
+
+\subsection{Using only 2-36 Days}
+This is sensitivity analysis excluding 37-41 days.
+\subsubsection{For Weekday}
+<<sensitivity_weekday2-36_model1, echo=FALSE, results="asis" >>=
+tmp2=tmp1[tmp1$wday %in% 1:5,]
+tmp3=tmp2[tmp2$study.day.nogap %in% 2:36,]
+
+model.plan1 <- geeglm(dailyjb.sqrt~ dailyjbpre.sqrt + I(planTrue.pre - .5),
+                 id = user, scale.fix = T, data = tmp3)
+
+names(model.plan1$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$", "$\\beta_{1}$")
+print(xtable(estimate(model.plan1, normal = FALSE),
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-no-day-effect0} weekday and 2-36 study days",
+             label = "tab:model-no-day-effect0", floating = TRUE, table.placement="H",  digits = 3), 
+      sanitize.rownames.function = identity)
+
+@
+Total $\Sexpr{nrow(tmp3)}$ person-day datapoints are used in this analysis.
+
+<<sensitivity_weekday2-36_model2, echo=FALSE, results="asis" >>=
+model.plan1.2 <-  geeglm(dailyjb.sqrt ~ dailyjbpre.sqrt + I(USplanTrue.pre - 0.25) +
+                    I(SplanTrue.pre - 0.25), id = user, 
+                  data = tmp3, scale.fix = T)
+
+
+names(model.plan1.2$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$", "$\\beta_{1}$", "$\\beta_{2}$")
+print(xtable(estimate(model.plan1.2, normal = FALSE),
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-no-day-effect1} weekday and 2-36 study days",
+             label = "tab:model-no-day-effect1", floating = TRUE, table.placement="H", digits = 3), 
+      sanitize.rownames.function = identity)
+@
+
+
+\subsubsection{For Weekend}
+<<sensitivity_weekend2-36_model1, echo=FALSE, results="asis" >>=
+tmp2=tmp1[tmp1$wday %in% 6:7,]
+tmp3=tmp2[tmp2$study.day.nogap %in% 2:36,]
+
+model.plan1 <- geeglm(dailyjb.sqrt~ dailyjbpre.sqrt + I(planTrue.pre - .5),
+                 id = user, scale.fix = T, data = tmp3)
+
+names(model.plan1$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$", "$\\beta_{1}$")
+print(xtable(estimate(model.plan1, normal = FALSE),
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-no-day-effect0} weekend and 2-36 study days",
+             label = "tab:model-no-day-effect0", floating = TRUE, table.placement="H",  digits = 3), 
+      sanitize.rownames.function = identity)
+
+@
+Total $\Sexpr{nrow(tmp3)}$ person-day datapoints are used in this analysis.
+
+<<sensitivity_weekend2-36_model2, echo=FALSE, results="asis" >>=
+model.plan1.2 <-  geeglm(dailyjb.sqrt ~ dailyjbpre.sqrt + I(USplanTrue.pre - 0.25) +
+                    I(SplanTrue.pre - 0.25), id = user, 
+                  data = tmp3, scale.fix = T)
+
+
+names(model.plan1.2$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$", "$\\beta_{1}$", "$\\beta_{2}$")
+print(xtable(estimate(model.plan1.2, normal = FALSE),
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-no-day-effect1} weekend and 2-36 study days",
+             label = "tab:model-no-day-effect1", floating = TRUE, table.placement="H",  digits = 3), 
+      sanitize.rownames.function = identity)
+@
+
+\section{Index included model}
+\subsection{Planning message}
+\begin{equation}
+  Y_{t+1} \sim \alpha_{0} + \alpha_{1} Z_{t} + \alpha_{2} W_{t+1}+\beta_{1}\left( A_{t} - 0.5 \right)+\beta_{2}\left( A_{t} - 0.5 \right)W_{t+1},
+  \label{eqn:model-weekday0} 
+\end{equation}
+
+\begin{Unstructured vs Structured planning}
+  Y_{t+1} \sim \alpha_{0} + \alpha_{1} Z_{t} + \alpha_{2} W_{t+1}+\beta_{1}\left( A_{1,t} - 0.25 \right)+\beta_{2}\left( A_{2,t} - 0.25 \right)+\beta_{3}\left( A_{1,t} - 0.25 \right)W_{t+1}+\beta_{4}\left( A_{2,t} - 0.25 \right)W_{t+1},
+  \label{eqn:model-weekday1} 
+\end{equation}
+
+\end{document}
