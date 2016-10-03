@@ -81,6 +81,9 @@ suggest.analysis <-
   suggest.included %>%
     arrange(user, study.day.nogap, decision.index.nogap)
 
+suggest.analysis$jbsteps30pre.log.cen <- 
+  with(suggest.analysis, jbsteps30pre.log - log(0.5))
+
 ```
 
 ```{r maineff-model, echo=FALSE}
@@ -100,22 +103,25 @@ mod.maineff <-
 # Notation
 * $Y_{t+1}$ is log(stepcount + 0.5) in the 30 minutes following the $t$th decision point.
 * $Z_t$ is log(stepcount + 0.5) in the 30 minutes prior to the $t$th decision point.
+* $\tilde{Z}_t = Z_t - \log(0.5)$, so that $\tilde{Z}_t = 0$ when the prior stepcount is zero
+* $U_t = I(\tilde{Z}_t = 0)$ is an indicator of zero prior steps.
 * $A_{t}$ is the indicator of treatment (suggestion) at decision point $t$.
 * $A_{1,t}$ is the indicator of an active suggestion at point $t$.
 * $A_{2,t}$ is the indicator of a sedentary suggestion at point $t$.
+* $d(t)$ is the day index of the $t$th decision point, ranging form 0 to 41.
 
 # Previous 30-minute step count
 
 (This and all models that follow weight by availability)
 
 ## Marginal model with interaction (no time trend)
-$$Y_{t+1} \sim \alpha_0 + \alpha_1 Z_t + \beta_1(A_t - 0.6) + \beta_2 Z_t (A_t - 0.6)$$
+$$Y_{t+1} \sim \alpha_0 + \alpha_1 \tilde{Z}_t + \beta_1(A_t - 0.6) + \beta_2 \tilde{Z}_t (A_t - 0.6)$$
 
 ```{r zt-mod1, echo=FALSE}
 
 m1.zt <- 
   geeglm(
-  jbsteps30.log ~ jbsteps30pre.log + I(send - 0.6) + jbsteps30pre.log * I(send-0.6),
+  jbsteps30.log ~ jbsteps30pre.log.cen + I(send - 0.6) + jbsteps30pre.log.cen * I(send-0.6),
   id = user, 
   corstr = 'independence',
   weights = as.numeric(suggest.analysis$avail),
@@ -162,13 +168,13 @@ cat('\\end{center}')
 ```
 
 ## Interactions with linear time trend
-$$Y_{t+1} \sim \alpha_0 + \alpha_1 Z_t + \alpha_2 d(t) + \beta_1(A_t - 0.6) + \beta_2 d(t) (A_t - 0.6) + \beta_3 Z_t(A_t-0.6) + \beta_4 d(t) Z_t$$
+$$Y_{t+1} \sim \alpha_0 + \alpha_1 \tilde{Z}_t + \alpha_2 d(t) + \beta_1(A_t - 0.6) + \beta_2 d(t) (A_t - 0.6) + \beta_3 \tilde{Z}_t(A_t-0.6) + \beta_4 d(t) \tilde{Z}_t$$
 ```{r zt-mod1-time, echo=FALSE}
 m1.zt.time <- 
   geeglm(
-    jbsteps30.log ~ jbsteps30pre.log + study.day.nogap + I(send - 0.6) +
+    jbsteps30.log ~ jbsteps30pre.log.cen + study.day.nogap + I(send - 0.6) +
       study.day.nogap:I(send-0.6) +
-      jbsteps30pre.log:I(send-0.6) + study.day.nogap:jbsteps30pre.log,
+      jbsteps30pre.log.cen:I(send-0.6) + study.day.nogap:jbsteps30pre.log.cen,
   id = user, 
   corstr = 'independence',
   weights = as.numeric(suggest.analysis$avail),
@@ -195,11 +201,6 @@ rownames(tt) <- c('$\\alpha_0$', '$\\alpha_1$', '$\\alpha_2$',
                   '$\\beta_1$', '$\\beta_2$', '$\\beta_3$', '$\\beta_4$')
 colnames(tt)[3:6] <- c('Hotelling','p-value','95% LCL','95% UCL')
 tt[,1] <- round(tt[,1], 3)
-#kable(tt,
-#      digits = c(3,4,2,3,3,3),
-#      align='r',
-#      format.args=list(trim=T)
-#      )
 
 cat('\\begin{center}')
 print(xtable(tt,
@@ -214,18 +215,136 @@ cat('\\end{center}')
 
 ```
 
+### Indicator of zero prior step count
+
+Let $U_t = I(\tilde{Z}_t = 0)$ where $I(\cdot)$ is the indicator function. So $U_t$ equals 1 if and only if there were no steps in the prior 30 minutes.
+
+$$Y_{t+1} \sim \alpha_0 + \alpha_1 \tilde{Z}_t + \alpha_2 d(t) +\alpha_3 \tilde{Z}_t d(t) + \beta_1(A_t-0.6) + \beta_2 U_t (A_t - 0.6) + \beta_3 d(t) (A_t-0.6)$$
+In this model, $\beta_2$ is the difference between the treatment effect when $U_t=1$ and the treatment effect when $U_t=0$.
+
+```{r ut-mod1, echo=FALSE}
+# U_t = 1 if the prior 30 minute step count is zero
+suggest.analysis$Ut <- with(suggest.analysis, as.numeric(jbsteps30pre.zero == 0))
+m1.ut.time <- 
+  geeglm(
+    jbsteps30.log ~ jbsteps30pre.log.cen + study.day.nogap + jbsteps30pre.log.cen:study.day.nogap +
+      I(send - 0.6) +
+      Ut:I(send - 0.6) + study.day.nogap:I(send - 0.6),
+  id = user, 
+  corstr = 'independence',
+  weights = as.numeric(suggest.analysis$avail),
+  scale.fix = TRUE,
+  data = suggest.analysis
+  )
+
+vcov.ut1.time <- vcov.heartsteps.bgl(m1.ut.time, small=T)
+se.ut1.time <- diag(vcov.ut1.time)
+coef.ut1.time <- coef(m1.ut.time)
+
+test.ut1.time <- pointwise.table.small(coef.ut1.time,
+                               vcov.ut1.time,
+                               n=length(m1.ut.time$geese$clusz),
+                               alpha=0.05)
+rownames(test.ut1.time) <- names(coef.ut1.time)
+
+```
+
+```{r ut-mod1-results, echo=FALSE, results='asis'}
+tt <- cbind('Estimate' = coef.ut1.time,
+            "SE" = sqrt(se.ut1.time),
+            test.ut1.time)
+coefNames <- c("(Intercept)", "jbsteps30pre.log.cen", "study.day.nogap",
+  "jbsteps30pre.log.cen:study.day.nogap", "I(send - 0.6)",
+  "I(send - 0.6):Ut", "study.day.nogap:I(send - 0.6)"
+)
+tt <- tt[coefNames, ]
+rownames(tt) <- c('$\\alpha_0$', '$\\alpha_1$', '$\\alpha_2$', '$\\alpha_3$', 
+                  '$\\beta_1$', '$\\beta_2$', '$\\beta_3$')
+colnames(tt)[3:6] <- c('Hotelling','p-value','95% LCL','95% UCL')
+#tt[,1] <- round(tt[,1], 3)
+
+cat('\\begin{center}')
+print(xtable(tt,
+             digits=c(0,4,4,2,3,3,3),
+             format='f'),
+      sanitize.rownames.function=identity,
+      floating=F,
+      comment=F)
+cat('\\end{center}')
+
+```
+
+### Indicator of zero prior step count, Susan's model
+
+$$
+\begin{aligned}
+Y_{t+1} \sim \alpha_0 + \alpha_1 \tilde{Z}_t + \alpha_2 d(t) + \alpha_3 \tilde{Z}_t d(t) + \beta_1 U_t(A_t - 0.6) + \beta_2(1 - U_t)(A_t - 0.6) + \beta_3 d(t) (A_t - 0.6)
+\end{aligned}
+$$
+
+```{r ut-mod2, echo=FALSE}
+suggest.analysis$Ut_complement <- 1 - suggest.analysis$Ut
+m2.ut.time <- 
+  geeglm(
+    jbsteps30.log ~ jbsteps30pre.log.cen + study.day.nogap + jbsteps30pre.log.cen:study.day.nogap +
+      Ut:I(send - 0.6) + Ut_complement:I(send - 0.6) + study.day.nogap:I(send - 0.6),
+  id = user, 
+  corstr = 'independence',
+  weights = as.numeric(suggest.analysis$avail),
+  scale.fix = TRUE,
+  data = suggest.analysis
+  )
+
+vcov.ut2.time <- vcov.heartsteps.bgl(m2.ut.time, small=T)
+se.ut2.time <- diag(vcov.ut2.time)
+coef.ut2.time <- coef(m2.ut.time)
+
+test.ut2.time <- pointwise.table.small(coef.ut2.time,
+                               vcov.ut2.time,
+                               n=length(m2.ut.time$geese$clusz),
+                               alpha=0.05)
+rownames(test.ut2.time) <- names(coef.ut2.time)
+
+```
+
+```{r ut-mod2-results, echo=FALSE, results='asis'}
+
+tt <- cbind('Estimate' = coef.ut2.time,
+            "SE" = sqrt(se.ut2.time),
+            test.ut2.time)
+coefNames2.ut <- c(
+  "(Intercept)", "jbsteps30pre.log.cen", "study.day.nogap",
+  "jbsteps30pre.log.cen:study.day.nogap", "Ut:I(send - 0.6)",
+  "I(send - 0.6):Ut_complement","study.day.nogap:I(send - 0.6)"
+)
+tt <- tt[coefNames2.ut, ]
+rownames(tt) <- c('$\\alpha_0$', '$\\alpha_1$', '$\\alpha_2$', '$\\alpha_3$',
+                  '$\\beta_1$', '$\\beta_2$', '$\\beta_3$')
+colnames(tt)[3:6] <- c('Hotelling','p-value','95% LCL','95% UCL')
+#tt[,1] <- round(tt[,1], 3)
+
+cat('\\begin{center}')
+print(xtable(tt,
+             digits=c(0,4,4,2,3,3,3),
+             format='f'),
+      sanitize.rownames.function=identity,
+      floating=F,
+      comment=F)
+cat('\\end{center}')
+
+```
+
 ## Active versus sedentary
 
-$$Y_{t+1} \sim \alpha_0 + \alpha_1 Z_t + \beta_1(A_{1,t} - 0.3) + \beta_2(A_{2,t} - 0.3) + \beta_3 Z_t (A_{1,t} - 0.3) + \beta_4 Z_t (A_{2,t} - 0.3)$$
-
+$$Y_{t+1} \sim \alpha_0 + \alpha_1 \tilde{Z}_t + \beta_1(A_{1,t} - 0.3) + \beta_2(A_{2,t} - 0.3) + \beta_3 \tilde{Z}_t (A_{1,t} - 0.3) + \beta_4 \tilde{Z}_t (A_{2,t} - 0.3)$$
 
 ```{r zt-mod2, echo=FALSE}
 
 m2.zt <- 
   geeglm(
-  jbsteps30.log ~ jbsteps30pre.log + I(send.active - 0.3) + 
-    I(send.sedentary - 0.3) + jbsteps30pre.log * I(send.active - 0.3) +
-    jbsteps30pre.log * I(send.sedentary - 0.3),
+  jbsteps30.log ~ jbsteps30pre.log.cen + I(send.active - 0.3) + 
+    I(send.sedentary - 0.3) + jbsteps30pre.log.cen * I(send.active - 0.3) +
+    jbsteps30pre.log.cen * I(send.sedentary - 0.3),
   id = user, 
   corstr = 'independence',
   weights = as.numeric(suggest.analysis$avail),
@@ -268,6 +387,196 @@ cat('\\end{center}')
 
 ```
 
+## Active versus sedentary, moderated by time trend and prior step count
+$$\begin{aligned}
+Y_{t+1} \sim \alpha_0 &+ \alpha_1 \tilde{Z}_t + \alpha_2 d(t) + \alpha_3 d(t)\tilde{Z}_t + \beta_1(A_{1,t} - 0.3) + \beta_2(A_{2,t} - 0.3)\\
+&+ \beta_3 \tilde{Z}_t(A_{1,t}-0.3) + \beta_4 \tilde{Z}_t(A_{2,t}-0.3) + \beta_5 d(t)(A_{1,t}-0.3) + \beta_6 d(t) (A_{2,t} - 0.3)
+\end{aligned}$$
+```{r zt-mod3, echo=FALSE}
+m3.zt <- 
+  geeglm(
+  jbsteps30.log ~ jbsteps30pre.log.cen + study.day.nogap +
+    study.day.nogap:jbsteps30pre.log.cen +
+    I(send.active - 0.3) +  I(send.sedentary - 0.3) + jbsteps30pre.log.cen:I(send.active - 0.3) +
+    jbsteps30pre.log.cen:I(send.sedentary - 0.3) +
+    study.day.nogap:I(send.active - 0.3) + study.day.nogap:I(send.sedentary - 0.3),
+  id = user, 
+  corstr = 'independence',
+  weights = as.numeric(suggest.analysis$avail),
+  scale.fix = TRUE,
+  data = suggest.analysis
+)
+
+vcov3.zt <- vcov.heartsteps.bgl(m3.zt, small=T)
+se3.zt <- diag(vcov3.zt)
+coef3.zt <- coef(m3.zt)
+
+test3.zt <- pointwise.table.small(coef3.zt,
+                               vcov3.zt,
+                               n=length(m3.zt$geese$clusz),
+                               alpha=0.05)
+
+
+```
+
+```{r zt-mod3-results, echo=FALSE, results='asis'}
+
+tt <- cbind('Estimate' = coef3.zt,
+            "SE" = sqrt(se3.zt),
+            test3.zt)
+rownames(tt) <- c('$\\alpha_0$', '$\\alpha_1$', '$\\alpha_2$', '$\\alpha_3$',
+                  '$\\beta_1$', '$\\beta_2$',
+                  '$\\beta_3$', '$\\beta_4$', '$\\beta_5$',
+                  '$\\beta_6$')
+colnames(tt)[3:6] <- c('Hotelling','p-value','95% LCL','95% UCL')
+
+cat('\\begin{center}')
+print(xtable(tt,
+             digits=c(0,3,3,2,3,3,3),
+             format='f'
+             ),
+      sanitize.rownames.function=identity,
+      floating=F
+      )
+cat('\\end{center}')
+
+```
+
+### Active versus sedentary, indicator of zero prior step count
+
+$$
+\begin{aligned}
+Y_{t+1} \sim \alpha_0 &+ \alpha_1 \tilde{Z}_t + \alpha_2 d(t) + \alpha_3 \tilde{Z}_t d(t) \\
+  &+ \beta_1(A_{1,t}-0.3) + \beta_2(A_{2,t}-0.3)\\
+  &+ \beta_3U_t(A_{1,t}-0.3) +\beta_4 U_t (A_{2,t} - 0.3) + \beta_5 d(t) (A_{1,t} - 0.3) + \beta_6 d(t) (A_{2,t} - 0.3)
+\end{aligned}
+$$
+
+In this model, $\beta_3$ is the active message effect when $U_t = 1$ (no prior steps) minus the active message effect when $U_t =0$ (greater than 0 prior steps).
+
+```{r ut-mod3, echo=FALSE}
+m3.ut <- 
+  geeglm(
+  jbsteps30.log ~ jbsteps30pre.log.cen + study.day.nogap + jbsteps30pre.log.cen:study.day.nogap +
+    I(send.active - 0.3) +  I(send.sedentary - 0.3) +
+    Ut:I(send.active - 0.3) + Ut:I(send.sedentary - 0.3) +
+    study.day.nogap:I(send.active - 0.3) + study.day.nogap:I(send.sedentary - 0.3),
+  id = user, 
+  corstr = 'independence',
+  weights = as.numeric(suggest.analysis$avail),
+  scale.fix = TRUE,
+  data = suggest.analysis
+)
+
+vcov3.ut <- vcov.heartsteps.bgl(m3.ut, small=T)
+se3.ut <- diag(vcov3.ut)
+coef3.ut <- coef(m3.ut)
+
+test3.ut <- pointwise.table.small(coef3.ut,
+                               vcov3.ut,
+                               n=length(m3.ut$geese$clusz),
+                               alpha=0.05)
+
+```
+
+```{r ut-mod3-results, echo=FALSE, results='asis'}
+
+tt <- cbind('Estimate' = coef3.ut,
+            "SE" = sqrt(se3.ut),
+            test3.ut)
+
+coefNames3.ut <- c(
+  "(Intercept)", "jbsteps30pre.log.cen", "study.day.nogap",
+  "jbsteps30pre.log.cen:study.day.nogap", "I(send.active - 0.3)",
+  "I(send.sedentary - 0.3)", "I(send.active - 0.3):Ut",
+  "I(send.sedentary - 0.3):Ut","study.day.nogap:I(send.active - 0.3)",
+  "study.day.nogap:I(send.sedentary - 0.3)"
+)
+tt <- tt[coefNames3.ut, ]
+rownames(tt) <- c('$\\alpha_0$', '$\\alpha_1$', '$\\alpha_2$','$\\alpha_3$',
+                  '$\\beta_1$', '$\\beta_2$',
+                  '$\\beta_3$', '$\\beta_4$', '$\\beta_5$',
+                  '$\\beta_6$')
+colnames(tt)[3:6] <- c('Hotelling','p-value','95% LCL','95% UCL')
+
+cat('\\begin{center}')
+print(xtable(tt,
+             digits=c(0,4,3,3,3,3,3),
+             format='f'
+             ),
+      sanitize.rownames.function=identity,
+      floating=F
+      )
+cat('\\end{center}')
+
+```
+
+### Active vs. sedentary, indicator of zero prior steps, Susan's model
+
+$$
+\begin{aligned}
+Y_{t+1} \sim \alpha_0 &+ \alpha_1 \tilde{Z}_t + \alpha_2 d(t) + \alpha_3 \tilde{Z}_t d(t)\\
+  &+ \beta_1 U_t (A_{1,t}-0.3) + \beta_2(1-U_t)(A_{1,t} - 0.3)\\
+  &+ \beta_3 U_t (A_{2,t}-0.3) +\beta_4 (1 - U_t) (A_{2,t} - 0.3) + \beta_5 d(t) (A_{1,t} - 0.3) + \beta_6 d(t) (A_{2,t} - 0.3)
+\end{aligned}
+$$
+```{r ut-mod4, echo=FALSE}
+
+m4.ut <- 
+  geeglm(
+  jbsteps30.log ~ jbsteps30pre.log.cen + study.day.nogap + jbsteps30pre.log.cen:study.day.nogap +
+    Ut:I(send.active - 0.3) + Ut_complement:I(send.active - 0.3) +
+    Ut:I(send.sedentary - 0.3) + Ut_complement:I(send.sedentary - 0.3) +
+    study.day.nogap:I(send.active - 0.3) + study.day.nogap:I(send.sedentary - 0.3),
+  id = user, 
+  corstr = 'independence',
+  weights = as.numeric(suggest.analysis$avail),
+  scale.fix = TRUE,
+  data = suggest.analysis
+)
+
+vcov4.ut <- vcov.heartsteps.bgl(m4.ut, small=T)
+se4.ut <- diag(vcov4.ut)
+coef4.ut <- coef(m4.ut)
+
+test4.ut <- pointwise.table.small(coef4.ut,
+                               vcov4.ut,
+                               n=length(m4.ut$geese$clusz),
+                               alpha=0.05)
+rownames(test4.ut) <- names(coef4.ut)
+
+```
+
+```{r ut-mod4-results, echo=FALSE, results='asis'}
+tt <- cbind('Estimate' = coef4.ut,
+            "SE" = sqrt(se4.ut),
+            test4.ut)
+coefNames4.ut <- c(
+  "(Intercept)", "jbsteps30pre.log.cen", "study.day.nogap",
+  "jbsteps30pre.log.cen:study.day.nogap", "Ut:I(send.active - 0.3)",
+  "I(send.active - 0.3):Ut_complement","Ut:I(send.sedentary - 0.3)",
+  "Ut_complement:I(send.sedentary - 0.3)","study.day.nogap:I(send.active - 0.3)",
+  "study.day.nogap:I(send.sedentary - 0.3)"
+)
+tt <- tt[coefNames4.ut, ]
+rownames(tt) <- c('$\\alpha_0$', '$\\alpha_1$', '$\\alpha_2$', '$\\alpha_3$',
+                  '$\\beta_1$', '$\\beta_2$',
+                  '$\\beta_3$', '$\\beta_4$', '$\\beta_5$',
+                  '$\\beta_6$')
+colnames(tt)[3:6] <- c('Hotelling','p-value','95% LCL','95% UCL')
+
+cat('\\begin{center}')
+print(xtable(tt,
+             digits=c(0,4,3,2,4,3,3),
+             format='f'
+             ),
+      sanitize.rownames.function=identity,
+      floating=F
+      )
+cat('\\end{center}')
+
+```
+
 # Previous day's self-reported stress
 
 ```{r ema-data, echo=FALSE}
@@ -301,35 +610,12 @@ suggest.stress <-
   ) %>%
   select(user, study.date, study.day.nogap, decision.index.nogap,
          stress_prev_day = stressful,
-         jbsteps30pre.log, jbsteps30.log, send,
+         jbsteps30pre.log, jbsteps30pre.log.cen, jbsteps30.log, send,
          send.active, send.sedentary, avail)
-
-
-nrow(suggest.stress)
-
 
 ```
 
 ## Missingness of self-reported stress
-
-```{r missing-residuals, echo=FALSE, include=FALSE}
-temp <- 
-  data.frame(fitted=mod.maineff$fitted.values,
-                  resid = mod.maineff$y - mod.maineff$fitted.values,
-                  stress_prev = suggest.stress$stress_prev_day) %>%
-         mutate(stress_prev_c = as.character(stress_prev))
-temp$stress_prev_c[which(is.na(temp$stress_prev))] <- "Missing"
-temp$stress_prev_f <- factor(temp$stress_prev_c,
-                             levels=c(1:5, 'Missing'))
-temp$decision.index.nogap <- suggest.stress$decision.index.nogap
-
-ggplot(temp) + 
-  geom_point(aes(x=decision.index.nogap, y=resid, 
-                 color=stress_prev_f))+
-    scale_color_manual(values=c(brewer.pal(5, 'Blues'), 'red')) +
-    ptheme
-
-```
 
 Of the `r npdays` person-days used in our analyses, about `r 100 * round(nmissdays / npdays, 2)` percent (`r nmissdays` / `r npdays`) are missing a self-reported stress rating. 
 
@@ -353,7 +639,7 @@ Let $E_{d(t) - 1}$ be the numeric stress rating (1--5) on the previous day.
 
 This model excludes all decision points where the previous day's stress rating is missing (`r sum(is.na(suggest.stress$stress_prev_day))` out of `r nrow(suggest.stress)` decision points).
 
-$$Y_{t+1} \sim \alpha_0 + \alpha_1 Z_t + \beta_1(A_t - 0.6) + \beta_2 E_{d(t) - 1} + \beta_3 E_{d(t)-1}(A_t - 0.6)$$
+$$Y_{t+1} \sim \alpha_0 + \alpha_1\tilde{Z}_t + \beta_1(A_t - 0.6) + \beta_2 E_{d(t) - 1} + \beta_3 E_{d(t)-1}(A_t - 0.6)$$
 
 ```{r stress-model-complete, echo=FALSE}
 
@@ -362,7 +648,7 @@ suggest.stress.complete <-
 
 mod.stress.complete <-
   geeglm(
-  jbsteps30.log ~ jbsteps30pre.log + I(send - 0.6) + stress_prev_day +
+  jbsteps30.log ~ jbsteps30pre.log.cen + I(send - 0.6) + stress_prev_day +
     stress_prev_day * I(send - 0.6),
   id = user, 
   corstr = 'independence',
@@ -421,7 +707,7 @@ The following model uses "Low stress" as the reference category.
 
 $$
 \begin{aligned}
-Y_{t+1} \sim \alpha_0 + \alpha_1 Z_t &+ \beta_1(A_t - 0.6) + \beta_2 W_{\text{High}} + \beta_3W_{\text{Missing}} \\
+Y_{t+1} \sim \alpha_0 + \alpha_1 \tilde{Z}_t &+ \beta_1(A_t - 0.6) + \beta_2 W_{\text{High}} + \beta_3W_{\text{Missing}} \\
 &+ \beta_4W_{\text{High}}(A_t-0.6) + \beta_5W_{\text{Missing}}(A_t-0.6)
 \end{aligned}
 $$
@@ -437,7 +723,7 @@ suggest.stress$stress_prev_cat <- relevel(as.factor(stresschar),
 
 mod.stress.cat <-
   geeglm(
-  jbsteps30.log ~ jbsteps30pre.log + I(send - 0.6)*stress_prev_cat,
+  jbsteps30.log ~ jbsteps30pre.log.cen + I(send - 0.6)*stress_prev_cat,
   id = user, 
   corstr = 'independence',
   weights = as.numeric(suggest.stress$avail),
@@ -484,42 +770,488 @@ cat('\\end{center}')
 
 hour_cutoff <- 5
 
-## To fix:
-# need to handle slots where no steps were accumulated
-# need to calculate length of slot for those cases
-# e.g. no steps before first decision point of day after 5 a.m.
-#   still want the time between 5 a.m. and that decision point
-# or just subtract 5 a.m. from each decision point!
-jbslotpre.cutoff <-
+temp <-
   jbslotpre %>%
-  filter(as.POSIXct(start.datetime) >= as.POSIXct(start.date) + hour_cutoff*60*60 &
-           study.date == start.date)
-
-jbslotpre.cutoff <-
-  jbslotpre.cutoff %>%
-  inner_join(select(suggest.analysis, user,study.date, decision.index.nogap),
-             by=c('user'='user',
-                  'study.date'='study.date',
-                  'decision.index.nogap'='decision.index.nogap'))
+  select(user, start.utime, start.date, start.udate, steps, decision.utime, decision.index.nogap,
+         study.day.nogap, steps) %>%
+  inner_join(
+    suggest.analysis %>% 
+      select(user, study.date, decision.index.nogap, 
+             decision.gmtoff = gmtoff),
+    by=c('user'='user', 'decision.index.nogap' = 'decision.index.nogap')
+    ) %>% 
+  mutate(start.ltime = start.utime + decision.gmtoff,
+         start.ldate = as.POSIXct(trunc(as.POSIXct(start.ltime), 'day')),
+         study.date.starttime = trunc(as.POSIXct(start.ldate),'day') + hour_cutoff*60*60) %>%
+  filter(as.POSIXct(start.ldate) == as.POSIXct(study.date) & 
+           start.ltime >= study.date.starttime)  %>%
+  group_by(user, decision.index.nogap) %>%
+  summarise(study.date = unique(study.date),
+            slot_steps = sum(steps))
 
 jbslotpre.cumulative <-
-  jbslotpre.cutoff %>%
-  group_by(user, decision.index.nogap) %>%
-  summarise(study.date=unique(study.date),
-            slot_steps = sum(steps),
-            slot_time_min = difftime(max(decision.utime),
-                                     min(start.utime), units='mins')) %>%
+  temp %>%
   right_join(
-    select(suggest.analysis, user, decision.index.nogap, study.date),
+    suggest.analysis %>% 
+      select(user, decision.index.nogap, study.date,
+             study.day.nogap, jbsteps30pre.log, jbsteps30.log,
+             decision.utime, decision.gmtoff = gmtoff,
+             avail, send, slot) %>%
+      mutate(decision.ltime = decision.utime + decision.gmtoff,
+             study.date.starttime = trunc(as.POSIXct(decision.ltime),'day') + hour_cutoff*60*60,
+             decision.day.hours = difftime(decision.ltime, study.date.starttime, units='hours')),
     by=c('user'='user','decision.index.nogap'='decision.index.nogap',
          'study.date'='study.date')
   )
 
-  #group_by(user, study.date) %>%
-  #mutate(cum_day_steps = cumsum(slot_steps),
-  #       cum_day_min = cumsum(as.numeric(slot_time_min))) 
+jbslotpre.cumulative$slot_steps[which(is.na(jbslotpre.cumulative$slot_steps))] <- 0
+
+jbslotpre.cumulative <-
+  jbslotpre.cumulative %>%
+  group_by(user, study.date) %>%
+  mutate(steps_cumulative = cumsum(slot_steps))
+
+jbslotpre.cumulative <-
+  jbslotpre.cumulative %>% ungroup %>%
+  mutate(steps_cumulative_log = log(steps_cumulative + 0.5),
+         step_rate_cumulative_hour = steps_cumulative / as.numeric(decision.day.hours))
+
+jbslotpre.final <-
+  filter(jbslotpre.cumulative,
+         decision.day.hours >0 & !is.na(decision.day.hours))
 
 
-  
+jbslotpre.final$step_rate_cumulative_log <- 
+  log(jbslotpre.final$step_rate_cumulative_hour + 0.5)
+jbslotpre.final$step_rate_cumulative_log_cen <-
+  jbslotpre.final$step_rate_cumulative_log - log(0.5)
+
+## Indicator of zero cumulative step rate up to decision ponit
+jbslotpre.final$step_rate_0_indicator <- 
+  as.numeric(with(jbslotpre.final, step_rate_cumulative_hour==0))
+jbslotpre.final$step_rate_nonzero_indicator <-
+  with(jbslotpre.final, 1 - step_rate_0_indicator)
+
 ```
 
+This is an attempt to calculate the cumulative step count (and hourly step rate) from the start of each day up to each decision point.
+
+* This cumulative step count was defined as the number of steps between `r hour_cutoff` a.m. and the decision time on each study day. 
+* Of the `r nrow(suggest.analysis)` decision points used in the primary analysis, `r nrow(suggest.analysis) - nrow(jbslotpre.final)` were excluded in this calculation:
+    * User 4 decision point 0 had no timestamp for the decision point.
+    * User 14 decision 33 had a decision timestamp before 5 a.m. on 9/7/2015.
+    * User 21 decision 97 had a decision timestamp before 5 a.m. on 11/1/2015
+* **Caution**: The decision point timestamps might not be completely reliable for some users (e.g. user 14). Does it make sense that many decision points occured around 5 a.m.?
+
+Here's an example of the cumulative steps and step rate for a few users and study days:
+```{r plot-cumulative-steps, echo=FALSE, fig.width=8.5,fig.height=4}
+egusers <- c(1,10,37)
+egdata <-
+  jbslotpre.final %>%
+  filter(user %in% egusers & study.day.nogap <= 9) %>%
+  mutate(user = factor(user, levels=egusers,
+                       labels=paste(c('User ',rep('',length(egusers)-1)), egusers,sep='')))
+grid.arrange(
+  egdata %>%
+    ggplot(aes(x=decision.index.nogap, y=steps_cumulative)) + 
+    geom_line() +
+    facet_wrap(~user) + ptheme +
+    xlab('Decision index') +
+    ylab('Cumulative daily steps'),
+  egdata %>%
+    ggplot(aes(x=decision.index.nogap, y=step_rate_cumulative_hour)) + 
+    geom_line() +
+    facet_wrap(~user) + ptheme +
+    xlab('Decision index') +
+    ylab('Cumulative hourly step rate'),
+  nrow=2
+  )
+
+```
+
+```{r plot-decision-timestamps, echo=FALSE, include=FALSE, out.width='0.75\\textwidth'}
+
+suggest.analysis %>%
+  mutate(decision.ltime = decision.utime + gmtoff,
+         decision.hour = as.numeric(format(as.POSIXct(decision.ltime), '%H'))) %>%
+  ggplot(aes(x=decision.hour)) + geom_histogram(binwidth=2,color='black',fill='white') + ptheme
+
+```
+
+Here is a histogram of $\tilde{R}_t$.
+
+```{r plot-cumulative-histogram, echo=FALSE, fig.width=6, fig.height=4, out.width='0.6\\textwidth'}
+
+jbslotpre.final %>%
+  ggplot(aes(x=step_rate_cumulative_log_cen)) +
+  geom_histogram(aes(y=(..count..) / (sum(..count..)),
+                     fill=as.factor(slot)),color='black',
+                 closed='left', boundary=0, bins=25)+
+  ptheme +
+  xlab(expression(tilde(R)[t]))+ylab('Proportion of \ndecision points')+
+  scale_fill_brewer(palette='YlGnBu', name='Decision slot',
+                    breaks=c(1,2,3,4,5),
+                    labels=c('Early morning','','','','After dinner'))+
+  theme(legend.position='right')
+
+```
+
+
+## Model with cumulative step rate as a moderator
+* Let $R_t$ be the log cumulative hourly step rate up to the $t$th decision point.
+* Let $\tilde{R}_t = R_t - \log(0.5)$ so that $\tilde{R}_t =0$ when there have been no steps between `r hour_cutoff` a.m. and the current decision point.
+
+```{r cumulative-model, echo=FALSE, include=FALSE}
+
+
+mod.cumsteps <- 
+  geeglm(
+  jbsteps30.log ~ step_rate_cumulative_log_cen + I(send - 0.6) + step_rate_cumulative_log_cen:I(send-0.6),
+  id = user, 
+  corstr = 'independence',
+  weights = as.numeric(jbslotpre.final$avail),
+  scale.fix = TRUE,
+  data = jbslotpre.final
+)
+
+
+vcov.cumsteps <- vcov.heartsteps.bgl(mod.cumsteps, small=T)
+se.cumsteps <- diag(vcov.cumsteps)
+coef.cumsteps <- coef(mod.cumsteps)
+
+test.cumsteps <- pointwise.table.small(coef.cumsteps,
+                               vcov.cumsteps,
+                               n=length(mod.cumsteps$geese$clusz),
+                               alpha=0.05)
+
+```
+
+```{r cumulative-model-results, echo=FALSE, results='asis', include=FALSE}
+tt <- cbind('Estimate' = coef.cumsteps,
+            "SE" = sqrt(se.cumsteps),
+            test.cumsteps)
+rownames(tt) <- c('$\\alpha_0$', '$\\alpha_1$','$\\beta_1$', '$\\beta_2$')
+colnames(tt)[3:6] <- c('Hotelling','p-value','95% LCL','95% UCL')
+
+cat('\\begin{center}')
+print(xtable(tt,
+             digits=c(0,3,3,2,3,3,3),
+             format='f'
+             ),
+      sanitize.rownames.function=identity,
+      floating=F
+      )
+cat('\\end{center}')
+
+```
+
+$$ Y_{t+1} \sim \alpha_0 + \alpha_1 \tilde{Z}_t + \alpha_2\tilde{R}_t +\beta_1(A_t - 0.6) + \beta_2\tilde{R}_t(A_t-0.6)$$
+```{r cumulative-model-2, echo=FALSE}
+jbslotpre.final$jbsteps30pre.log.cen <-
+  jbslotpre.final$jbsteps30pre.log - log(0.5)
+
+mod.cumsteps2 <-
+  geeglm(
+    jbsteps30.log ~ jbsteps30pre.log.cen + step_rate_cumulative_log_cen + I(send - 0.6) + step_rate_cumulative_log_cen:I(send-0.6),
+    id = user,
+    corstr='independence',
+    weights = as.numeric(jbslotpre.final$avail),
+    scale.fix = TRUE,
+    data=jbslotpre.final
+  )
+
+vcov.cumsteps2 <- vcov.heartsteps.bgl(mod.cumsteps2, small=T)
+se.cumsteps2 <- diag(vcov.cumsteps2)
+coef.cumsteps2 <- coef(mod.cumsteps2)
+
+test.cumsteps2 <- pointwise.table.small(coef.cumsteps2,
+                               vcov.cumsteps2,
+                               n=length(mod.cumsteps2$geese$clusz),
+                               alpha=0.05)
+
+```
+
+```{r cumulative-model2-results, echo=FALSE, results='asis'}
+tt <- cbind('Estimate' = coef.cumsteps2,
+            "SE" = sqrt(se.cumsteps2),
+            test.cumsteps2)
+rownames(tt) <- names(coef.cumsteps2)
+
+coefNames2.cumsteps <-
+  c("(Intercept)", "jbsteps30pre.log.cen",
+    "step_rate_cumulative_log_cen", "I(send - 0.6)",
+    "step_rate_cumulative_log_cen:I(send - 0.6)")
+tt <- tt[coefNames2.cumsteps, ]
+
+rownames(tt) <- c('$\\alpha_0$', '$\\alpha_1$', '$\\alpha_2$',
+                  '$\\beta_1$', '$\\beta_2$')
+colnames(tt)[3:6] <- c('Hotelling','p-value','95% LCL','95% UCL')
+
+cat('\\begin{center}')
+print(xtable(tt,
+             digits=c(0,3,3,2,3,3,3),
+             format='f'
+             ),
+      sanitize.rownames.function=identity,
+      floating=F
+      )
+cat('\\end{center}')
+
+```
+### With linear time trend
+$$ Y_{t+1} \sim \alpha_0 + \alpha_1 \tilde{Z}_t + \alpha_2\tilde{R}_t + \alpha_3 d(t) +\beta_1(A_t - 0.6) + \beta_2\tilde{R}_t(A_t-0.6) + \beta_3 d(t) (A_t -0.6)$$
+
+
+```{r mod-cumsteps3, echo=FALSE}
+mod.cumsteps3 <-
+  geeglm(
+    jbsteps30.log ~ jbsteps30pre.log.cen + step_rate_cumulative_log_cen + study.day.nogap  + I(send - 0.6) + step_rate_cumulative_log_cen:I(send-0.6) + study.day.nogap:I(send - 0.6),
+    id = user,
+    corstr='independence',
+    weights = as.numeric(jbslotpre.final$avail),
+    scale.fix = TRUE,
+    data=jbslotpre.final
+  )
+
+vcov.cumsteps3 <- vcov.heartsteps.bgl(mod.cumsteps3, small=T)
+se.cumsteps3 <- diag(vcov.cumsteps3)
+coef.cumsteps3 <- coef(mod.cumsteps3)
+
+test.cumsteps3 <- pointwise.table.small(coef.cumsteps3,
+                               vcov.cumsteps3,
+                               n=length(mod.cumsteps3$geese$clusz),
+                               alpha=0.05)
+```
+
+```{r mod-cumsteps3-results, echo=FALSE, results='asis'}
+tt <- cbind('Estimate' = coef.cumsteps3,
+            "SE" = sqrt(se.cumsteps3),
+            test.cumsteps3)
+rownames(tt) <- names(coef.cumsteps3)
+
+coefNames3.cumsteps <-
+  c("(Intercept)", "jbsteps30pre.log.cen",
+    "step_rate_cumulative_log_cen", "study.day.nogap",
+    "I(send - 0.6)",
+    "step_rate_cumulative_log_cen:I(send - 0.6)", 
+    "study.day.nogap:I(send - 0.6)")
+tt <- tt[coefNames3.cumsteps, ]
+
+rownames(tt) <- c('$\\alpha_0$', '$\\alpha_1$', '$\\alpha_2$','$\\alpha_3$',
+                  '$\\beta_1$', '$\\beta_2$', '$\\beta_3$')
+colnames(tt)[3:6] <- c('Hotelling','p-value','95% LCL','95% UCL')
+
+cat('\\begin{center}')
+print(xtable(tt,
+             digits=c(0,3,3,2,3,3,3),
+             format='f'
+             ),
+      sanitize.rownames.function=identity,
+      floating=F
+      )
+cat('\\end{center}')
+
+```
+
+## Indicator of zero prior step rate
+Let $Q_t = 0$ if $\tilde{R}_t=0$ and $Q_t=1$ otherwise.
+
+$$
+Y_{t+1} \sim \alpha_0 + \alpha_1\tilde{Z}_t + \alpha_2\tilde{R}_t + \beta_1Q_t(A_t - 0.6) + \beta_2 (1 - Q_t) (A_t - 0.6)
+$$
+
+```{r mod-cumsteps4, echo=FALSE}
+mod.cumsteps4 <-
+  geeglm(
+    jbsteps30.log ~ jbsteps30pre.log.cen + step_rate_cumulative_log_cen +
+      step_rate_0_indicator:I(send - 0.6) + 
+      step_rate_nonzero_indicator:I(send - 0.6),
+    id = user,
+    corstr='independence',
+    weights = as.numeric(jbslotpre.final$avail),
+    scale.fix = TRUE,
+    data=jbslotpre.final
+  )
+
+vcov.cumsteps4 <- vcov.heartsteps.bgl(mod.cumsteps4, small=T)
+se.cumsteps4 <- diag(vcov.cumsteps4)
+coef.cumsteps4 <- coef(mod.cumsteps4)
+
+test.cumsteps4 <- pointwise.table.small(coef.cumsteps4,
+                               vcov.cumsteps4,
+                               n=length(mod.cumsteps4$geese$clusz),
+                               alpha=0.05)
+```
+
+```{r mod-cumsteps4-results, echo=FALSE, results='asis'}
+tt <- cbind('Estimate' = coef.cumsteps4,
+            "SE" = sqrt(se.cumsteps4),
+            test.cumsteps4)
+rownames(tt) <- names(coef.cumsteps4)
+
+coefNames4.cumsteps <-
+  c("(Intercept)", "jbsteps30pre.log.cen", "step_rate_cumulative_log_cen",
+    "step_rate_0_indicator:I(send - 0.6)",
+    "I(send - 0.6):step_rate_nonzero_indicator")
+tt <- tt[coefNames4.cumsteps, ]
+
+rownames(tt) <- c('$\\alpha_0$', '$\\alpha_1$', '$\\alpha_2$',
+                  '$\\beta_1$', '$\\beta_2$')
+colnames(tt)[3:6] <- c('Hotelling','p-value','95% LCL','95% UCL')
+
+cat('\\begin{center}')
+print(xtable(tt,
+             digits=c(0,3,3,2,3,3,3),
+             format='f'
+             ),
+      sanitize.rownames.function=identity,
+      floating=F
+      )
+cat('\\end{center}')
+
+```
+
+### With linear time trend
+
+$$
+Y_{t+1} \sim \alpha_0 + \alpha_1\tilde{Z}_t + \alpha_2 d(t) + \alpha_3 \tilde{R}_t + \beta_1 Q_t(A_t - 0.6) + \beta_2 (1 - Q_t) (A_t - 0.6) + \beta_3 d(t) (A_t - 0.6)
+$$
+
+```{r mod-cumsteps5, echo=FALSE}
+
+mod.cumsteps5 <-
+  geeglm(
+    jbsteps30.log ~ jbsteps30pre.log.cen + study.day.nogap + 
+      step_rate_cumulative_log_cen +
+      step_rate_0_indicator:I(send - 0.6) + 
+      step_rate_nonzero_indicator:I(send - 0.6) + 
+      study.day.nogap:I(send - 0.6),
+    id = user,
+    corstr='independence',
+    weights = as.numeric(jbslotpre.final$avail),
+    scale.fix = TRUE,
+    data=jbslotpre.final
+  )
+
+vcov.cumsteps5 <- vcov.heartsteps.bgl(mod.cumsteps5, small=T)
+se.cumsteps5 <- diag(vcov.cumsteps5)
+coef.cumsteps5 <- coef(mod.cumsteps5)
+
+test.cumsteps5 <- pointwise.table.small(coef.cumsteps5,
+                               vcov.cumsteps5,
+                               n=length(mod.cumsteps5$geese$clusz),
+                               alpha=0.05)
+
+```
+
+```{r mod-cumsteps5-results, echo=FALSE, results='asis'}
+tt <- cbind('Estimate' = coef.cumsteps5,
+            "SE" = sqrt(se.cumsteps5),
+            test.cumsteps5)
+rownames(tt) <- names(coef.cumsteps5)
+
+coefNames5.cumsteps <-
+  c("(Intercept)", "jbsteps30pre.log.cen", "study.day.nogap",
+    "step_rate_cumulative_log_cen",
+    "step_rate_0_indicator:I(send - 0.6)",
+    "I(send - 0.6):step_rate_nonzero_indicator", "study.day.nogap:I(send - 0.6)")
+tt <- tt[coefNames5.cumsteps, ]
+
+rownames(tt) <- c('$\\alpha_0$', '$\\alpha_1$', '$\\alpha_2$', '$\\alpha_3$',
+                  '$\\beta_1$', '$\\beta_2$', '$\\beta_3$')
+colnames(tt)[3:6] <- c('Hotelling','p-value','95% LCL','95% UCL')
+
+cat('\\begin{center}')
+print(xtable(tt,
+             digits=c(0,3,3,2,3,3,3),
+             format='f'
+             ),
+      sanitize.rownames.function=identity,
+      floating=F
+      )
+cat('\\end{center}')
+
+```
+
+# Residual plots
+
+## Prior step count with linear time trend
+$$Y_{t+1} \sim \alpha_0 + \alpha_1 \tilde{Z}_t + \alpha_2 d(t) + \beta_1(A_t - 0.6) + \beta_2 d(t) (A_t - 0.6) + \beta_3 \tilde{Z}_t(A_t-0.6) + \beta_4 d(t) \tilde{Z}_t$$
+
+```{r resid-plot-func, echo=FALSE}
+resid_plot <- function(mod, mdat, time=FALSE){
+  pdat <-
+    data.frame(fitted = mod$fitted.values,
+               y = mod$y,
+               resid = mod$y - mod$fitted.values,
+               send = factor(mdat$send, 
+                             levels=c('TRUE','FALSE'),
+                             labels=c('Suggestion','No Suggestion')))
+  xvar <- 'fitted'
+  xlabel <- 'Fitted value'
+  if(time){
+    pdat$time <- mdat[,'decision.index.nogap']
+    xvar <- 'time'
+    xlabel <- 'Decision point'
+  }
+  ret <- ggplot(pdat, aes_string(x = xvar, y='resid'))
+  if(time){
+    ret <- ret + stat_smooth(aes(color=send), span = 0.5, se=F, size=1.5) +
+      geom_point(aes(color=send), shape=1, alpha=I(1/3))
+  } else{
+    ret <- ret + geom_point(aes(color=send), shape=1)
+  }
+  ret <- ret + scale_color_brewer(palette='Dark2',
+                                  name='')
+  ret <- ret + ptheme +
+    xlab(xlabel) + ylab('Residual')
+  ret <- ret + theme(legend.position='bottom')
+  return(ret)
+}
+```
+The right panel shows Loess smoothers for each treatment group over time.
+```{r resids-m1-zt-time,echo=FALSE,fig.width=8,fig.height=4, out.width='\\textwidth'}
+grid.arrange(resid_plot(m1.zt.time, suggest.analysis, time=F),
+             resid_plot(m1.zt.time, suggest.analysis, time=T) + ylab(''),
+             nrow=1)
+```
+
+## Active versus sedentary, moderated by time trend and prior step count
+$$\begin{aligned}
+Y_{t+1} \sim \alpha_0 &+ \alpha_1 \tilde{Z}_t + \alpha_2 d(t) + \beta_1(A_{1,t} - 0.3) + \beta_2(A_{2,t} - 0.3)\\
+&+ \beta_3 \tilde{Z}_t(A_{1,t}-0.3) + \beta_4 \tilde{Z}_t(A_{2,t}-0.3) + \beta_5 d(t)(A_{1,t}-0.3) + \beta_6 d(t) (A_{2,t} - 0.3) + \beta_7d(t) \tilde{Z}_t
+\end{aligned}$$
+
+The right panel shows Loess smoothers for each treatment group over time.
+```{r resids-m3-zt, echo=FALSE, fig.width=8, fig.height=4, out.width='\\textwidth'}
+grid.arrange(resid_plot(m3.zt, suggest.analysis, time=F),
+             resid_plot(m3.zt, suggest.analysis, time=T) + ylab(''),
+             nrow=1)
+```
+
+## Missingness of self-reported stress
+
+The following plot displays residuals from the main effects model
+
+$$Y_{t+1} \sim \alpha_0 + \alpha_1 Z_t + \beta_1(A_{t} - 0.6)$$
+
+shaded by the self-reported stress values.
+```{r missing-residuals, echo=FALSE, fig.width=5.5, fig.height=3, out.width='0.75\\textwidth'}
+temp <- 
+  data.frame(fitted=mod.maineff$fitted.values,
+                  resid = mod.maineff$y - mod.maineff$fitted.values,
+                  stress_prev = suggest.stress$stress_prev_day) %>%
+         mutate(stress_prev_c = as.character(stress_prev))
+temp$stress_prev_c[which(is.na(temp$stress_prev))] <- "Missing"
+temp$stress_prev_f <- factor(temp$stress_prev_c,
+                             levels=c(1:5, 'Missing'))
+temp$decision.index.nogap <- suggest.stress$decision.index.nogap
+
+ggplot(temp) + 
+  geom_point(aes(x=decision.index.nogap, y=resid, 
+                 color=stress_prev_f), alpha=I(1/1.5))+
+    scale_color_manual(values=c(brewer.pal(5, 'Blues'), 'red'),
+                       name='Previous day stress\nrating') +
+    ptheme + xlab('Decision point') + ylab('Residual')
+
+```
