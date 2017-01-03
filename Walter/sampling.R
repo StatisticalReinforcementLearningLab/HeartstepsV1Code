@@ -26,7 +26,7 @@ fraction.data = matrix(nrow = length(seq.hour), ncol = 3)
 
 for (i in 1:length(seq.hour)) {
   current.hour = seq.hour[i]
-  result = fraction.time.in.state(current.hour)  
+  result = fraction.time.in.state(current.hour)
   fraction.data[i,] = c(current.hour,result$mean,result$var)
 }
 
@@ -35,9 +35,9 @@ names(fraction.df) = c("current.hour", "mean", "var")
 
 # png("../fraction_sed.png", width = 6.5,height = 3, units = "in", res = 300)
 par(mfrow = c(1,1), mar = c(5,4,1,1)+0.1)
-plot((fraction.df$current.hour-14)%%24,fraction.df$mean, 
+plot((fraction.df$current.hour-14)%%24,fraction.df$mean,
      xlim = c(0,12),
-     ylim = c(0.24, 0.27), axes = FALSE, 
+     ylim = c(0.24, 0.27), axes = FALSE,
      ylab = "Fraction of time 'Sedentary'",
      xlab = "Hour (0 = 9AM) ")
 axis(side = 1); axis(side = 2)
@@ -58,7 +58,7 @@ total.At = foreach(i=1:num.iters,  .combine='cbind') %do% random.assignment.fn(a
 mean(colSums(total.At[1:136,]), na.rm = TRUE)
 sd(colSums(total.At[1:136,]), na.rm = TRUE)/sqrt(num.iters)
 
-png("../summary_plot_At.png", width = 6.5, height = 4, units = "in", res = 300)
+png("/Volumes/dav/HeartSteps/Walter/summary_plot_At.png", width = 6.5, height = 4, units = "in", res = 300)
 par(mfrow = c(1,2), mar = c(5,4,1,1)+0.1)
 
 hist(colSums(total.At[1:136,]), main = "", xlab = "# of interventions", cex.axis = 0.75, cex.lab = 0.75)
@@ -66,11 +66,11 @@ hist(colSums(total.At[1:136,]), main = "", xlab = "# of interventions", cex.axis
 time.steps = 1:nrow(total.At[1:136,])
 hour = floor(time.steps/12 + 14 + 35/60)%%24
 
-hourly.At = data.frame("hour" = hour, 
+hourly.At = data.frame("hour" = hour,
                        "num.At" = rowMeans(total.At[1:136,]),
                        "num.Xt" = rowMeans(total.At[137:nrow(total.At),])
                        )
-                                          
+
 hourly.results.At = aggregate(num.At~hour, data = hourly.At, FUN = mean)
 hourly.results.Xt = aggregate(num.Xt~hour, data = hourly.At, FUN = mean)
 
@@ -79,8 +79,8 @@ num.At = hourly.results.At$num.At[order(altered.hour.At)]
 
 altered.hour.At = altered.hour.At[order(altered.hour.At)]
 
-plot(altered.hour.At,num.At, axes = FALSE, 
-     ylab = "Fraction of time receiving EMI per Hour", xlab = "Hour", 
+plot(altered.hour.At,num.At, axes = FALSE,
+     ylab = "Fraction of time receiving EMI per Hour", xlab = "Hour",
      pch = 18, ylim = c(0.005, 0.02),
      xlim = c(0,12), cex.lab = 0.75)
 axis(side = 1, cex.axis = 0.75); axis(side = 2, cex.axis = 0.75)
@@ -90,14 +90,14 @@ lw1 = loess(num.At~altered.hour.At)
 lines(altered.hour.At, lw1$fitted,col = "red", lty = 2)
 dev.off()
 
-png("../summary_plot_Xt.png", width = 6.5,height = 4, units = "in", res = 300)
+png("/Volumes/dav/HeartSteps/Walter/summary_plot_Xt.png", width = 6.5,height = 4, units = "in", res = 300)
 altered.hour.Xt = (hourly.results.Xt$hour-14)%%24
 num.Xt = hourly.results.Xt$num.Xt[order(altered.hour.Xt)]
 
 altered.hour.Xt = altered.hour.Xt[order(altered.hour.Xt)]
 
 par(mfrow = c(1,1), mar = c(5,4,1,1)+0.1)
-plot(altered.hour.Xt,num.Xt, axes = FALSE, ylab = "Fraction of time classified as 'Sedentary' ", xlab = "Hour", 
+plot(altered.hour.Xt,num.Xt, axes = FALSE, ylab = "Fraction of time classified as 'Sedentary' ", xlab = "Hour",
      pch = 18, ylim = c(0.2,0.35), xlim = c(0,12))
 axis(side = 1); axis(side = 2)
 
