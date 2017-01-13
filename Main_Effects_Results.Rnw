@@ -71,7 +71,9 @@ color.name <- "blue"
 
 \section{Changes from Previous Versions}
 \label{sec:changes}
-\subsection{July 15 - August 8}
+\subsection{August 8, 2016 - January 13, 2017}
+Added sensitivity analyses for model 5, which is marginal over time but splits the treatment indicator into indicators for both active and anti-sedentary suggestions.
+\subsection{July 15, 2016 - August 8, 2016}
 Participant travel dates were changed to more accurately reflect GPS locations. Recall that travel time is entirely removed from the data used for analysis.
 \begin{enumerate}
   \item Previously, participant 14 was marked as traveling from 9/18/2015 - 9/24/2015. These dates were chosen basded on knowledge that the participant traveled to Hawaii during the study and the fact that she was missing Jawbone step counts over this period. However, GPS data indicates that the participant was in Ann Arbor duing this time, but in Hawaii from 9/1/2015 - 9/5/2015. The participant's data was changed to exclude 9/1/2015 - 9/5/2015, and include 9/18/2015 - 9/24/2015.
@@ -480,6 +482,13 @@ print(xtable(estimate(model2.sens1, normal = FALSE),
              label = "tab:model-with-day-effect-sens1", floating = TRUE, digits = 3), 
       sanitize.rownames.function = identity, table.placement = "H")
 
+names(model4.sens1$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$",
+                                      "$\\beta_{1}$",  "$\\beta_{2}$")
+print(xtable(estimate(model4.sens1, normal = FALSE), floating = TRUE, digits = 3,
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:actsed-marginal-model} after removing participant 35",
+             label = "tab:actsed-marginal-model-sens1"),
+      sanitize.rownames.function = identity, table.placement = "H")
+
 names(model3.sens1$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$",
                                       "$\\alpha_{2}$", "$\\beta_{1}$",
                                       "$\\beta_{2}$", "$\\beta_{3}$",
@@ -506,6 +515,13 @@ names(model2.sens6$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$",
 print(xtable(estimate(model2.sens6, normal = FALSE),
              caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-with-day-effect} after removing original travel dates for participant 14",
              label = "tab:model-with-day-effect-sens6", floating = TRUE, digits = 3), 
+      sanitize.rownames.function = identity, table.placement = "H")
+
+names(model4.sens6$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$",
+                                      "$\\beta_{1}$",  "$\\beta_{2}$")
+print(xtable(estimate(model4.sens6, normal = FALSE), floating = TRUE, digits = 3,
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:actsed-marginal-model} after removing original travel dates for participant 14",
+             label = "tab:actsed-marginal-model-sens6"),
       sanitize.rownames.function = identity, table.placement = "H")
 
 names(model3.sens6$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$",
@@ -541,6 +557,14 @@ print(xtable(estimate(model2.sens2, normal = FALSE),
              label = "tab:model-with-day-effect-sens2", floating = FALSE, digits = 3), 
       sanitize.rownames.function = identity)
 
+names(model4.sens2$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$",
+                                      "$\\beta_{1}$",  "$\\beta_{2}$")
+print(xtable(estimate(model4.sens2, normal = FALSE), floating = TRUE, digits = 3,
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:actsed-marginal-model} after removing participant 35 and requiring 37 days on-study",
+             label = "tab:actsed-marginal-model-sens2"),
+      sanitize.rownames.function = identity, table.placement = "H")
+
+
 names(model3.sens2$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$",
                                       "$\\alpha_{2}$", "$\\beta_{1}$",
                                       "$\\beta_{2}$", "$\\beta_{3}$",
@@ -568,6 +592,13 @@ names(model2.sens3$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$",
 print(xtable(estimate(model2.sens3, normal = FALSE),
              caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-with-day-effect} after removing participant 35 and requiring 38 days on-study",
              label = "tab:model-with-day-effect-sens3", floating = TRUE, digits = 3), 
+      sanitize.rownames.function = identity, table.placement = "H")
+
+names(model4.sens3$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$",
+                                      "$\\beta_{1}$",  "$\\beta_{2}$")
+print(xtable(estimate(model4.sens3, normal = FALSE), floating = TRUE, digits = 3,
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:actsed-marginal-model} after removing participant 35 and requiring 38 days on-study",
+             label = "tab:actsed-marginal-model-sens3"),
       sanitize.rownames.function = identity, table.placement = "H")
 
 names(model3.sens3$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$",
@@ -600,6 +631,13 @@ print(xtable(estimate(model2.sens4, normal = FALSE),
              label = "tab:model-with-day-effect-sens4", floating = TRUE, digits = 3), 
       sanitize.rownames.function = identity, table.placement = "H")
 
+names(model4.sens4$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$",
+                                      "$\\beta_{1}$",  "$\\beta_{2}$")
+print(xtable(estimate(model4.sens4, normal = FALSE), floating = TRUE, digits = 3,
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:actsed-marginal-model} after removing participant 35 and requiring 41 days on-study",
+             label = "tab:actsed-marginal-model-sens4"),
+      sanitize.rownames.function = identity, table.placement = "H")
+
 names(model3.sens4$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$",
                                       "$\\alpha_{2}$", "$\\beta_{1}$",
                                       "$\\beta_{2}$", "$\\beta_{3}$",
@@ -627,6 +665,13 @@ names(model2.sens5$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$",
 print(xtable(estimate(model2.sens5, normal = FALSE),
              caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-with-day-effect} after removing participant 35 and requiring 42 days on-study",
              label = "tab:model-with-day-effect-sens5", floating = TRUE, digits = 3), 
+      sanitize.rownames.function = identity, table.placement = "H")
+
+names(model4.sens5$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$",
+                                      "$\\beta_{1}$",  "$\\beta_{2}$")
+print(xtable(estimate(model4.sens5, normal = FALSE), floating = TRUE, digits = 3,
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:actsed-marginal-model} after removing participant 35 and requiring 42 days on-study",
+             label = "tab:actsed-marginal-model-sens5"),
       sanitize.rownames.function = identity, table.placement = "H")
 
 names(model3.sens5$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$",
