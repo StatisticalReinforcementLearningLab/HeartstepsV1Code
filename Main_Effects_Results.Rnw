@@ -441,10 +441,17 @@ We now investigate changing the criteria used to wholly exclude participants fro
 \begin{equation*}
   Y_{t+1} \sim \alpha_{0} + \alpha_{1} Z_{t} + \beta_{1}\left( A_{t} - 0.6 \right), \quad \text{if } I_{t} = 1, \tag{\ref{eqn:model-no-day-effect} revisited}
 \end{equation*}
+
 \begin{equation*}
   Y_{t+1} \sim \alpha_{0} + \alpha_{1} Z_{t} + \alpha_{2} d(t) + \beta_{1} \left(A_{t} - 0.6\right) + \beta_{2} d(t) \left(A_{t} - 0.6\right), \quad \text{if } I_{t} = 1,
   \tag{\ref{eqn:model-with-day-effect} revisited}
 \end{equation*}
+
+\begin{equation*}
+Y_{t+1} \sim \alpha_{0} + \alpha_{1} Z_{t} + \beta_{1} \left(A_{1, t} - 0.3\right) + \beta_{2} \left(A_{2, t} - 0.3\right), \quad \text{if } I_{t} = 1,
+  \tag{\ref{eqn:actsed-marginal-model} revisited}
+\end{equation*}
+
 \begin{equation*}
 	\begin{split}
 		Y_{t+1} &\sim \alpha_{0} + \alpha_{1} Z_{t} + \alpha_{2} d(t) + \beta_{1} \left(A_{1, t} - 0.3\right) + \beta_{2} \left(A_{2, t} - 0.3\right) \\  &\quad + \beta_{3} \left(A_{1, t} - 0.3\right) d(t) + \beta_{4} \left(A_{2, t} - 0.3\right) d(t), \quad \text{if } I_{t} = 1, 
