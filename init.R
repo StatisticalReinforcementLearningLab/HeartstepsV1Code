@@ -1,10 +1,14 @@
 ## run this first
 ## nb: ensure that getwd() returns the local repository
 
-library(tikzDevice)
-library(xtable)
-library(zoo)
-library(geepack)
+# Search for and install all necessary packages if needed
+for (pkg in c("tikzDevice", "xtable", "zoo", "geepack")) {
+  if (!(pkg %in% installed.packages()[, "Package"])) {
+    install.packages(pkg, dependencies = TRUE)
+  }
+  # load required packages
+  require(pkg, character.only = TRUE)
+}
 
 source("xzoo.R")
 source("xgeepack.R")
