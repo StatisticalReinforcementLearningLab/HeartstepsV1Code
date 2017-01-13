@@ -71,8 +71,10 @@ color.name <- "blue"
 
 \section{Changes from Previous Versions}
 \label{sec:changes}
-\subsection{August 8, 2016 - January 13, 2017}
+\subsection{November 21, 2016 - January 13, 2017}
 Added sensitivity analyses for model 5, which is marginal over time but splits the treatment indicator into indicators for both active and anti-sedentary suggestions.
+\subsection{August 8, 2016 - November 21, 2016}
+A small typo was found in the \texttt{estimate} function used to extract model results. This did not affect the parameter estimates, but did lead to very small (on the order of $10^{-4}$) changes in upper and lower confidence limits for those estimates. There were small changes in $p$-values, but significance did not change for any test. The corrected results are contained herein.  
 \subsection{July 15, 2016 - August 8, 2016}
 Participant travel dates were changed to more accurately reflect GPS locations. Recall that travel time is entirely removed from the data used for analysis.
 \begin{enumerate}
