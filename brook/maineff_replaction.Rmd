@@ -1,5 +1,5 @@
 ---
-title: "Replicating main effects analysis"
+title: "Main effects analysis, google fit imputation"
 author: "Brook Luers"
 date: "`r format(Sys.time(), '%B %d, %Y')`"
 output: pdf_document
@@ -68,6 +68,9 @@ suggest.included <-
   anti_join(mutate(unavail_sent_slots, unavail_sent_slots = T),
             by=c('user'='User','study.day.nogap'='Non-travel study day',
                  'slot'='Decision slot'))
+suggest.analysis <-
+  suggest.included %>%
+    arrange(user, study.day.nogap, decision.index.nogap)
 
 navail <- sum(suggest.included$avail)
 
@@ -94,28 +97,85 @@ navail <- sum(suggest.included$avail)
                 with(suggest.included, table('Available?'=avail))
           ```
 
+## Google Fit imputation
 
-```{r plot-all, echo=FALSE, include=FALSE, eval=FALSE}
+```{r gfsetup, echo=FALSE, message=FALSE}
+scatter_jgcor <-
+  suggest.analysis %>% filter(!is.na(gfsteps30),!is.na(jbsteps30)) %>% ggplot() +
+  geom_point(aes(x=log(jbsteps30 + 0.5),y=log(gfsteps30+0.5)),shape=1)+
+  facet_wrap(~user)
 
-suggest.included %>%
-  mutate(study.day.nogap.f = factor(study.day.nogap, levels=0:41,
-                                  labels=paste(c('Study day ',rep('',41)),
-                                               0:41,sep=''))) %>%
-  filter(avail) %>%
-  ggplot(aes(x=log(jbsteps30pre + 0.5), y=log(jbsteps30 + 0.5))) +
-  geom_point(aes(shape=send, color=send)) +
-  ptheme +
-  facet_wrap(~study.day.nogap.f) +
-  scale_shape_discrete(solid=F) + 
-  scale_color_brewer(palette='Set1') +
-  xlab(expression(Z[t])) + ylab(expression(Y[t+1]))
-  
+gf_impute_summary <- 
+  suggest.analysis %>% group_by(user) %>%
+  summarise(npoints=n(),
+            njbmissing = sum(is.na(jbsteps30)),
+            pctjbmissing = njbmissing/npoints,
+            ngfreplace = sum(is.na(jbsteps30) & (!is.na(gfsteps30))),
+            pctreplace = ngfreplace / njbmissing,
+            #nboth = sum(!(is.na(jbsteps30) | is.na(gfsteps30))),
+            jgcor = cor(na.omit(cbind(jbsteps30,gfsteps30)))[2,1],
+            jgcorlog = cor(na.omit(cbind(log(jbsteps30+0.5),log(gfsteps30+0.5))))[2,1]) %>%
+  filter(njbmissing > 0, ngfreplace > 0) %>%ungroup%>%
+  arrange(desc(pctjbmissing))
+
+## Replace all missing JB with GF, when we have it
+suggest.analysis <- 
+  suggest.analysis %>%
+  mutate(steps30i = ifelse(is.na(jbsteps30), gfsteps30,jbsteps30),
+         steps30ipre = ifelse(is.na(jbsteps30pre),gfsteps30pre,jbsteps30pre),
+         steps30i.zero = ifelse(is.na(steps30i),0,steps30i),
+         steps30ipre.zero = ifelse(is.na(steps30ipre),0,steps30ipre),
+         steps30i.log = log(steps30i.zero + 0.5),
+         steps30ipre.log = log(steps30ipre.zero + 0.5))  
+
+```
+
+```{r plot-jgcor-pctreplace, echo=FALSE,fig.width=8.5,fig.height=6,fig.align='center',out.width='0.9\\textwidth'}
+users_jgcor <-
+  with(gf_impute_summary, cbind(user,jgcor)[order(jgcor),])[,1]
+gf_impute_summary %>%
+  mutate(user=factor(user, levels=users_jgcor,
+                     labels=paste(c(rep('',length(users_jgcor)-1),'User '),
+                                  users_jgcor,sep=''))) %>%
+  select(user,jgcor,jgcorlog,pctreplace) %>%
+  melt(id=c('user','pctreplace')) -> gfcor_plotdf
+
+gfcor_plotdf %>%
+  ggplot(aes(x=-pctreplace,y=user)) + 
+  geom_segment(aes(x=0,xend=-pctreplace,yend=user)) +
+  geom_point() + 
+  ptheme + 
+  scale_x_continuous(breaks=c(-1,-0.75,-0.5,-0.25,0),
+                     labels=c(1,0.75,0.5,0.25,0)) +
+  xlab('Percent of missing Jawbone step counts\nfor which we have Google Fit counts') +
+  ylab('') +
+  scale_y_discrete(breaks=NULL,labels=NULL)+
+  theme(axis.ticks.y=element_blank()) -> plot_pctreplace
+
+gfcor_plotdf %>% select(-pctreplace) %>%
+  ggplot() + 
+  geom_segment(aes(x=0,xend=value,y=user,yend=user,color=variable),
+               data=filter(gfcor_plotdf,variable=='jgcor'),linetype='dotted')+
+  geom_point(aes(x=value,y=user,color=variable,shape=variable)) + 
+  scale_shape_manual(values=c(16,1),
+                     breaks=c('jgcor','jgcorlog'),
+                     labels=c('Raw steps','Log(steps+0.5)'),
+                     name='') +
+  scale_color_brewer(palette='Dark2',name='',
+                     breaks=c('jgcor','jgcorlog'),
+                     labels=c('Raw steps','Log(steps+0.5)')) +
+  xlab('Correlation between Google Fit\nand Jawbone step counts')+
+  ylab('')+
+  ptheme + theme(legend.position=c(1,0),
+                 legend.justification=c(1,0)) -> plot_jgcor
+
+grid.arrange(plot_pctreplace,plot_jgcor,nrow=1)
+
 
 ```
 
 
-
-## Sandwich Estimator
+<!--- ## Sandwich Estimator
 All of the following assumes an independent working correlation structure.
 
 Notation:
@@ -130,6 +190,7 @@ $$ \left(X^\intercal W X\right)^{-1} \left[\sum_j X_j^\intercal W_j \hat{\epsilo
 
 Mancl & DeRouen adjusted sandwich estimator:
 $$\left(X^\intercal W X\right)^{-1} \left[\sum_j X_j^\intercal W_j\left(I - H_{jj}\right)^{-1} \hat{\epsilon}_j \hat{\epsilon}_j^\intercal\left(I - H_{jj}\right)^{-1} W_j X_j\right]\left(X^\intercal W X\right)^{-1} $$
+-->
 
 ## Models
 
@@ -137,8 +198,6 @@ $$\left(X^\intercal W X\right)^{-1} \left[\sum_j X_j^\intercal W_j\left(I - H_{j
 source('estimation_functions_brook.R')
 
 ```
-
-Missing values: The following models impute 0 for any time interval with a missing step count.
 
 Notation:
 
@@ -160,9 +219,6 @@ The weight matrix has diagonal elements equal to the availability indicator $I_t
 # jbsteps30pre.zero is the zero-imputed raw step count in the 30 minutes prior to decision
 # jbsteps30pre.log = log(jbsteps30pre.zero + 0.5)
 # A_t = send
-suggest.analysis <-
-  suggest.included %>%
-    arrange(user, study.day.nogap, decision.index.nogap)
 
 mod1.brook <- 
   geeglm(
@@ -300,14 +356,13 @@ print(xtable(tt,
 
 ```
 
-## Time trend
-
+<!---## Time trend
 (Include unavailable decision points in residual plots?)
-
 ### Prior step count only (Nick's model 3)
 $$ Y_{t+1} \sim \alpha_0 + \alpha_1 Z_t$$
+-->
 
-```{r time1, echo=FALSE}
+```{r time1, echo=FALSE, include=FALSE,eval=FALSE}
 
 timemod1 <- 
   geeglm(
@@ -354,17 +409,17 @@ plot.resid.time1 <-
 
 ```
 
-Residuals versus time:
+<!---Residuals versus time:-->
 
-```{r plot-resid-time1,echo=FALSE, fig.width=8.5,fig.height=4.5}
+```{r plot-resid-time1,echo=FALSE, fig.width=8.5,fig.height=4.5,include=FALSE,eval=FALSE}
 
 plot.resid.time1
 
 ```
 
-### Quadratic time (Nick's model 4)
+<!---### Quadratic time (Nick's model 4)-->
 
-```{r time2, echo=FALSE}
+```{r time2, echo=FALSE,include=FALSE,eval=FALSE}
 
 
 timemod2 <- 
@@ -405,16 +460,13 @@ plot.resid.time2 <-
 
 ```
 
-Residuals versus time:
-
-```{r plot-resid-time2, echo=FALSE, fig.width=8.5, fig.height=4.5}
+```{r plot-resid-time2, echo=FALSE, fig.width=8.5, fig.height=4.5,include=FALSE,eval=FALSE}
 plot.resid.time2
 
 ```
 
 
-
-```{r plot-res2, echo=FALSE}
+```{r plot-res2, echo=FALSE,include=FALSE,eval=FALSE}
 
 plotdat <- 
   expand.grid(jbsteps30pre = seq(0, 5500, length.out=150),
@@ -447,6 +499,6 @@ plot.mod2.mean <-
 
 ```
 
-```{r plot-mod2-print, echo=FALSE, fig.width=7, fig.height=6, include=FALSE}
+```{r plot-mod2-print, echo=FALSE, fig.width=7, fig.height=6, include=FALSE,eval=FALSE}
 plot.mod2.mean + ggtitle('Conditional mean in Model 2')
 ```
