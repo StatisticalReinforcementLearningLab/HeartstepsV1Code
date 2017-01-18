@@ -110,12 +110,14 @@ gf_impute_summary <-
   summarise(npoints=n(),
             njbmissing = sum(is.na(jbsteps30)),
             pctjbmissing = njbmissing/npoints,
+            ngfmissing = sum(is.na(gfsteps30)),
+            pctgfmissing = ngfmissing/npoints,
             ngfreplace = sum(is.na(jbsteps30) & (!is.na(gfsteps30))),
             pctreplace = ngfreplace / njbmissing,
             #nboth = sum(!(is.na(jbsteps30) | is.na(gfsteps30))),
             jgcor = cor(na.omit(cbind(jbsteps30,gfsteps30)))[2,1],
             jgcorlog = cor(na.omit(cbind(log(jbsteps30+0.5),log(gfsteps30+0.5))))[2,1]) %>%
-  filter(njbmissing > 0, ngfreplace > 0) %>%ungroup%>%
+  ungroup %>%
   arrange(desc(pctjbmissing))
 
 ## Replace all missing JB with GF, when we have it
@@ -128,35 +130,90 @@ suggest.analysis <-
          steps30i.log = log(steps30i.zero + 0.5),
          steps30ipre.log = log(steps30ipre.zero + 0.5))  
 
+njbmissing <- sum(gf_impute_summary$njbmissing)
+nbothna <- with(suggest.analysis, sum(is.na(steps30i)))
+nreplaced <- with(gf_impute_summary,sum(ngfreplace))
+#gf_impute_summary$ngfreplace
+npointstotal <- nrow(suggest.analysis)
+
+imputetable <-
+  rbind(c('Missing JB'=njbmissing, 'Missing JB, available GF'=nreplaced,
+          'Missing JB and GF'=nbothna),
+      round(c(njbmissing,nreplaced,nbothna) / npointstotal,3))
+imputetable <- cbind(imputetable, c(npointstotal,''))
+
 ```
 
-```{r plot-jgcor-pctreplace, echo=FALSE,fig.width=8.5,fig.height=6,fig.align='center',out.width='0.9\\textwidth'}
+Jawbone (JB) step count missingness and availability of Google Fit (GF) step counts are summarized below.
+
+```{r plot-jgcor-pctreplace,warning=FALSE, echo=FALSE,fig.width=10.5,fig.height=5.5,fig.align='center',out.width='\\textwidth'}
+
+scale_x_pct <- scale_x_continuous(breaks=c(0,0.25,0.5,0.75,1),
+                                  labels=c(0,0.25,0.5,0.75,1),
+                                  limits=c(0,1))
 users_jgcor <-
   with(gf_impute_summary, cbind(user,jgcor)[order(jgcor),])[,1]
+user_labels_jgcor <-paste(c(rep('',length(users_jgcor)-1),'User '),
+                                  users_jgcor,sep='')
+users_jbmissing <- 
+  with(
+  gf_impute_summary %>% arrange(pctjbmissing) %>%
+  select(user), user)
+user_labels_jbmissing <- paste(c(rep('',length(users_jbmissing)-1),'User '),
+                                  users_jbmissing,sep='')
 gf_impute_summary %>%
-  mutate(user=factor(user, levels=users_jgcor,
-                     labels=paste(c(rep('',length(users_jgcor)-1),'User '),
-                                  users_jgcor,sep=''))) %>%
-  select(user,jgcor,jgcorlog,pctreplace) %>%
+  mutate(user=factor(user, levels=users_jbmissing,
+                     labels=user_labels_jbmissing)) %>%
+  select(user,jgcor,jgcorlog,pctreplace,pctjbmissing) %>%
   melt(id=c('user','pctreplace')) -> gfcor_plotdf
 
-gfcor_plotdf %>%
-  ggplot(aes(x=-pctreplace,y=user)) + 
-  geom_segment(aes(x=0,xend=-pctreplace,yend=user)) +
+plotdf_nogf <-
+  gf_impute_summary %>% filter(pctgfmissing==1) %>%
+  mutate(user = factor(user,levels=users_jbmissing,
+                       labels=user_labels_jbmissing),
+         plotx=0,
+         plotlab="No Google Fit data") %>% select(user,plotx,plotlab)
+  
+plotdf_nojbmissing <-
+  gf_impute_summary %>% filter(pctjbmissing==0) %>%
+  mutate(user = factor(user,levels=users_jbmissing,
+                       labels=user_labels_jbmissing),
+         plotlab='No missing jawbone',
+         plotx=0) %>%
+  select(user,plotlab,plotx)
+
+gfcor_plotdf %>% filter(variable !='pctjbmissing')%>%
+  ggplot(aes(x=pctreplace,y=user)) + 
+  geom_segment(aes(x=0,xend=pctreplace,yend=user),linetype='dotted') +
   geom_point() + 
   ptheme + 
-  scale_x_continuous(breaks=c(-1,-0.75,-0.5,-0.25,0),
-                     labels=c(1,0.75,0.5,0.25,0)) +
+  geom_text(aes(x=plotx,y=user,label=plotlab),color='grey',
+            data=plotdf_nojbmissing,
+            size=3,hjust=0,vjust=0.5) +
+  scale_x_pct+theme(panel.grid.major.y=element_blank())+
   xlab('Percent of missing Jawbone step counts\nfor which we have Google Fit counts') +
-  ylab('') +
-  scale_y_discrete(breaks=NULL,labels=NULL)+
-  theme(axis.ticks.y=element_blank()) -> plot_pctreplace
+  ylab('') -> plot_pctreplace
 
-gfcor_plotdf %>% select(-pctreplace) %>%
+gf_impute_summary %>% 
+  mutate(user=factor(user,
+                     levels=users_jbmissing,
+                     labels=user_labels_jbmissing))%>%
+  ggplot(aes(x=pctjbmissing,y=user)) + 
+  geom_segment(aes(x=0,xend=pctjbmissing,yend=user),
+               linetype='dotted') +
+  geom_point() + 
+  ptheme + scale_x_pct+ theme(panel.grid.major.y=element_blank())+
+  xlab('Percent of decision points\nwith missing Jawbone step count') +
+  ylab('') -> plot_pctjbmissing
+
+gfcor_plotdf %>% select(-pctreplace) %>% filter(variable!='pctjbmissing')%>%
   ggplot() + 
   geom_segment(aes(x=0,xend=value,y=user,yend=user,color=variable),
                data=filter(gfcor_plotdf,variable=='jgcor'),linetype='dotted')+
   geom_point(aes(x=value,y=user,color=variable,shape=variable)) + 
+  geom_text(aes(x=plotx,y=user,label=plotlab),
+            size=3,color='grey',hjust=0,vjust=0.5,
+            data=plotdf_nogf)+
   scale_shape_manual(values=c(16,1),
                      breaks=c('jgcor','jgcorlog'),
                      labels=c('Raw steps','Log(steps+0.5)'),
@@ -165,19 +222,33 @@ gfcor_plotdf %>% select(-pctreplace) %>%
                      breaks=c('jgcor','jgcorlog'),
                      labels=c('Raw steps','Log(steps+0.5)')) +
   xlab('Correlation between Google Fit\nand Jawbone step counts')+
-  ylab('')+
-  ptheme + theme(legend.position=c(1,0),
-                 legend.justification=c(1,0)) -> plot_jgcor
+  ylab('')+ scale_x_pct+
+  ptheme + theme(legend.position='right',
+                 panel.grid.major.y=element_blank()) -> plot_jgcor
 
-grid.arrange(plot_pctreplace,plot_jgcor,nrow=1)
+
+grid.arrange(plot_pctjbmissing,plot_pctreplace,plot_jgcor,nrow=1,
+             widths=c(1,1,1.45))
 
 
 ```
 
-We can impute Google Fit step counts, for each decision point, as follows:
+```{r imputetable, echo=FALSE,results='asis'}
 
-* When the Jawbone raw count is missing, use the Google Fit raw count
-* When both JB and GF raw counts are missing, impute 0 for the raw count
+colnames(imputetable)[ncol(imputetable)] <- 'Total'
+rownames(imputetable) <- c('Num. decision points','Proportion')
+
+print(xtable(imputetable,
+             align='rrrrr'),
+      hline.after=c(0),
+      comment=FALSE)
+
+```
+
+Imputation procedure: 
+
+* When the Jawbone raw count is missing (`r njbmissing` decision points), use the Google Fit raw count. `r nreplaced` decision points are imputed in this manner.
+* When both JB and GF raw counts are missing, impute 0 for the raw count. (`r nbothna` decision points)
 * Transform the result with log(raw count + 0.5)
 
 <!--- ## Sandwich Estimator
