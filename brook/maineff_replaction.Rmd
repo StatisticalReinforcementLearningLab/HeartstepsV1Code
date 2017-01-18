@@ -36,7 +36,7 @@ ptheme <-
         legend.direction='vertical')
 ```
 
-## Inclusion/Exclusion
+## Included/excluded decision points
 ```{r include_exclude, echo=FALSE}
 
 unavail_sent_slots <-
@@ -76,12 +76,16 @@ navail <- sum(suggest.included$avail)
 
 ```
 
+This analysis uses the exact same data exclusion rules and definition of availability as described in the primary analysis document (sections 1, 2, and 3).
+
+Here is a recap of the number of included decision points:
+
 * **Valid** decision points occurred within intended timeslot and are not duplicated: `r nrow(suggest)`
 * **Excluded** decision points (`r nexclude`):
     + Exclude decision points during travel days (`r ntravel`)
-        ```{r table-travel, echo=FALSE}
+      <!---  ```{r table-travel, echo=FALSE}
             with(suggest, table(`Traveling at decision point?` = travel, exclude=NULL))
-        ```
+        ``` -->
     + Exclude decision points past the 42nd consecutive, non-travel study day (`r npost41`)
     + Exclude decision points when the user was unavailable but a message was still sent (`r nrow(unavail_sent_slots)`)
         ```{r unavail-sent, echo=FALSE}
@@ -93,9 +97,10 @@ navail <- sum(suggest.included$avail)
         ```
 * **Included** decision points: `r nrow(suggest) - nexclude` = valid -- excluded = `r nrow(suggest)` -- `r nexclude`
 * **Available** decision points: `r navail` = included -- unavailable
-          ```{r avail-print, echo=FALSE}
+      <!---    ```{r avail-print, echo=FALSE}
                 with(suggest.included, table('Available?'=avail))
           ```
+          -->
 
 ## Google Fit imputation
 
@@ -191,7 +196,7 @@ gfcor_plotdf %>% filter(variable !='pctjbmissing')%>%
             data=plotdf_nojbmissing,
             size=3,hjust=0,vjust=0.5) +
   scale_x_pct+theme(panel.grid.major.y=element_blank())+
-  xlab('Percent of missing Jawbone step counts\nfor which we have Google Fit counts') +
+  xlab('Proportion of missing JB step counts\nfor which we have GF counts') +
   ylab('') -> plot_pctreplace
 
 gf_impute_summary %>% 
@@ -203,7 +208,7 @@ gf_impute_summary %>%
                linetype='dotted') +
   geom_point() + 
   ptheme + scale_x_pct+ theme(panel.grid.major.y=element_blank())+
-  xlab('Percent of decision points\nwith missing Jawbone step count') +
+  xlab('Proportion of decision points\nwith missing JB step count') +
   ylab('') -> plot_pctjbmissing
 
 gfcor_plotdf %>% select(-pctreplace) %>% filter(variable!='pctjbmissing')%>%
@@ -221,7 +226,7 @@ gfcor_plotdf %>% select(-pctreplace) %>% filter(variable!='pctjbmissing')%>%
   scale_color_brewer(palette='Dark2',name='',
                      breaks=c('jgcor','jgcorlog'),
                      labels=c('Raw steps','Log(steps+0.5)')) +
-  xlab('Correlation between Google Fit\nand Jawbone step counts')+
+  xlab('Correlation between GF\nand JB step counts')+
   ylab('')+ scale_x_pct+
   ptheme + theme(legend.position='right',
                  panel.grid.major.y=element_blank()) -> plot_jgcor
@@ -245,7 +250,7 @@ print(xtable(imputetable,
 
 ```
 
-Imputation procedure: 
+### Imputation procedure
 
 * When the Jawbone raw count is missing (`r njbmissing` decision points), use the Google Fit raw count. `r nreplaced` decision points are imputed in this manner.
 * When both JB and GF raw counts are missing, impute 0 for the raw count. (`r nbothna` decision points)
@@ -567,7 +572,9 @@ print(xtable(printmod(mod.active2.impute,alpha_ix=0:2,beta_ix=1:4),
 \newpage 
 
 ## Sensivity analyses
-The following sensitivity analyses are also in the primary analysis document. For brevity, all of the results below use the Google Fit imputed data. The Jawbone-only analyses are in the primary analysis document.
+The following are exactly the same sensitivity analyses as in the primary analysis document, using GF-imputed data.
+
+**For brevity, all of the results below use the Google Fit imputed data.** The Jawbone-only analyses are in the primary analysis document.
 
 The models referred to below are numbered according to the primary analysis document.
 
@@ -587,11 +594,11 @@ Y_{t+1} &\sim \alpha_0+\alpha_1 Z_t +\alpha_2 d(t) \\
   &\hspace{12pt}+\beta_1(A_{1,t} - 0.3) + \beta_2(A_{2,t} - 0.3) + \beta_3(A_{1,t}-0.3)d(t) +  \beta_4(A_{2,t}-0.3)d(t)
 \end{align*}
 
-### Removing user 35
-User 35 was removed for the sensitivity analyses in the primary analysis document. After imputing Google Fit step counts, most of user 35's decision points are not missing. The above, imputed analyses can be compared to the analyses in section 8.1 of the primary analysis document, in which user 35 is removed.
+### User 35
+User 35 seemed to have lost the Jawbone after 18 days. The primary analysis document removes user 35 from these sensitivity analyses. Since most of user 35's missing data is recovered by the Google Fit imputation, user 35 is included in the following analyses.
 
 ### Remove user 14 travel days
-User 14 was initially marked as travelling from 9/18/15 to 9/24/15, although GPS seems to indicate that user 14 was in Ann Arbor. The primary analyses include the days 9/18 to 9/24. These analyses exclude 9/18 to 9/24.
+User 14 was initially marked as travelling from 9/18/15 to 9/24/15, although GPS seems to indicate that user 14 was in Ann Arbor during those days. The primary analyses include the days 9/18 to 9/24 for user 14. These analyses exclude 9/18 to 9/24 for user 14.
 
 ```{r u14data,echo=FALSE}
 u14travel <- seq.Date(from = as.Date("2015-09-18"), 
@@ -704,7 +711,7 @@ users.on37 <-
 
 ```
 
-There are `r length(users.on37)` users in this analysis.
+There are `r length(users.on37)` users who were on study for at least 37 days (this includes user 35).
 
 ```{r on37mod1,echo=FALSE,results='asis'}
 
@@ -780,6 +787,189 @@ print(xtable(tt,
 
 
 ```
+
+### At least 38 days
+Since no participants were on study for exactly 37 days, this analysis is the same as requiring at least 37 days. 
+
+\newpage 
+
+### At least 41 days
+```{r on41-data,echo=FALSE}
+
+users.on41 <-
+  with(
+    suggest.analysis %>% group_by(user) %>%
+    summarise(ondays = length(unique(study.date))) %>%
+    filter(ondays >= 41), user)
+```
+There are `r length(users.on41)` users who were on study for at least 41 days.
+
+
+```{r on41mod1,echo=FALSE,results='asis'}
+
+tt <- 
+  printmod(geeglm(formula(mod1.imputeall),
+       data=suggest.analysis %>% filter(user %in% users.on41),
+      weights = as.numeric((suggest.analysis%>%filter(user %in% users.on41))$avail),
+       id=user, corstr='independence',
+       scale.fix=T),
+       alpha_ix=0:1, beta_ix=1)
+
+print(xtable(tt,
+             digits=c(0,4,4,2,3,3,3),
+             caption='Model 1, at least 41 days on study'),
+      sanitize.rownames.function=identity,
+      comment=FALSE,table.placement='h!')
+
+```
+
+
+```{r on41mod2, echo=FALSE,results='asis'}
+
+tt <- 
+  printmod(geeglm(formula(mod2.imputeall),
+       data=filter(suggest.analysis,user %in% users.on41),
+       weights = as.numeric((suggest.analysis%>%filter(user %in% users.on41))$avail),
+       id=user, corstr='independence',
+       scale.fix=T),
+       alpha_ix=0:2, beta_ix=1:2)
+
+print(xtable(tt,
+             digits=c(0,4,4,2,3,3,3),
+             caption='Model 2, at least 41 days on study'),
+      sanitize.rownames.function=identity,
+      comment=FALSE,table.placement='h!')
+```
+
+
+```{r on41mod5, echo=FALSE,results='asis'}
+
+tt <-
+  printmod(
+    geeglm(formula(mod.active1.impute),
+           data=suggest.analysis %>%filter(user %in% users.on41),
+       weights = as.numeric((suggest.analysis%>%filter(user %in% users.on41))$avail),
+       id=user, corstr='independence',
+       scale.fix=T),
+    alpha_ix=0:1, beta_ix=1:2)
+print(xtable(tt,
+             digits=c(0,4,4,2,3,3,3),
+             caption='Model 5, at least 41 days on study'),
+      sanitize.rownames.function=identity,
+      comment=FALSE,table.placement='h!')
+
+```
+
+```{r on41mod6, echo=FALSE,results='asis'}
+
+tt <-
+  printmod(
+    geeglm(formula(mod.active2.impute),
+           data=suggest.analysis%>%filter(user %in% users.on41),
+       weights = as.numeric((suggest.analysis %>% filter(user %in% users.on41))$avail),
+       id=user, corstr='independence',
+       scale.fix=T),
+    alpha_ix=0:2, beta_ix=1:4)
+
+print(xtable(tt,
+             digits=c(0,4,4,2,3,3,3),
+             caption='Model 6, at least 41 days on study'),
+      sanitize.rownames.function=identity,
+      comment=FALSE,table.placement='h!')
+
+
+```
+
+
+\newpage 
+
+### At least 42 days
+```{r on42-data,echo=FALSE}
+
+users.on42 <-
+  with(
+    suggest.analysis %>% group_by(user) %>%
+    summarise(ondays = length(unique(study.date))) %>%
+    filter(ondays >= 42), user)
+```
+There are `r length(users.on42)` users who were on study for at least 42 days.
+
+
+```{r on42mod1,echo=FALSE,results='asis'}
+
+tt <- 
+  printmod(geeglm(formula(mod1.imputeall),
+       data=suggest.analysis %>% filter(user %in% users.on42),
+      weights = as.numeric((suggest.analysis%>%filter(user %in% users.on42))$avail),
+       id=user, corstr='independence',
+       scale.fix=T),
+       alpha_ix=0:1, beta_ix=1)
+
+print(xtable(tt,
+             digits=c(0,4,4,2,3,3,3),
+             caption='Model 1, at least 42 days on study'),
+      sanitize.rownames.function=identity,
+      comment=FALSE,table.placement='h!')
+
+```
+
+
+```{r on42mod2, echo=FALSE,results='asis'}
+
+tt <- 
+  printmod(geeglm(formula(mod2.imputeall),
+       data=filter(suggest.analysis,user %in% users.on42),
+       weights = as.numeric((suggest.analysis%>%filter(user %in% users.on42))$avail),
+       id=user, corstr='independence',
+       scale.fix=T),
+       alpha_ix=0:2, beta_ix=1:2)
+
+print(xtable(tt,
+             digits=c(0,4,4,2,3,3,3),
+             caption='Model 2, at least 42 days on study'),
+      sanitize.rownames.function=identity,
+      comment=FALSE,table.placement='h!')
+```
+
+
+```{r on42mod5, echo=FALSE,results='asis'}
+
+tt <-
+  printmod(
+    geeglm(formula(mod.active1.impute),
+           data=suggest.analysis %>%filter(user %in% users.on42),
+       weights = as.numeric((suggest.analysis%>%filter(user %in% users.on42))$avail),
+       id=user, corstr='independence',
+       scale.fix=T),
+    alpha_ix=0:1, beta_ix=1:2)
+print(xtable(tt,
+             digits=c(0,4,4,2,3,3,3),
+             caption='Model 5, at least 42 days on study'),
+      sanitize.rownames.function=identity,
+      comment=FALSE,table.placement='h!')
+
+```
+
+```{r on42mod6, echo=FALSE,results='asis'}
+
+tt <-
+  printmod(
+    geeglm(formula(mod.active2.impute),
+           data=suggest.analysis%>%filter(user %in% users.on42),
+       weights = as.numeric((suggest.analysis %>% filter(user %in% users.on42))$avail),
+       id=user, corstr='independence',
+       scale.fix=T),
+    alpha_ix=0:2, beta_ix=1:4)
+
+print(xtable(tt,
+             digits=c(0,4,4,2,3,3,3),
+             caption='Model 6, at least 42 days on study'),
+      sanitize.rownames.function=identity,
+      comment=FALSE,table.placement='h!')
+
+
+```
+
 
 
 <!---## Time trend
