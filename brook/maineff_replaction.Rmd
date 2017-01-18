@@ -114,10 +114,12 @@ gf_impute_summary <-
   suggest.analysis %>% group_by(user) %>%
   summarise(npoints=n(),
             njbmissing = sum(is.na(jbsteps30)),
+            njbmissing.avail = sum(is.na(jbsteps30) & avail),
             pctjbmissing = njbmissing/npoints,
             ngfmissing = sum(is.na(gfsteps30)),
             pctgfmissing = ngfmissing/npoints,
             ngfreplace = sum(is.na(jbsteps30) & (!is.na(gfsteps30))),
+            ngfreplace.avail = sum(is.na(jbsteps30) & (!is.na(gfsteps30)) & avail),
             pctreplace = ngfreplace / njbmissing,
             #nboth = sum(!(is.na(jbsteps30) | is.na(gfsteps30))),
             jgcor = cor(na.omit(cbind(jbsteps30,gfsteps30)))[2,1],
@@ -141,11 +143,25 @@ nreplaced <- with(gf_impute_summary,sum(ngfreplace))
 #gf_impute_summary$ngfreplace
 npointstotal <- nrow(suggest.analysis)
 
+njbmissing.avail <- sum(gf_impute_summary$njbmissing.avail)
+nbothna.avail <- with(suggest.analysis, sum(is.na(steps30i) & avail))
+nreplaced.avail <- with(gf_impute_summary,sum(ngfreplace.avail))
+#gf_impute_summary$ngfreplace
+npointstotal.avail <- sum(suggest.analysis$avail)
+
+
 imputetable <-
   rbind(c('Missing JB'=njbmissing, 'Missing JB, available GF'=nreplaced,
           'Missing JB and GF'=nbothna),
       round(c(njbmissing,nreplaced,nbothna) / npointstotal,3))
-imputetable <- cbind(imputetable, c(npointstotal,''))
+#imputetable <- cbind(imputetable, c(npointstotal,''))
+
+imputetable.avail <-
+  rbind(c('Missing JB'=njbmissing.avail, 'Missing JB, available GF'=nreplaced.avail,
+          'Missing JB and GF'=nbothna.avail),
+      round(c(njbmissing.avail,nreplaced.avail,nbothna.avail) / npointstotal.avail,3))
+#imputetable <- cbind(imputetable, c(npointstotal,''))
+
 
 ```
 
@@ -240,14 +256,25 @@ grid.arrange(plot_pctjbmissing,plot_pctreplace,plot_jgcor,nrow=1,
 
 ```{r imputetable, echo=FALSE,results='asis'}
 
-colnames(imputetable)[ncol(imputetable)] <- 'Total'
-rownames(imputetable) <- c('Num. decision points','Proportion')
+#colnames(imputetable)[ncol(imputetable)] <- 'Total'
+rownames(imputetable) <- c('Num. decision points',paste('Proportion of all (',npointstotal,') decision points',sep=''))
+
+rownames(imputetable.avail) <- c('Num. available decision points',paste('Proportion of all available (',npointstotal.avail,') decision points',sep=''))
 
 print(xtable(imputetable,
-             align='rrrrr'),
+             align='rrrr',
+             digits=matrix(c(0,0,0,0,0,3,3,3),nrow=2,byrow=T),
+             caption='Summary of missing JB and GF step counts, all decision points'),
       hline.after=c(0),
       comment=FALSE,table.placement='h!')
 
+
+print(xtable(imputetable.avail,
+             align='rrrr',
+             digits=matrix(c(0,0,0,0,0,3,3,3),nrow=2,byrow=T),
+             caption='Summary of missing JB and GF step counts, available decision points'),
+      hline.after=c(0),
+      comment=FALSE,table.placement='h!')
 ```
 
 ### Imputation procedure
