@@ -61,7 +61,7 @@ read.data <- function(file, order.by = NULL, add.user = FALSE, ...) {
       d$tz <- d$timezone
       if (!is.null(d$utc.to.local.delta)) {
         d$gmtoff <- 60 * d$utc.to.local.delta
-        d$tz <- paste("Etc/GMT", c("-", "+")[pmax(1, sign(d$gmtoff) + 1)],
+        d$tz <- paste("Etc/GMT", c("+", "-")[pmax(1, sign(d$gmtoff) + 1)],
                       formatC(abs(d$gmtoff) / 60^2), sep = "")
         d$tz[is.na(d$gmtoff)] <- ""
       }

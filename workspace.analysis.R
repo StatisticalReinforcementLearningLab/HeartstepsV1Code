@@ -255,11 +255,14 @@ jawbone <- merge(jawbone, subset(users, select = user:last.min),
 jawbone$end.date <-
   do.call("c", with(jawbone, mapply(as.Date, x = end.utime, tz = intake.tz,
                                     SIMPLIFY = FALSE)))
+jawbone$start.date <- 
+  do.call("c", with(jawbone, mapply(format, x = start.utime, tz = intake.tz,
+                                    format = "%Y-%m-%d", SIMPLIFY = FALSE)))
 jawbone <- jawbone[with(jawbone, order(user, end.utime)), ]
 
 daily <- merge(daily,
-               aggregate(steps ~ user + end.date, data = jawbone, sum),
-               by.x = c("user", "study.date"), by.y = c("user", "end.date"),
+               aggregate(steps ~ user + start.date, data = jawbone, sum),
+               by.x = c("user", "study.date"), by.y = c("user", "start.date"),
                all.x = TRUE)
 names(daily)[ncol(daily)] <- "jbsteps"
 

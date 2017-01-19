@@ -526,7 +526,7 @@ temp <- with(subset(tracker, !duplicated(user)),
 temp <- do.call("data.frame", lapply(temp, unlist))
 temp <- with(subset(tracker, !duplicated(user)),
              data.frame(user, timezone = "Eastern Standard Time",
-                        tz = paste0("Etc/GMT", temp$gmtoff / 60^2),
+                        tz = paste0("Etc/GMT+", -1 * temp$gmtoff / 60^2),
                         gmtoff = temp$gmtoff, ltime = start.ltime,
                         utime = start.ltime + temp$gmtoff,
                         en.locale = TRUE))
