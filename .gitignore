@@ -7,6 +7,8 @@
 *.Rout
 *.tex
 *.pdf
+*.bbl
+*.toc
 *.synctex.*
 *.Rhistory
 *.fuse*
