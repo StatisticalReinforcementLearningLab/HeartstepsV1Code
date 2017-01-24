@@ -238,14 +238,15 @@ daily$planning[with(daily, respond & is.na(planning))] <- "no_planning"
 
 ## add daily step counts that are from jawbone website.
 ## this data included the daily step count variable with Google fit imputed for User 35.
-daily.jb = read.csv("daily.jbsteps.csv")
+daily.jb <- read.csv("daily.jbsteps.csv")
 
-daily.jb$DATE=as.character(daily.jb$DATE)
-daily.jb$DATE=as.Date(daily.jb$DATE, "%Y%m%d")
+daily.jb$DATE <- as.character(daily.jb$DATE)
+daily.jb$DATE <- as.Date(daily.jb$DATE, "%Y%m%d")
 
-daily=merge(daily, subset(daily.jb,select=c(user, DATE, m_steps)),
-            by.x=c("user","study.date"), by.y = c("user","DATE"), 
-            all.x=TRUE)
+daily <- merge(daily, subset(daily.jb, select = c(user, DATE, m_steps)),
+               by.x = c("user", "study.date"), by.y = c("user","DATE"), 
+               all.x = TRUE)
+names(daily)[ncol(daily)] <- "jbsteps.direct"
 
 ## add daily step counts,
 ## aligned with the days (00:00 - 23:59) in the *intake* time zone
@@ -253,10 +254,10 @@ daily=merge(daily, subset(daily.jb,select=c(user, DATE, m_steps)),
 jawbone <- merge(jawbone, subset(users, select = user:last.min),
                  by = "user", suffixes = c("", ".user"))
 jawbone$end.date <-
-  do.call("c", with(jawbone, mapply(as.Date, x = end.utime, tz = intake.tz,
+  do.call("c", with(jawbone, mapply(as.Date, x = end.utime, tz = "US/Eastern",
                                     SIMPLIFY = FALSE)))
 jawbone$start.date <- 
-  do.call("c", with(jawbone, mapply(format, x = start.utime, tz = intake.tz,
+  do.call("c", with(jawbone, mapply(format, x = start.utime, tz = "US/Eastern",
                                     format = "%Y-%m-%d", SIMPLIFY = FALSE)))
 jawbone <- jawbone[with(jawbone, order(user, end.utime)), ]
 
@@ -264,13 +265,13 @@ daily <- merge(daily,
                aggregate(steps ~ user + start.date, data = jawbone, sum),
                by.x = c("user", "study.date"), by.y = c("user", "start.date"),
                all.x = TRUE)
-names(daily)[ncol(daily)] <- "jbsteps"
+  names(daily)[ncol(daily)] <- "jbsteps.agg"
 
 googlefit <- merge(googlefit, subset(users, select = user:last.min),
                    by = "user", suffixes = c("", ".user"))
 googlefit$end.date <-
-  do.call("c", with(googlefit, mapply(as.Date, x = end.utime, tz = intake.tz,
-                                      SIMPLIFY = FALSE)))
+  do.call("c", with(googlefit, mapply(format, x = end.utime, tz = "US/Eastern",
+                                      format = "%Y-%m-%d", SIMPLIFY = FALSE)))
 googlefit <- googlefit[with(googlefit, order(user, end.utime)), ]
 
 daily <- merge(daily,
