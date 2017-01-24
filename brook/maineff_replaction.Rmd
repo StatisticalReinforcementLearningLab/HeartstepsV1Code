@@ -1,5 +1,5 @@
 ---
-title: "Replicating main effects analysis"
+title: "Main effects analysis, google fit imputation"
 author: "Brook Luers"
 date: "`r format(Sys.time(), '%B %d, %Y')`"
 output: pdf_document
@@ -36,7 +36,7 @@ ptheme <-
         legend.direction='vertical')
 ```
 
-## Inclusion/Exclusion
+## Included/excluded decision points
 ```{r include_exclude, echo=FALSE}
 
 unavail_sent_slots <-
@@ -68,17 +68,24 @@ suggest.included <-
   anti_join(mutate(unavail_sent_slots, unavail_sent_slots = T),
             by=c('user'='User','study.day.nogap'='Non-travel study day',
                  'slot'='Decision slot'))
+suggest.analysis <-
+  suggest.included %>%
+    arrange(user, study.day.nogap, decision.index.nogap)
 
 navail <- sum(suggest.included$avail)
 
 ```
 
+This analysis uses the exact same data exclusion rules and definition of availability as described in the primary analysis document (sections 1, 2, and 3).
+
+Here is a recap of the number of included decision points:
+
 * **Valid** decision points occurred within intended timeslot and are not duplicated: `r nrow(suggest)`
 * **Excluded** decision points (`r nexclude`):
     + Exclude decision points during travel days (`r ntravel`)
-        ```{r table-travel, echo=FALSE}
+      <!---  ```{r table-travel, echo=FALSE}
             with(suggest, table(`Traveling at decision point?` = travel, exclude=NULL))
-        ```
+        ``` -->
     + Exclude decision points past the 42nd consecutive, non-travel study day (`r npost41`)
     + Exclude decision points when the user was unavailable but a message was still sent (`r nrow(unavail_sent_slots)`)
         ```{r unavail-sent, echo=FALSE}
@@ -90,32 +97,193 @@ navail <- sum(suggest.included$avail)
         ```
 * **Included** decision points: `r nrow(suggest) - nexclude` = valid -- excluded = `r nrow(suggest)` -- `r nexclude`
 * **Available** decision points: `r navail` = included -- unavailable
-          ```{r avail-print, echo=FALSE}
+      <!---    ```{r avail-print, echo=FALSE}
                 with(suggest.included, table('Available?'=avail))
           ```
+          -->
+
+## Google Fit imputation
+
+```{r gfsetup, echo=FALSE, message=FALSE}
+scatter_jgcor <-
+  suggest.analysis %>% filter(!is.na(gfsteps30),!is.na(jbsteps30)) %>% ggplot() +
+  geom_point(aes(x=log(jbsteps30 + 0.5),y=log(gfsteps30+0.5)),shape=1)+
+  facet_wrap(~user)
+
+gf_impute_summary <- 
+  suggest.analysis %>% group_by(user) %>%
+  summarise(npoints=n(),
+            njbmissing = sum(is.na(jbsteps30)),
+            njbmissing.avail = sum(is.na(jbsteps30) & avail),
+            pctjbmissing = njbmissing/npoints,
+            ngfmissing = sum(is.na(gfsteps30)),
+            pctgfmissing = ngfmissing/npoints,
+            ngfreplace = sum(is.na(jbsteps30) & (!is.na(gfsteps30))),
+            ngfreplace.avail = sum(is.na(jbsteps30) & (!is.na(gfsteps30)) & avail),
+            pctreplace = ngfreplace / njbmissing,
+            #nboth = sum(!(is.na(jbsteps30) | is.na(gfsteps30))),
+            jgcor = cor(na.omit(cbind(jbsteps30,gfsteps30)))[2,1],
+            jgcorlog = cor(na.omit(cbind(log(jbsteps30+0.5),log(gfsteps30+0.5))))[2,1]) %>%
+  ungroup %>%
+  arrange(desc(pctjbmissing))
+
+## Replace all missing JB with GF, when we have it
+suggest.analysis <- 
+  suggest.analysis %>%
+  mutate(steps30i = ifelse(is.na(jbsteps30), gfsteps30,jbsteps30),
+         steps30ipre = ifelse(is.na(jbsteps30pre),gfsteps30pre,jbsteps30pre),
+         steps30i.zero = ifelse(is.na(steps30i),0,steps30i),
+         steps30ipre.zero = ifelse(is.na(steps30ipre),0,steps30ipre),
+         steps30i.log = log(steps30i.zero + 0.5),
+         steps30ipre.log = log(steps30ipre.zero + 0.5))  
+
+njbmissing <- sum(gf_impute_summary$njbmissing)
+nbothna <- with(suggest.analysis, sum(is.na(steps30i)))
+nreplaced <- with(gf_impute_summary,sum(ngfreplace))
+#gf_impute_summary$ngfreplace
+npointstotal <- nrow(suggest.analysis)
+
+njbmissing.avail <- sum(gf_impute_summary$njbmissing.avail)
+nbothna.avail <- with(suggest.analysis, sum(is.na(steps30i) & avail))
+nreplaced.avail <- with(gf_impute_summary,sum(ngfreplace.avail))
+#gf_impute_summary$ngfreplace
+npointstotal.avail <- sum(suggest.analysis$avail)
 
 
-```{r plot-all, echo=FALSE, include=FALSE, eval=FALSE}
+imputetable <-
+  rbind(c('Missing JB'=njbmissing, 'Missing JB, available GF'=nreplaced,
+          'Missing JB and GF'=nbothna),
+      round(c(njbmissing,nreplaced,nbothna) / npointstotal,3))
+#imputetable <- cbind(imputetable, c(npointstotal,''))
 
-suggest.included %>%
-  mutate(study.day.nogap.f = factor(study.day.nogap, levels=0:41,
-                                  labels=paste(c('Study day ',rep('',41)),
-                                               0:41,sep=''))) %>%
-  filter(avail) %>%
-  ggplot(aes(x=log(jbsteps30pre + 0.5), y=log(jbsteps30 + 0.5))) +
-  geom_point(aes(shape=send, color=send)) +
-  ptheme +
-  facet_wrap(~study.day.nogap.f) +
-  scale_shape_discrete(solid=F) + 
-  scale_color_brewer(palette='Set1') +
-  xlab(expression(Z[t])) + ylab(expression(Y[t+1]))
-  
+imputetable.avail <-
+  rbind(c('Missing JB'=njbmissing.avail, 'Missing JB, available GF'=nreplaced.avail,
+          'Missing JB and GF'=nbothna.avail),
+      round(c(njbmissing.avail,nreplaced.avail,nbothna.avail) / npointstotal.avail,3))
+#imputetable <- cbind(imputetable, c(npointstotal,''))
+
 
 ```
 
+Jawbone (JB) step count missingness and availability of Google Fit (GF) step counts are summarized below.
+
+```{r plot-jgcor-pctreplace,warning=FALSE, echo=FALSE,fig.width=10.5,fig.height=5.5,fig.align='center',out.width='\\textwidth'}
+
+scale_x_pct <- scale_x_continuous(breaks=c(0,0.25,0.5,0.75,1),
+                                  labels=c(0,0.25,0.5,0.75,1),
+                                  limits=c(0,1))
+users_jgcor <-
+  with(gf_impute_summary, cbind(user,jgcor)[order(jgcor),])[,1]
+user_labels_jgcor <-paste(c(rep('',length(users_jgcor)-1),'User '),
+                                  users_jgcor,sep='')
+users_jbmissing <- 
+  with(
+  gf_impute_summary %>% arrange(pctjbmissing) %>%
+  select(user), user)
+user_labels_jbmissing <- paste(c(rep('',length(users_jbmissing)-1),'User '),
+                                  users_jbmissing,sep='')
+gf_impute_summary %>%
+  mutate(user=factor(user, levels=users_jbmissing,
+                     labels=user_labels_jbmissing)) %>%
+  select(user,jgcor,jgcorlog,pctreplace,pctjbmissing) %>%
+  melt(id=c('user','pctreplace')) -> gfcor_plotdf
+
+plotdf_nogf <-
+  gf_impute_summary %>% filter(pctgfmissing==1) %>%
+  mutate(user = factor(user,levels=users_jbmissing,
+                       labels=user_labels_jbmissing),
+         plotx=0,
+         plotlab="No Google Fit data") %>% select(user,plotx,plotlab)
+  
+plotdf_nojbmissing <-
+  gf_impute_summary %>% filter(pctjbmissing==0) %>%
+  mutate(user = factor(user,levels=users_jbmissing,
+                       labels=user_labels_jbmissing),
+         plotlab='No missing jawbone',
+         plotx=0) %>%
+  select(user,plotlab,plotx)
+
+gfcor_plotdf %>% filter(variable !='pctjbmissing')%>%
+  ggplot(aes(x=pctreplace,y=user)) + 
+  geom_segment(aes(x=0,xend=pctreplace,yend=user),linetype='dotted') +
+  geom_point() + 
+  ptheme + 
+  geom_text(aes(x=plotx,y=user,label=plotlab),color='grey',
+            data=plotdf_nojbmissing,
+            size=3,hjust=0,vjust=0.5) +
+  scale_x_pct+theme(panel.grid.major.y=element_blank())+
+  xlab('Proportion of missing JB step counts\nfor which we have GF counts') +
+  ylab('') -> plot_pctreplace
+
+gf_impute_summary %>% 
+  mutate(user=factor(user,
+                     levels=users_jbmissing,
+                     labels=user_labels_jbmissing))%>%
+  ggplot(aes(x=pctjbmissing,y=user)) + 
+  geom_segment(aes(x=0,xend=pctjbmissing,yend=user),
+               linetype='dotted') +
+  geom_point() + 
+  ptheme + scale_x_pct+ theme(panel.grid.major.y=element_blank())+
+  xlab('Proportion of decision points\nwith missing JB step count') +
+  ylab('') -> plot_pctjbmissing
+
+gfcor_plotdf %>% select(-pctreplace) %>% filter(variable!='pctjbmissing')%>%
+  ggplot() + 
+  geom_segment(aes(x=0,xend=value,y=user,yend=user,color=variable),
+               data=filter(gfcor_plotdf,variable=='jgcor'),linetype='dotted')+
+  geom_point(aes(x=value,y=user,color=variable,shape=variable)) + 
+  geom_text(aes(x=plotx,y=user,label=plotlab),
+            size=3,color='grey',hjust=0,vjust=0.5,
+            data=plotdf_nogf)+
+  scale_shape_manual(values=c(16,1),
+                     breaks=c('jgcor','jgcorlog'),
+                     labels=c('Raw steps','Log(steps+0.5)'),
+                     name='') +
+  scale_color_brewer(palette='Dark2',name='',
+                     breaks=c('jgcor','jgcorlog'),
+                     labels=c('Raw steps','Log(steps+0.5)')) +
+  xlab('Correlation between GF\nand JB step counts')+
+  ylab('')+ scale_x_pct+
+  ptheme + theme(legend.position='right',
+                 panel.grid.major.y=element_blank()) -> plot_jgcor
 
 
-## Sandwich Estimator
+grid.arrange(plot_pctjbmissing,plot_pctreplace,plot_jgcor,nrow=1,
+             widths=c(1,1,1.45))
+
+
+```
+
+```{r imputetable, echo=FALSE,results='asis'}
+
+#colnames(imputetable)[ncol(imputetable)] <- 'Total'
+rownames(imputetable) <- c('Num. decision points',paste('Proportion of all (',npointstotal,') decision points',sep=''))
+
+rownames(imputetable.avail) <- c('Num. available decision points',paste('Proportion of all available (',npointstotal.avail,') decision points',sep=''))
+
+print(xtable(imputetable,
+             align='rrrr',
+             digits=matrix(c(0,0,0,0,0,3,3,3),nrow=2,byrow=T),
+             caption='Summary of missing JB and GF step counts, all decision points'),
+      hline.after=c(0),
+      comment=FALSE,table.placement='h!')
+
+
+print(xtable(imputetable.avail,
+             align='rrrr',
+             digits=matrix(c(0,0,0,0,0,3,3,3),nrow=2,byrow=T),
+             caption='Summary of missing JB and GF step counts, available decision points'),
+      hline.after=c(0),
+      comment=FALSE,table.placement='h!')
+```
+
+### Imputation procedure
+
+* When the Jawbone raw count is missing (`r njbmissing` decision points), use the Google Fit raw count. `r nreplaced` decision points are imputed in this manner.
+* When both JB and GF raw counts are missing, impute 0 for the raw count. (`r nbothna` decision points)
+* Transform the result with log(raw count + 0.5)
+
+<!--- ## Sandwich Estimator
 All of the following assumes an independent working correlation structure.
 
 Notation:
@@ -130,15 +298,33 @@ $$ \left(X^\intercal W X\right)^{-1} \left[\sum_j X_j^\intercal W_j \hat{\epsilo
 
 Mancl & DeRouen adjusted sandwich estimator:
 $$\left(X^\intercal W X\right)^{-1} \left[\sum_j X_j^\intercal W_j\left(I - H_{jj}\right)^{-1} \hat{\epsilon}_j \hat{\epsilon}_j^\intercal\left(I - H_{jj}\right)^{-1} W_j X_j\right]\left(X^\intercal W X\right)^{-1} $$
+-->
 
-## Models
+\newpage 
+
+## Primary analyses
 
 ```{r estimate-functions, echo=FALSE}
 source('estimation_functions_brook.R')
 
-```
+printmod <- function(fit, alpha_ix, beta_ix, alpha=0.05){
+  vc <- vcov.heartsteps.bgl(fit, small=T)
+  se <- diag(vc)
+  cc <- coef(fit)
+  test <- pointwise.table.small(cc, vc,
+                                n=length(fit$geese$clusz),
+                                alpha=alpha)
+  ret <- 
+    cbind('Estimate' = cc,
+            "SE" = sqrt(se),
+            test)
+  rownames(ret) <- c(paste('$\\alpha_',alpha_ix,'$',sep=''),
+                     paste('$\\beta_',beta_ix,'$',sep=''))
+  colnames(ret)[3:6] <- c('Hotelling','p-value','95% LCL','95% UCL')
+  return(ret)
+}
 
-Missing values: The following models impute 0 for any time interval with a missing step count.
+```
 
 Notation:
 
@@ -148,21 +334,19 @@ Notation:
 * $I_t \in \left\{0,1\right\}$ indicator of availability at the $t$th decision point.
 * $d(t) \in \left\{0,1,\ldots,41\right\}$ index of the day of the $t$th decision point.
 
+All models only use decision points for which $I_t=1$.
+
 ### Model 1
+$$
+Y_{t+1} \sim \alpha_0 + \alpha_1 Z_t + \beta_1(A_t - 0.6)
+$$
 
-$$Y_{t+1} = \alpha_0 + \alpha_1 Z_t + \beta_1(A_t - 0.6)$$
-
-The weight matrix has diagonal elements equal to the availability indicator $I_t$.
-          
 ```{r model1, echo=FALSE, cache=FALSE}
 # jbsteps30.zero is the zero-imputed raw step count in the 30 minutes after decision
 # jbsteps30.log = log(jbsteps30.zero + 0.5)
 # jbsteps30pre.zero is the zero-imputed raw step count in the 30 minutes prior to decision
 # jbsteps30pre.log = log(jbsteps30pre.zero + 0.5)
 # A_t = send
-suggest.analysis <-
-  suggest.included %>%
-    arrange(user, study.day.nogap, decision.index.nogap)
 
 mod1.brook <- 
   geeglm(
@@ -174,42 +358,38 @@ mod1.brook <-
   data = suggest.analysis
 )
 
+mod1.imputeall <-
+  geeglm(
+  steps30i.log ~ steps30ipre.log + I(send - 0.6),
+  id = user, 
+  corstr = 'independence',
+  weights = as.numeric(suggest.analysis$avail),
+  scale.fix = TRUE,
+  data = suggest.analysis
+)
+
 ```
 
-Estimates and standard errors:
-
 ```{r mod1-results, echo=FALSE, results='asis'}
+print(xtable(printmod(mod1.brook, alpha_ix=0:1,beta_ix=1),
+      digits=c(0,3,4,2,3,3,3), caption='Model 1, Jawbone only'),
+      comment=F,sanitize.rownames.function=identity)
+```
 
-vcov1.brook <- vcov.heartsteps.bgl(mod1.brook, small=T)
-se1.brook <- diag(vcov1.brook)
-coef1.brook <- coef(mod1.brook)
-
-
-test1 <- pointwise.table.small(coef1.brook,
-                               vcov1.brook,
-                               n=length(mod1.brook$geese$clusz),
-                               alpha=0.05)
-
-tt <- cbind('Estimate' = coef1.brook,
-            "SE" = sqrt(se1.brook),
-            test1)
-rownames(tt) <- c('$\\alpha_0$', '$\\alpha_1$','$\\beta_1$')
-colnames(tt)[3:6] <- c('Hotelling','p-value','95% LCL','95% UCL')
-
-kable(tt,
-      digits = c(3,4,2,3,3,3),
-      padding=0)
-
+```{r mod1-results-impute, echo=FALSE,results='asis'}
+print(xtable(printmod(mod1.imputeall, alpha_ix=0:1,beta_ix=1),
+      digits=c(0,3,4,2,3,3,3), caption='Model 1, Google Fit imputed'),
+      comment=F,sanitize.rownames.function=identity)
 ```
 
 ### Model 2
 
-$$Y_{t+1} = \alpha_0 + \alpha_1 Z_t + \alpha_2 d(t) + \beta_1(A_t - 0.6) + \beta_2 d(t) (A_t - 0.6)$$
+$$
+Y_{t+1} \sim \alpha_0 + \alpha_1 Z_t + \alpha_2 d(t) + \beta_1(A_t - 0.6) + \beta_2 d(t) (A_t - 0.6) 
+$$
 
-Same weighting as in model 1.
 
-
-```{r model2, echo=FALSE, cache=FALSE}
+```{r model2, echo=FALSE}
 
 mod2.brook <- 
   geeglm(
@@ -222,41 +402,43 @@ mod2.brook <-
   data = suggest.analysis
 )
 
+mod2.imputeall <-
+  geeglm(
+  steps30i.log ~ steps30ipre.log + study.day.nogap +
+                  I(send - 0.6) + study.day.nogap:I(send - 0.6),
+  id = user, 
+  corstr = 'independence',
+  weights = as.numeric(suggest.analysis$avail),
+  scale.fix = TRUE,
+  data = suggest.analysis
+)
+
 ```
 
-Estimates and standard errors:
 ```{r model2-results, echo=FALSE, results='asis'}
-
-vcov2.brook <- vcov.heartsteps.bgl(mod2.brook, small=TRUE)
-se2.brook <- diag(vcov2.brook)
-coef2.brook <- coef(mod2.brook)
-
-test2 <- pointwise.table.small(coef2.brook, vcov2.brook,
-                               n=length(mod2.brook$geese$clusz),
-                               alpha=0.05)
-
-tt <- cbind('Estimate' = coef2.brook,
-            "SE" = sqrt(se2.brook),
-            test2)
-rownames(tt) <- c('$\\alpha_0$', '$\\alpha_1$',
-                  '$\\alpha_2$', '$\\beta_1$', '$\\beta_2$')
-colnames(tt)[3:6] <- c('Hotelling','p-value','95% LCL','95% UCL')
-
-#kable(tt, digits=2,
-#      padding=0)
-print(xtable(tt,
-             digits=c(0,5,4,2,3,3,3)),
+print(xtable(printmod(mod2.brook,alpha_ix=0:2,beta_ix=1:2),
+             digits=c(0,4,4,2,3,3,3),
+             caption='Model 2, Jawbone only'),
       sanitize.rownames.function=identity,
-      comment=FALSE)
+      comment=FALSE,table.placement='h!')
 
 ```
 
-### Model with quadratic time
 
-$$Y_{t+1} = \alpha_0 + \alpha_1 Z_t + \alpha_2 d(t) + \alpha_3 d(t)^2 + \beta_1(A_t - 0.6) + \beta_2 d(t) (A_t - 0.6) + \beta_3 d(t)^2(A_t - 0.6)$$
+```{r model2-results-imputeall,echo=FALSE,results='asis'}
+print(xtable(printmod(mod2.imputeall,alpha_ix=0:2,beta_ix=1:2),
+             digits=c(0,4,4,2,3,3,3),
+             caption='Model 2, GF imputed'),
+      sanitize.rownames.function=identity,
+      comment=FALSE,table.placement='h!')
+```
 
+<!---### Model with quadratic time
 
-```{r mod3-quadratic, echo=FALSE}
+$$Y_{t+1} = \alpha_0 + \alpha_1 Z_t + \alpha_2 d(t) + \alpha_3 d(t)^2 + \beta_1(A_t - 0.6) + \beta_2 d(t) (A_t - 0.6) + \beta_3 d(t)^2(A_t - 0.6)$$ 
+-->
+
+```{r mod3-quadratic, echo=FALSE,include=FALSE,eval=FALSE}
 
 mod3.brook <- 
   geeglm(
@@ -269,45 +451,561 @@ mod3.brook <-
   scale.fix = TRUE,
   data = suggest.analysis
 )
+mod3.impute <-
+  geeglm(
+  steps30i.log ~ steps30ipre.log + study.day.nogap + I(study.day.nogap^2) +
+                  I(send - 0.6) + study.day.nogap:I(send - 0.6) +
+                  I(study.day.nogap^2):I(send - 0.6),
+  id = user, 
+  corstr = 'independence',
+  weights = as.numeric(suggest.analysis$avail),
+  scale.fix = TRUE,
+  data = suggest.analysis
+)
 
 ```
 
-```{r mod3-results, echo=FALSE, results='asis'}
 
-coef3.brook <- coef(mod3.brook)
-vcov3.brook <- vcov.heartsteps.bgl(mod3.brook, small=TRUE)
-se3.brook <- diag(vcov3.brook)
-
-test3 <- pointwise.table.small(coef3.brook, vcov3.brook,
-                               n=length(mod3.brook$geese$clusz),
-                               alpha=0.05)
-
-
-tt <- cbind('Estimate' = coef3.brook,
-            "SE" = sqrt(se3.brook),
-            test3)
-rownames(tt) <- c('$\\alpha_0$', '$\\alpha_1$',
-                  '$\\alpha_2$', '$\\alpha_3$',
-                  '$\\beta_1$', '$\\beta_2$', '$\\beta_3$')
-colnames(tt)[3:6] <- c('Hotelling','p-value','95% LCL','95% UCL')
-#kable(tt,
-#      digits = c(5,3,2,3,3,3),
-#      padding=0)
-print(xtable(tt,
-             digits=c(0,5,4,2,3,3,3)),
+```{r mod3-results, echo=FALSE, results='asis',include=FALSE,eval=FALSE}
+print(xtable(printmod(mod3.brook, alpha_ix=0:3,beta_ix=1:3),
+             digits=c(0,4,4,2,3,3,3), 
+             caption='Quadratic time model, Jawbone only'),
       sanitize.rownames.function=identity,
-      comment=FALSE)
+      comment=FALSE,table.placement='h!')
 
 ```
 
-## Time trend
 
+```{r mod3-results-imputed,echo=FALSE,results='asis',include=FALSE,eval=FALSE}
+print(xtable(printmod(mod3.impute,alpha_ix=0:3,beta_ix=1:3),
+             digits=c(0,4,4,2,3,3,3),
+             caption='Quadratic time model, GF imputed'),
+      sanitize.rownames.function=identity,
+      comment=FALSE,table.placement='h!')
+```
+
+\newpage 
+
+## Secondary analyses
+
+Additional notation:
+
+* $A_{1,t}$ is an indicator of an active suggestion at time $t$.
+* $A_{2,t}$ is an indicator of a sedentary suggestion at time $t$.
+
+### Active vs. sedentary (model 5)
+$$
+Y_{t+1} \sim \alpha_0+\alpha_1 Z_t + \beta_1(A_{1,t} - 0.3) + \beta_2(A_{2,t} - 0.3)
+$$
+
+```{r active-mod1,echo=FALSE}
+
+mod.active1 <-
+  geeglm(
+  jbsteps30.log ~ jbsteps30pre.log + I(send.active - 0.3) +
+                    I(send.sedentary - 0.3),
+  id = user, 
+  corstr = 'independence',
+  weights = as.numeric(suggest.analysis$avail),
+  scale.fix = TRUE,
+  data = suggest.analysis
+)
+
+mod.active1.impute <-
+  geeglm(
+    steps30i.log ~ steps30ipre.log + I(send.active - 0.3) +
+                    I(send.sedentary - 0.3),
+  id = user, 
+  corstr = 'independence',
+  weights = as.numeric(suggest.analysis$avail),
+  scale.fix = TRUE,
+  data = suggest.analysis
+  )
+
+
+```
+
+```{r active-mod1-results,echo=FALSE,results='asis'}
+print(xtable(printmod(mod.active1,alpha_ix=0:1,beta_ix=1:2),
+             digits=c(0,4,4,2,3,3,3),
+             caption='Model 5, Jawbone only'),
+      sanitize.rownames.function=identity,
+      comment=FALSE,table.placement='h!')
+```
+
+
+```{r active-mod1-imputed-results,echo=FALSE,results='asis'}
+print(xtable(printmod(mod.active1.impute,alpha_ix=0:1,beta_ix=1:2),
+             digits=c(0,4,4,2,3,3,3),
+             caption='Model 5, GF imputed'),
+      sanitize.rownames.function=identity,
+      comment=FALSE,table.placement='h!')
+```
+
+### Active vs. sedentary, linear time trend (model 6)
+Recall that $d(t)$ is the index of the day on which the $t$th decision point occurred.
+
+\begin{align*}
+Y_{t+1} &\sim \alpha_0+\alpha_1 Z_t +\alpha_2 d(t) \\
+  &\hspace{12pt}+\beta_1(A_{1,t} - 0.3) + \beta_2(A_{2,t} - 0.3) + \beta_3(A_{1,t}-0.3)d(t) +  \beta_4(A_{2,t}-0.3)d(t)
+\end{align*}
+
+```{r active-mod-time,echo=FALSE}
+
+mod.active2 <-
+  geeglm(
+    jbsteps30.log ~ jbsteps30pre.log + study.day.nogap + 
+                   I(send.active - 0.3) + I(send.sedentary - 0.3) + 
+                   study.day.nogap:I(send.active - 0.3) + 
+                   study.day.nogap:I(send.sedentary - 0.3),
+    id = user, 
+    corstr = 'independence',
+    weights = as.numeric(suggest.analysis$avail),
+    scale.fix = TRUE,
+    data = suggest.analysis
+  )
+mod.active2.impute <-
+  geeglm(
+    steps30i.log ~ steps30ipre.log + study.day.nogap + 
+                   I(send.active - 0.3) + I(send.sedentary - 0.3) + 
+                   study.day.nogap:I(send.active - 0.3) + 
+                   study.day.nogap:I(send.sedentary - 0.3),
+    id = user, 
+    corstr = 'independence',
+    weights = as.numeric(suggest.analysis$avail),
+    scale.fix = TRUE,
+    data = suggest.analysis
+  )
+
+```
+
+```{r active-mod2-results,echo=FALSE,results='asis'}
+print(xtable(printmod(mod.active2,alpha_ix=0:2,beta_ix=1:4),
+             digits=c(0,4,4,2,3,3,3),
+             caption='Model 6, Jawbone only'),
+      sanitize.rownames.function=identity,
+      comment=FALSE,table.placement='h!')
+```
+
+
+```{r active-mod2-imputed-results,echo=FALSE,results='asis'}
+print(xtable(printmod(mod.active2.impute,alpha_ix=0:2,beta_ix=1:4),
+             digits=c(0,4,4,2,3,3,3),
+             caption='Model 6, GF imputed'),
+      sanitize.rownames.function=identity,
+      comment=FALSE,table.placement='h!')
+```
+
+\newpage 
+
+## Sensivity analyses
+The following are exactly the same sensitivity analyses as in the primary analysis document, using GF-imputed data.
+
+**For brevity, all of the results below use the Google Fit imputed data.** The Jawbone-only analyses are in the primary analysis document.
+
+The models referred to below are numbered according to the primary analysis document.
+
+* Model 1: $$
+Y_{t+1} \sim \alpha_0 + \alpha_1 Z_t + \beta_1(A_t - 0.6)
+$$
+* Model 2: 
+$$
+Y_{t+1} \sim \alpha_0 + \alpha_1 Z_t + \alpha_2 d(t) + \beta_1(A_t - 0.6) + \beta_2 d(t) (A_t - 0.6) 
+$$
+* Model 5: $$
+Y_{t+1} \sim \alpha_0+\alpha_1 Z_t + \beta_1(A_{1,t} - 0.3) + \beta_2(A_{2,t} - 0.3)
+$$
+* Model 6:
+\begin{align*}
+Y_{t+1} &\sim \alpha_0+\alpha_1 Z_t +\alpha_2 d(t) \\
+  &\hspace{12pt}+\beta_1(A_{1,t} - 0.3) + \beta_2(A_{2,t} - 0.3) + \beta_3(A_{1,t}-0.3)d(t) +  \beta_4(A_{2,t}-0.3)d(t)
+\end{align*}
+
+### User 35
+User 35 seemed to have lost the Jawbone after 18 days. The primary analysis document removes user 35 from these sensitivity analyses. Since most of user 35's missing data is recovered by the Google Fit imputation, user 35 is included in the following analyses.
+
+### Remove user 14 travel days
+User 14 was initially marked as travelling from 9/18/15 to 9/24/15, although GPS seems to indicate that user 14 was in Ann Arbor during those days. The primary analyses include the days 9/18 to 9/24 for user 14. These analyses exclude 9/18 to 9/24 for user 14.
+
+```{r u14data,echo=FALSE}
+u14travel <- seq.Date(from = as.Date("2015-09-18"), 
+                      to = as.Date("2015-09-24"),
+                      by = "day")
+
+u14edited <-
+  suggest.analysis %>% 
+  filter(user==14) %>%
+  mutate(travel14 = study.date %in% u14travel,
+         study.day.nogap = 
+           ifelse(study.date>=as.Date("2015-09-25"), 
+                  study.day.nogap - length(u14travel), study.day.nogap))
+
+suggest.analysis.u14edited <-
+  bind_rows(filter(suggest.analysis,user!=14),
+            filter(u14edited, !travel14))
+
+```
+
+```{r u14mod1,echo=FALSE,results='asis'}
+
+tt <- 
+  printmod(geeglm(formula(mod1.imputeall),
+       data=suggest.analysis.u14edited,
+       weights = as.numeric(suggest.analysis.u14edited$avail),
+       id=user, corstr='independence',
+       scale.fix=T),
+       alpha_ix=0:1, beta_ix=1)
+
+print(xtable(tt,
+             digits=c(0,4,4,2,3,3,3),
+             caption='Model 1, user 14 sensitivity analysis'),
+      sanitize.rownames.function=identity,
+      comment=FALSE,table.placement='h!')
+
+```
+
+
+```{r u14mod2, echo=FALSE,results='asis'}
+
+tt <- 
+  printmod(geeglm(formula(mod2.imputeall),
+       data=suggest.analysis.u14edited,
+       weights = as.numeric(suggest.analysis.u14edited$avail),
+       id=user, corstr='independence',
+       scale.fix=T),
+       alpha_ix=0:2, beta_ix=1:2)
+
+print(xtable(tt,
+             digits=c(0,4,4,2,3,3,3),
+             caption='Model 2, user 14 sensitivity analysis'),
+      sanitize.rownames.function=identity,
+      comment=FALSE,table.placement='h!')
+```
+
+
+```{r u14mod5, echo=FALSE,results='asis'}
+
+tt <-
+  printmod(
+    geeglm(formula(mod.active1.impute),
+           data=suggest.analysis.u14edited,
+       weights = as.numeric(suggest.analysis.u14edited$avail),
+       id=user, corstr='independence',
+       scale.fix=T),
+    alpha_ix=0:1, beta_ix=1:2)
+print(xtable(tt,
+             digits=c(0,4,4,2,3,3,3),
+             caption='Model 5, user 14 sensitivity analysis'),
+      sanitize.rownames.function=identity,
+      comment=FALSE,table.placement='h!')
+
+```
+
+```{r u14mod6, echo=FALSE,results='asis'}
+
+tt <-
+  printmod(
+    geeglm(formula(mod.active2.impute),
+           data=suggest.analysis.u14edited,
+       weights = as.numeric(suggest.analysis.u14edited$avail),
+       id=user, corstr='independence',
+       scale.fix=T),
+    alpha_ix=0:2, beta_ix=1:4)
+
+print(xtable(tt,
+             digits=c(0,4,4,2,3,3,3),
+             caption='Model 6, user 14 sensitivity analysis'),
+      sanitize.rownames.function=identity,
+      comment=FALSE,table.placement='h!')
+
+
+```
+
+\newpage
+
+## Increase minimum number of on-study days
+These sensitivity analyses increase the number of on-study days required for inclusion. In the primary analysis document, user 35 is excluded. In these Google Fit imputed analyses, user 35 is included.
+
+### At least 37 days
+
+```{r onstudy-data,echo=FALSE}
+
+users.on37 <-
+  with(
+    suggest.analysis %>% group_by(user) %>%
+    summarise(ondays = length(unique(study.date))) %>%
+    filter(ondays >= 37), user)
+
+```
+
+There are `r length(users.on37)` users who were on study for at least 37 days (this includes user 35).
+
+```{r on37mod1,echo=FALSE,results='asis'}
+
+tt <- 
+  printmod(geeglm(formula(mod1.imputeall),
+       data=suggest.analysis %>% filter(user %in% users.on37),
+      weights = as.numeric((suggest.analysis%>%filter(user %in% users.on37))$avail),
+       id=user, corstr='independence',
+       scale.fix=T),
+       alpha_ix=0:1, beta_ix=1)
+
+print(xtable(tt,
+             digits=c(0,4,4,2,3,3,3),
+             caption='Model 1, at least 37 days on study'),
+      sanitize.rownames.function=identity,
+      comment=FALSE,table.placement='h!')
+
+```
+
+
+```{r on37mod2, echo=FALSE,results='asis'}
+
+tt <- 
+  printmod(geeglm(formula(mod2.imputeall),
+       data=filter(suggest.analysis,user %in% users.on37),
+       weights = as.numeric((suggest.analysis%>%filter(user %in% users.on37))$avail),
+       id=user, corstr='independence',
+       scale.fix=T),
+       alpha_ix=0:2, beta_ix=1:2)
+
+print(xtable(tt,
+             digits=c(0,4,4,2,3,3,3),
+             caption='Model 2, at least 37 days on study'),
+      sanitize.rownames.function=identity,
+      comment=FALSE,table.placement='h!')
+```
+
+
+```{r on37mod5, echo=FALSE,results='asis'}
+
+tt <-
+  printmod(
+    geeglm(formula(mod.active1.impute),
+           data=suggest.analysis %>%filter(user %in% users.on37),
+       weights = as.numeric((suggest.analysis%>%filter(user %in% users.on37))$avail),
+       id=user, corstr='independence',
+       scale.fix=T),
+    alpha_ix=0:1, beta_ix=1:2)
+print(xtable(tt,
+             digits=c(0,4,4,2,3,3,3),
+             caption='Model 5, at least 37 days on study'),
+      sanitize.rownames.function=identity,
+      comment=FALSE,table.placement='h!')
+
+```
+
+```{r on37mod6, echo=FALSE,results='asis'}
+
+tt <-
+  printmod(
+    geeglm(formula(mod.active2.impute),
+           data=suggest.analysis%>%filter(user %in% users.on37),
+       weights = as.numeric((suggest.analysis %>% filter(user %in% users.on37))$avail),
+       id=user, corstr='independence',
+       scale.fix=T),
+    alpha_ix=0:2, beta_ix=1:4)
+
+print(xtable(tt,
+             digits=c(0,4,4,2,3,3,3),
+             caption='Model 6, at least 37 days on study'),
+      sanitize.rownames.function=identity,
+      comment=FALSE,table.placement='h!')
+
+
+```
+
+### At least 38 days
+Since no participants were on study for exactly 37 days, this analysis is the same as requiring at least 37 days. 
+
+\newpage 
+
+### At least 41 days
+```{r on41-data,echo=FALSE}
+
+users.on41 <-
+  with(
+    suggest.analysis %>% group_by(user) %>%
+    summarise(ondays = length(unique(study.date))) %>%
+    filter(ondays >= 41), user)
+```
+There are `r length(users.on41)` users who were on study for at least 41 days.
+
+
+```{r on41mod1,echo=FALSE,results='asis'}
+
+tt <- 
+  printmod(geeglm(formula(mod1.imputeall),
+       data=suggest.analysis %>% filter(user %in% users.on41),
+      weights = as.numeric((suggest.analysis%>%filter(user %in% users.on41))$avail),
+       id=user, corstr='independence',
+       scale.fix=T),
+       alpha_ix=0:1, beta_ix=1)
+
+print(xtable(tt,
+             digits=c(0,4,4,2,3,3,3),
+             caption='Model 1, at least 41 days on study'),
+      sanitize.rownames.function=identity,
+      comment=FALSE,table.placement='h!')
+
+```
+
+
+```{r on41mod2, echo=FALSE,results='asis'}
+
+tt <- 
+  printmod(geeglm(formula(mod2.imputeall),
+       data=filter(suggest.analysis,user %in% users.on41),
+       weights = as.numeric((suggest.analysis%>%filter(user %in% users.on41))$avail),
+       id=user, corstr='independence',
+       scale.fix=T),
+       alpha_ix=0:2, beta_ix=1:2)
+
+print(xtable(tt,
+             digits=c(0,4,4,2,3,3,3),
+             caption='Model 2, at least 41 days on study'),
+      sanitize.rownames.function=identity,
+      comment=FALSE,table.placement='h!')
+```
+
+
+```{r on41mod5, echo=FALSE,results='asis'}
+
+tt <-
+  printmod(
+    geeglm(formula(mod.active1.impute),
+           data=suggest.analysis %>%filter(user %in% users.on41),
+       weights = as.numeric((suggest.analysis%>%filter(user %in% users.on41))$avail),
+       id=user, corstr='independence',
+       scale.fix=T),
+    alpha_ix=0:1, beta_ix=1:2)
+print(xtable(tt,
+             digits=c(0,4,4,2,3,3,3),
+             caption='Model 5, at least 41 days on study'),
+      sanitize.rownames.function=identity,
+      comment=FALSE,table.placement='h!')
+
+```
+
+```{r on41mod6, echo=FALSE,results='asis'}
+
+tt <-
+  printmod(
+    geeglm(formula(mod.active2.impute),
+           data=suggest.analysis%>%filter(user %in% users.on41),
+       weights = as.numeric((suggest.analysis %>% filter(user %in% users.on41))$avail),
+       id=user, corstr='independence',
+       scale.fix=T),
+    alpha_ix=0:2, beta_ix=1:4)
+
+print(xtable(tt,
+             digits=c(0,4,4,2,3,3,3),
+             caption='Model 6, at least 41 days on study'),
+      sanitize.rownames.function=identity,
+      comment=FALSE,table.placement='h!')
+
+
+```
+
+
+\newpage 
+
+### At least 42 days
+```{r on42-data,echo=FALSE}
+
+users.on42 <-
+  with(
+    suggest.analysis %>% group_by(user) %>%
+    summarise(ondays = length(unique(study.date))) %>%
+    filter(ondays >= 42), user)
+```
+There are `r length(users.on42)` users who were on study for at least 42 days.
+
+
+```{r on42mod1,echo=FALSE,results='asis'}
+
+tt <- 
+  printmod(geeglm(formula(mod1.imputeall),
+       data=suggest.analysis %>% filter(user %in% users.on42),
+      weights = as.numeric((suggest.analysis%>%filter(user %in% users.on42))$avail),
+       id=user, corstr='independence',
+       scale.fix=T),
+       alpha_ix=0:1, beta_ix=1)
+
+print(xtable(tt,
+             digits=c(0,4,4,2,3,3,3),
+             caption='Model 1, at least 42 days on study'),
+      sanitize.rownames.function=identity,
+      comment=FALSE,table.placement='h!')
+
+```
+
+
+```{r on42mod2, echo=FALSE,results='asis'}
+
+tt <- 
+  printmod(geeglm(formula(mod2.imputeall),
+       data=filter(suggest.analysis,user %in% users.on42),
+       weights = as.numeric((suggest.analysis%>%filter(user %in% users.on42))$avail),
+       id=user, corstr='independence',
+       scale.fix=T),
+       alpha_ix=0:2, beta_ix=1:2)
+
+print(xtable(tt,
+             digits=c(0,4,4,2,3,3,3),
+             caption='Model 2, at least 42 days on study'),
+      sanitize.rownames.function=identity,
+      comment=FALSE,table.placement='h!')
+```
+
+
+```{r on42mod5, echo=FALSE,results='asis'}
+
+tt <-
+  printmod(
+    geeglm(formula(mod.active1.impute),
+           data=suggest.analysis %>%filter(user %in% users.on42),
+       weights = as.numeric((suggest.analysis%>%filter(user %in% users.on42))$avail),
+       id=user, corstr='independence',
+       scale.fix=T),
+    alpha_ix=0:1, beta_ix=1:2)
+print(xtable(tt,
+             digits=c(0,4,4,2,3,3,3),
+             caption='Model 5, at least 42 days on study'),
+      sanitize.rownames.function=identity,
+      comment=FALSE,table.placement='h!')
+
+```
+
+```{r on42mod6, echo=FALSE,results='asis'}
+
+tt <-
+  printmod(
+    geeglm(formula(mod.active2.impute),
+           data=suggest.analysis%>%filter(user %in% users.on42),
+       weights = as.numeric((suggest.analysis %>% filter(user %in% users.on42))$avail),
+       id=user, corstr='independence',
+       scale.fix=T),
+    alpha_ix=0:2, beta_ix=1:4)
+
+print(xtable(tt,
+             digits=c(0,4,4,2,3,3,3),
+             caption='Model 6, at least 42 days on study'),
+      sanitize.rownames.function=identity,
+      comment=FALSE,table.placement='h!')
+
+
+```
+
+
+
+<!---## Time trend
 (Include unavailable decision points in residual plots?)
-
 ### Prior step count only (Nick's model 3)
 $$ Y_{t+1} \sim \alpha_0 + \alpha_1 Z_t$$
+-->
 
-```{r time1, echo=FALSE}
+```{r time1, echo=FALSE, include=FALSE,eval=FALSE}
 
 timemod1 <- 
   geeglm(
@@ -354,17 +1052,17 @@ plot.resid.time1 <-
 
 ```
 
-Residuals versus time:
+<!---Residuals versus time:-->
 
-```{r plot-resid-time1,echo=FALSE, fig.width=8.5,fig.height=4.5}
+```{r plot-resid-time1,echo=FALSE, fig.width=8.5,fig.height=4.5,include=FALSE,eval=FALSE}
 
 plot.resid.time1
 
 ```
 
-### Quadratic time (Nick's model 4)
+<!---### Quadratic time (Nick's model 4)-->
 
-```{r time2, echo=FALSE}
+```{r time2, echo=FALSE,include=FALSE,eval=FALSE}
 
 
 timemod2 <- 
@@ -405,16 +1103,13 @@ plot.resid.time2 <-
 
 ```
 
-Residuals versus time:
-
-```{r plot-resid-time2, echo=FALSE, fig.width=8.5, fig.height=4.5}
+```{r plot-resid-time2, echo=FALSE, fig.width=8.5, fig.height=4.5,include=FALSE,eval=FALSE}
 plot.resid.time2
 
 ```
 
 
-
-```{r plot-res2, echo=FALSE}
+```{r plot-res2, echo=FALSE,include=FALSE,eval=FALSE}
 
 plotdat <- 
   expand.grid(jbsteps30pre = seq(0, 5500, length.out=150),
@@ -447,6 +1142,6 @@ plot.mod2.mean <-
 
 ```
 
-```{r plot-mod2-print, echo=FALSE, fig.width=7, fig.height=6, include=FALSE}
+```{r plot-mod2-print, echo=FALSE, fig.width=7, fig.height=6, include=FALSE,eval=FALSE}
 plot.mod2.mean + ggtitle('Conditional mean in Model 2')
 ```
