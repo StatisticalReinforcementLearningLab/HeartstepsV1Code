@@ -2,6 +2,7 @@
 title: "Additonal Moderators"
 author: "Brook Luers"
 date: "`r format(Sys.time(), '%B %d, %Y')`"
+linestretch: 1.5
 output: pdf_document
 ---
 
@@ -33,47 +34,34 @@ ptheme <-
         strip.background=element_rect(fill=NA,color='white'),
         legend.position='right',
         legend.direction='vertical')
+
+source('make_new_moderators_Jan.R')
 ```
 
+## Summary of new variables
+`suggest` is the unedited data frame with one row per decision point.
 
-```{r, sug-analysis,echo=FALSE }
+`suggest.analysis` (created in this document) excludes decision points according to the rules in the primary analysis document.
 
-unavail_sent_slots <-
-            filter(suggest, !avail & !is.na(notification.message))%>%
-                select(user, study.day.nogap, slot, avail, notification.message) %>%
-  mutate('Message sent' = !is.na(notification.message)) %>% select(-notification.message) %>%
-  rename('User' = user, 'Non-travel study day'= study.day.nogap,
-         'Decision slot' = slot, 'Available' = avail)
-no_message_tag <- 
-            filter(suggest, send & !travel & study.day.nogap <= 42 & is.na(send.sedentary)) %>%
-                select(user, study.day.nogap, slot, 
-                      notification.message) %>%
-  rename('User' = user,
-         'Non-travel study day' = study.day.nogap,
-         'Decision slot' = slot,
-         'Sent mesasge' = notification.message)
+This document adds the following columns to `suggest.analysis`:
 
-ntravel <- sum(suggest$travel)
-npost41 <- with(suggest, sum(study.day.nogap > 41, na.rm=T))
-nexclude <- 
-  ntravel + npost41 + nrow(unavail_sent_slots) + nrow(no_message_tag)
-
-suggest.included <- 
-  suggest %>%
-  filter(!travel & study.day.nogap <= 41) %>%
-  anti_join(mutate(no_message_tag, no_message_tag = T),
-            by=c('user'='User','study.day.nogap'='Non-travel study day',
-                 'slot'='Decision slot')) %>%
-  anti_join(mutate(unavail_sent_slots, unavail_sent_slots = T),
-            by=c('user'='User','study.day.nogap'='Non-travel study day',
-                 'slot'='Decision slot'))
-suggest.analysis <-
-  suggest.included %>%
-    arrange(user, study.day.nogap, decision.index.nogap)
-
-navail <- sum(suggest.included$avail)
-
-```
+| Column name  | Description |
+| ------------------------: | :------------------------------------------------------------|
+`n_prev_sent_have_response` | Number of previous decision points where a message was sent and the response is not NA
+`n_prev_thumbs_updown` | Number of previous decision points where a message was sent and the response is either thumbs up or thumbs down (not NA)
+`prop_prev_thumbs_updown` | `n_prev_thumbs_updown / n_prev_sent_have_response`. **Proportion of past messages where the user responded thumbs up or thumbs down.** When the denominator is zero, I set this proportion equal to zero.
+`n_window_sent_have_response` | Number of decision points in the previous 7 days where a message was sent and the respnose is not NA. The start of the window moves day-by-day; the end of the window moves on each decision point.
+`n_window_thumbs_updown` | Number of decision points in the previous 7 days where a message was sent and the response was either thumbs up or down. 
+`prop_window_thumbs_updown` | `n_window_thumbs_updown / n_window_sent_have_response`. Zero when the denominator is zero.
+`daily.jbsteps.direct`  | Daily step count from "perceived day"
+`daily.jbsteps.direct.NA0`  | Daily step count from perceived day, NA values replaced with 0
+`daily.csteps.direct.NA0`  | Cumulative (within user) daily step count. NA values contribute 0.
+`steps.window7` | **Total number of steps in the previous 7 days**, using perceived day counts. NA values contribute 0. Current day excluded.
+`slot.steps60.prepost.zero` | Number of steps in the 60-minute interval centered at the decision point. Zero-imputed where missing.
+`window7.steps60.var` | Variance of the number of steps in the 60-minute intervals centered at the matching within-day decision points from the previous 7 days (e.g. for an evening decision point, the variance from the previous 7 evening decision points).
+`window7.stesp60.sd` | Square root of `window7.steps60.var`.
+`window7.steps60.log.var` | Same as `window7.steps60.var`, but compute the variance of log(steps + 0.5) instead of the raw steps
+`window7.steps60.log.sd` | Square root of `window7.steps60.log.var`
 
 ## Missingness of thumbs up/down
 Out of `r sum(with(suggest.analysis,send==TRUE))` decision points when a message was sent.
@@ -95,28 +83,6 @@ Denominator: number of prior decision points for which a suggestion message was 
 Numerator: number of prior decision points for which a suggestion message was sent and the response is thumbs up ("good") or thumbs down ("bad").
 
 When the denominator is zero, set the proportion equal to zero.
-```{r, prev-prop-thumbs}
-## Add indicators for non-missing response and up/down
-suggest.analysis <-
-  suggest.analysis %>%
-  mutate(have_thumbs = !is.na(response),
-         thumbs_up_or_down = ifelse(is.na(response), NA,
-                                    response %in% c("good","bad"))) 
-
-suggest.analysis <-
-  suggest.analysis %>%
-  group_by(user) %>%
-  mutate(n_prev_sent_have_response =
-           cumsum(send & have_thumbs),
-         n_prev_thumbs_updown = 
-           cumsum(have_thumbs & thumbs_up_or_down),
-         prop_prev_thumbs_updown = 
-           ifelse(n_prev_sent_have_response==0, 0, # Setting 0/0 = 0
-                  n_prev_thumbs_updown / n_prev_sent_have_response)) %>%
-  ungroup
-
-```
-
 
 ```{r, plot-prop-updown,fig.align='center',fig.width=6,fig.height=3,out.width='0.75\\textwidth'}
 suggest.analysis %>%
@@ -130,43 +96,11 @@ suggest.analysis %>%
 
 ### Sliding window
 
-```{r, window-thumbs-proportion}
-# Use a sliding window for the proportion of previous messages 
-# that were given either thumbs up or thumbs down
-ndays_window_thumbs <- 7 # the window in DAYS
-
-# Get the cumulative number of sent messages with a response from ndays_window_thumbs
-# days before (take the count at the end of the day, so the window slides on the day scale) 
-suggest.analysis <-
-  suggest.analysis %>%
-  left_join( 
-    suggest.analysis %>%
-      filter(slot==5) %>%
-      mutate(study.day.plus7 = study.day.nogap + ndays_window_thumbs,
-             n_out7_sent_have_response = n_prev_sent_have_response,
-             n_out7_thumbs_updown = n_prev_thumbs_updown) %>%
-      select(user, study.day.plus7, n_out7_sent_have_response,
-             n_out7_thumbs_updown),
-    by=c('user'='user','study.day.nogap'='study.day.plus7')
-  ) %>%
-  mutate(n_window_sent_have_response = 
-           n_prev_sent_have_response - ifelse(is.na(n_out7_sent_have_response),
-                                              0,
-                                              n_out7_sent_have_response),
-         n_window_thumbs_updown =
-           n_prev_thumbs_updown - ifelse(is.na(n_out7_thumbs_updown),
-                                              0,
-                                              n_out7_thumbs_updown),
-         prop_window_thumbs_updown =
-           ifelse(n_window_sent_have_response==0, 0,
-                  n_window_thumbs_updown / n_window_sent_have_response))
-```
-
 Compute the same proportion using a sliding `r ndays_window_thumbs`-day window, including the current day. 
 The window slides on the day scale even though the proportion changes on the decision point scale.
 Here's an example of how the proportion is calculated for a single user.
 
-```{r, fig.align='center',fig.width=8.5,fig.height=6,out.width='\\textwidth'}
+```{r, fig.align='center',fig.width=8.5,fig.height=5.5,out.width='0.9\\textwidth'}
 suggest.analysis %>%
   filter(user==6,study.day.nogap %in% 0:8) %>%
   select(user,decision.index.nogap,denominator=n_prev_sent_have_response,
@@ -177,9 +111,12 @@ suggest.analysis %>%
   ggplot(aes(x=decision.index.nogap,y=value))+
   geom_line() + geom_point()+ facet_grid(variable~.) +
   geom_vline(aes(xintercept=decision.index.nogap),
-             data=filter(suggest.analysis,user==6,study.day.nogap %in%0:8,slot==5))+
+             data=filter(suggest.analysis,user==6,study.day.nogap %in%0:8,slot==1))+
   scale_y_continuous(breaks=seq(0,16,by=2)) +
-  xlab('Decision point') + ylab('num. decision points')
+  xlab('Decision point') + ylab('number of decision points') +
+  ptheme +
+  theme(panel.grid.major=element_blank()) +
+  ggtitle('Top two lines: numerator and denominator for cumulative proportion\nbottom two lines: numerator and denominator in previous 7-day window')
 ```
 
 Here's the proportion using the sliding `r ndays_window_thumbs`-day window for all users.
@@ -196,37 +133,60 @@ suggest.analysis %>%
 
 ## Step count in the last 7 days
 
-```{r, window-daily-count}
-# Step count from previous 7 days, excluding current day
-# NA daily step counts add 0 to the moving-window step count
-suggest.analysis <-
-  suggest.analysis %>%
-  left_join(
-      daily %>%
-        filter(!is.na(study.day.nogap))%>%
-        mutate(jbsteps.agg.NA0 =ifelse(is.na(jbsteps.agg),0,jbsteps.agg)) %>%
-        group_by(user) %>%
-        mutate(cumsteps = cumsum(jbsteps.agg.NA0),
-               steps.window7 = cumsteps - lag(cumsteps, 7, default=0),
-               study.day.plus1 = study.day.nogap + 1) %>% ungroup %>%
-          select(user,steps.window7, study.day.plus1),
-    by=c('user'='user','study.day.nogap'='study.day.plus1') 
-  ) %>%
-  left_join(daily%>%select(user,study.day.nogap,daily.jbsteps.agg=jbsteps.agg),
-            by=c('user'='user','study.day.nogap'='study.day.nogap'))
+* Using the "perceived day" step count (e.g. if someone travels from Ann Arbor to Chicago, their perceived day is 25 hours long). This is the `daily$jbsteps.direct` column.
+* Days with missing daily step counts contribute 0 to the cumulative step count.
 
-```
-
-```{r,fig.align='center',fig.width=7,fig.height=4,out.width='0.9\\textwidth',include=FALSE,eval=FALSE}
+```{r,fig.align='center',fig.width=7,fig.height=4,out.width='0.9\\textwidth'}
 suggest.analysis %>%
-  filter(user==6,study.day.nogap%in%0:10) %>%
-  mutate(csteps = cumsum(ifelse(slot==1,daily.jbsteps.agg,0)))%>%
-  ggplot(aes(x=decision.index.nogap,y=csteps)) +
+  filter(user==5,study.day.nogap%in%0:12) %>%
+  ggplot(aes(x=decision.index.nogap,y=daily.csteps.direct.NA0)) +
   geom_line() +
   geom_line(aes(x=decision.index.nogap,y=steps.window7),
             color='red')+geom_point()+
   geom_vline(aes(xintercept=decision.index.nogap),
              color='grey',
-             data=filter(suggest.analysis,user==6,study.day.nogap%in%0:10,slot==5)) + 
-  ptheme
+             data=filter(suggest.analysis,user==5,study.day.nogap%in%0:12,slot==1)) + 
+  ptheme +
+  theme(panel.grid.major.x=element_blank(),
+        panel.grid.minor=element_blank()) +
+  ggtitle('User 5\nRed line = steps in previous 7 days\nblack line = cumulative steps')+
+  ylab('steps') 
 ```
+
+## Variance of step count near decision point in last 7 days
+
+* Compute the number of steps in the interval (30 min before $t$, 30 min after $t$). Using the zero-imputed step counts.
+* At the $j$th decision point each day ($j=1,2,3,4,5$), compute the variance of the step counts from the previous 7 days in the 1-hour window surrounding the $j$th decision point on those days.
+* This variance is NA for study days 0 through 6. On study day 7, the first non-NA value will correspond to the first decision point index from study day 0. E.g. if the first decision point "slot" on day 0 is the evening, $j=5$, then the first non-NA value for this variance will be on study day 7 for decision point $j=5$ (evening).
+
+The following table displays the first and second decision points from the first 8 days for user 1.
+```{r,results='asis'}
+suggest.analysis %>% filter(user==1,slot%in%c(1,2),study.day.nogap <9) %>%
+  select(study.day.nogap,slot,jbsteps30pre.zero,
+         jbsteps30.zero,slot.steps60.prepost.zero,
+         window7.steps60.var) -> tt
+
+tt <- as.matrix(tt)
+colnames(tt) <- c('Study day','Within-day decision index','Steps 30-minutes before','Steps 30-minutes after','Steps in 1-hour centered interval','Variance from previous 7 days')
+
+print(xtable(tt,
+             align='rp{0.1\\textwidth}p{0.15\\textwidth}p{0.15\\textwidth}p{0.15\\textwidth}p{0.15\\textwidth}p{0.15\\textwidth}',
+             digits=c(0,0,0,0,0,0,2)),
+      include.rownames=F,
+      comment=F)
+```
+
+To understand the above table, here is how one of the numbers is calculated.
+
+These are the 1-hour centered window step counts for user 1, morning decision point ($j=1$) for the first 7 days:
+```{r,echo=FALSE}
+with(suggest.analysis %>% filter(user==1,slot==1,study.day.nogap <8),
+     slot.steps60.prepost.zero)
+```
+
+This is the corresponding variance:
+```{r}
+var(with(suggest.analysis %>% filter(user==1,slot==1,study.day.nogap <8),
+     slot.steps60.prepost.zero))
+```
+
