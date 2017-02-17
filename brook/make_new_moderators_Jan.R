@@ -41,6 +41,16 @@ navail <- sum(suggest.included$avail)
 suggest.analysis$weekendTrue <-
   with(suggest.analysis, strftime(study.date,'%u') %in% c(6,7))
 
+### Self efficacy 
+user_selfeff <- 
+  select(users, user, starts_with('selfeff')) %>%
+  select(-ends_with('exit')) %>%
+  melt(id='user') %>% group_by(user) %>%
+  summarise(selfeff_sum = sum(value))
+suggest.analysis <-
+  suggest.analysis %>%
+  left_join(user_selfeff, by='user')
+
 ## Add indicators for non-missing response and up/down
 suggest.analysis <-
   suggest.analysis %>%
