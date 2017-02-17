@@ -51,6 +51,17 @@ suggest.analysis <-
   suggest.analysis %>%
   left_join(user_selfeff, by='user')
 
+## Conscientiousness
+conc_item_names <- 
+  c("detail","prepared","carryplans", "startwork", "wastetime", "duties", "makeplans" )
+user_conc <-
+  select(users,one_of(c('user',conc_item_names))) %>%
+  melt(id='user') %>% group_by(user) %>%
+  summarise(conc_sum = sum(value))
+suggest.analysis <-
+  suggest.analysis %>%
+  left_join(user_conc, by='user')
+
 ## Add indicators for non-missing response and up/down
 suggest.analysis <-
   suggest.analysis %>%

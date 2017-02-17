@@ -68,6 +68,7 @@ source('make_new_moderators_Jan.R')
 `window7.steps60.log.sd` | Square root of `window7.steps60.log.var`
 `selfeff_sum` | Sum of the following columns from the `users` data frame:  `r paste(select(users, starts_with('selfeff')) %>%
   select(-ends_with('exit')) %>%names,collapse=', ')`
+`conc_sum` | Sum of the following colmns from the `users` data frame: `r paste(conc_item_names, collapse=', ')`
 
 ## Missingness of thumbs up/down
 Out of `r sum(with(suggest.analysis,send==TRUE))` decision points when a message was sent.
