@@ -41,9 +41,11 @@ source('make_new_moderators_Jan.R')
 ## Summary of new variables
 `suggest` is the unedited data frame with one row per decision point.
 
-`suggest.analysis` (created in this document) excludes decision points according to the rules in the primary analysis document.
+`suggest.analysis` (created by `make_new_moderators_Jan.R`) excludes decision points according to the rules in the primary analysis document.
 
-This document adds the following columns to `suggest.analysis`:
+`suggest.analysis.wdays` only has decision points that occurred on a weekday; the windowed daily step counts and windowed step count variances are recomputed in this data frame using weekdays only. 
+
+`make_new_moderators_Jan.R` adds the following columns to `suggest.analysis`:
 
 | Column name  | Description |
 | ------------------------: | :------------------------------------------------------------|
@@ -53,13 +55,15 @@ This document adds the following columns to `suggest.analysis`:
 `n_window_sent_have_response` | Number of decision points in the previous 7 days where a message was sent and the respnose is not NA. The start of the window moves day-by-day; the end of the window moves on each decision point.
 `n_window_thumbs_updown` | Number of decision points in the previous 7 days where a message was sent and the response was either thumbs up or down. 
 `prop_window_thumbs_updown` | `n_window_thumbs_updown / n_window_sent_have_response`. Zero when the denominator is zero.
+`prop_window_thumbs_exp05` | Exponentially weighted `prop_window_thumbs_updown` with $\alpha=0.05$. 
+`prop_window_thumbs_exp1` |  Exponentially weighted `prop_window_thumbs_updown` with $\alpha=0.1$. 
 `daily.jbsteps.direct`  | Daily step count from "perceived day"
 `daily.jbsteps.direct.NA0`  | Daily step count from perceived day, NA values replaced with 0
 `daily.csteps.direct.NA0`  | Cumulative (within user) daily step count. NA values contribute 0.
 `steps.window7` | **Total number of steps in the previous 7 days**, using perceived day counts. NA values contribute 0. Current day excluded.
 `slot.steps60.prepost.zero` | Number of steps in the 60-minute interval centered at the decision point. Zero-imputed where missing.
 `window7.steps60.var` | Variance of the number of steps in the 60-minute intervals centered at the matching within-day decision points from the previous 7 days (e.g. for an evening decision point, the variance from the previous 7 evening decision points).
-`window7.stesp60.sd` | Square root of `window7.steps60.var`.
+`window7.steps60.sd` | Square root of `window7.steps60.var`.
 `window7.steps60.log.var` | Same as `window7.steps60.var`, but compute the variance of log(steps + 0.5) instead of the raw steps
 `window7.steps60.log.sd` | Square root of `window7.steps60.log.var`
 
@@ -131,6 +135,31 @@ suggest.analysis %>%
   ggtitle(paste("Sliding ",ndays_window_thumbs,'-day window',sep=''))
 ```
 
+### Exponentially weighted proportion
+Simple exponential weighting of the sliding window proportion. At decision time $t$, the exponentially weighted proportion is 
+$$
+ s_t = \alpha p_t +(1-\alpha)s_{t-1}
+$$
+where $p_t$ is the sliding-window proportion at decision point $t$ and $\alpha$ is the smoothing factor. I used $\alpha=0.05$ and $\alpha=0.1$. Higher values of $\alpha$ give more weight to recent values.
+
+```{r,fig.width=9,fig.height=3.5,out.width='0.9\\textwidth',fig.align='center'}
+ suggest.analysis %>%
+  filter(user %in% c(1,10,14)) %>%
+  select(user,decision.index.nogap,prop_window_thumbs_updown,
+         prop_window_thumbs_exp05, prop_window_thumbs_exp1) %>%
+  melt(id=c('user','decision.index.nogap'))%>%
+  mutate(user = factor(user,levels=c(1,10,14),
+                       labels=c('User 1','10','14')))%>%
+  ggplot(aes(x=decision.index.nogap,y=value)) +
+  geom_line(aes(color=variable)) +
+  facet_wrap(~user) +
+  scale_color_brewer(palette='Set1',name='') +
+  ptheme +
+  theme(legend.position=c(1,0),legend.justification=c(1,0))+
+  xlab('Decision point') + ylab('')
+
+```
+
 ## Step count in the last 7 days
 
 * Using the "perceived day" step count (e.g. if someone travels from Ann Arbor to Chicago, their perceived day is 25 hours long). This is the `daily$jbsteps.direct` column.
@@ -162,6 +191,7 @@ suggest.analysis %>%
 The following table displays the first and second decision points from the first 8 days for user 1.
 ```{r,results='asis'}
 suggest.analysis %>% filter(user==1,slot%in%c(1,2),study.day.nogap <9) %>%
+  ungroup %>%
   select(study.day.nogap,slot,jbsteps30pre.zero,
          jbsteps30.zero,slot.steps60.prepost.zero,
          window7.steps60.var) -> tt
@@ -190,3 +220,49 @@ var(with(suggest.analysis %>% filter(user==1,slot==1,study.day.nogap <8),
      slot.steps60.prepost.zero))
 ```
 
+
+## Weekdays Only
+
+Create a new data frame, `suggest.analysis.wdays`, consisting of decision points that occurred on weekdays. Then compute `steps.window7`, `window7.steps60.var`, `window7.steps60.log.var`, `window7.steps60.sd`, `window7.steps60.log.sd`. These have the same definitions given above, but now the "universe" only consists of weekdays. So the previous 7 days on a Wednesday will consist of the prior Tuesday, Monday, Friday, Thursday, Wednesday, Tuesday, Monday.
+
+Here's an example of the variance calculation for weekdays:
+```{r, results='asis'}
+
+suggest.analysis.wdays %>% filter(user==1,slot%in%c(1,2),study.weekday.nogap <9) %>%
+  ungroup %>% 
+  mutate(dayname = strftime(study.date,'%a'))%>%
+  select(dayname,study.weekday.nogap,slot,jbsteps30pre.zero,
+         jbsteps30.zero,slot.steps60.prepost.zero,
+         window7.steps60.var) -> tt
+
+tt <- as.matrix(tt)
+colnames(tt) <- c('Day of week','Study day index, weekdays only','Within-day decision index','Steps 30-minutes before','Steps 30-minutes after','Steps in 1-hour centered interval','Variance from previous 7 days')
+
+print(xtable(tt,
+             align='rp{0.1\\textwidth}p{0.1\\textwidth}p{0.125\\textwidth}p{0.125\\textwidth}p{0.125\\textwidth}p{0.125\\textwidth}p{0.125\\textwidth}',
+             digits=c(0,0,0,0,0,0,0,2),
+             caption='Example calculation, weekdays only, variance from previous 7 decision points.'),
+      include.rownames=F,
+      comment=F)
+```
+
+
+Here's an example of the 7-day total step count calculation for weekdays:
+```{r, results='asis'}
+suggest.analysis.wdays %>%
+  filter(user==1,study.weekday.nogap <10,slot==5) %>%
+  select(study.weekday.nogap,study.date,daily.jbsteps.direct.NA0,
+         steps.window7) %>%
+  mutate(dayname=strftime(study.date,'%a')) %>% select(-study.date) -> tt
+colnames(tt) <- c('Study day index, weekdays only','Daily step count','7-day window cumulative count','Day of week')
+print(xtable(tt,
+             digits=c(0,0,0,0,0),
+             caption='Example of weekdays only, total step count over previuos 7 days.'),
+      include.rownames=F,
+      hline.after=0,comment=FALSE)
+
+```
+
+## Survey responses
+
+Survey responses are available in the data frame `users`, which can be joined to the suggestion-level data frames using the `user` column. 
