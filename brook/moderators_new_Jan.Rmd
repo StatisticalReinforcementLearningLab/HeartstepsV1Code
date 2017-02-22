@@ -6,7 +6,7 @@ linestretch: 1.5
 output: pdf_document
 ---
 
-```{r setup, include=FALSE}
+```{r setup, echo=FALSE, message=FALSE,warning=FALSE,results='hide'}
 knitr::opts_chunk$set(echo = FALSE)
 library(ggplot2)
 library(RColorBrewer)
@@ -43,7 +43,7 @@ source('make_new_moderators_Jan.R')
 
 `suggest.analysis` (created by `make_new_moderators_Jan.R`) excludes decision points according to the rules in the primary analysis document.
 
-`suggest.analysis.wdays` only has decision points that occurred on a weekday; the windowed daily step counts and windowed step count variances are recomputed in this data frame using weekdays only. 
+`suggest.analysis.wdays` only has decision points that occurred on a weekday; the windowed daily step counts and windowed step count variances are recomputed in this data frame using weekdays only. **The weekday data frame uses a 5-day window for the variables described below.**
 
 `make_new_moderators_Jan.R` adds the following columns to `suggest.analysis`:
 
@@ -188,10 +188,10 @@ suggest.analysis %>%
 ## Variance of step count near decision point in last 7 days
 
 * Compute the number of steps in the interval (30 min before $t$, 30 min after $t$). Using the zero-imputed step counts.
-* At the $j$th decision point each day ($j=1,2,3,4,5$), compute the variance of the step counts from the previous 7 days in the 1-hour window surrounding the $j$th decision point on those days.
+* At the $j$th decision point each day ($j=1,2,3,4,5$), compute the variance of the step counts from the previous 7 days (or 5 weekdays for the weekday-only analysis) in the 1-hour window surrounding the $j$th decision point on those days.
 * This variance is NA for study days 0 through 6. On study day 7, the first non-NA value will correspond to the first decision point index from study day 0. E.g. if the first decision point "slot" on day 0 is the evening, $j=5$, then the first non-NA value for this variance will be on study day 7 for decision point $j=5$ (evening).
 
-The following table displays the first and second decision points from the first 8 days for user 1.
+Table \ref{tab:alldayvar} displays the first and second decision points from the first 9 days for user 1.
 ```{r,results='asis'}
 suggest.analysis %>% filter(user==1,slot%in%c(1,2),study.day.nogap <9) %>%
   ungroup %>%
@@ -204,12 +204,14 @@ colnames(tt) <- c('Study day','Within-day decision index','Steps 30-minutes befo
 
 print(xtable(tt,
              align='rp{0.1\\textwidth}p{0.15\\textwidth}p{0.15\\textwidth}p{0.15\\textwidth}p{0.15\\textwidth}p{0.15\\textwidth}',
+             label='tab:alldayvar',
+             caption='Example of previous 7-day variance calculation.',
              digits=c(0,0,0,0,0,0,2)),
       include.rownames=F,
       comment=F)
 ```
 
-To understand the above table, here is how one of the numbers is calculated.
+To understand Table \ref{tab:alldayvar}, here is how one of the numbers is calculated.
 
 These are the 1-hour centered window step counts for user 1, morning decision point ($j=1$) for the first 7 days:
 ```{r,echo=FALSE}
@@ -226,41 +228,43 @@ var(with(suggest.analysis %>% filter(user==1,slot==1,study.day.nogap <8),
 
 ## Weekdays Only
 
-Create a new data frame, `suggest.analysis.wdays`, consisting of decision points that occurred on weekdays. Then compute `steps.window7`, `window7.steps60.var`, `window7.steps60.log.var`, `window7.steps60.sd`, `window7.steps60.log.sd`. These have the same definitions given above, but now the "universe" only consists of weekdays. So the previous 7 days on a Wednesday will consist of the prior Tuesday, Monday, Friday, Thursday, Wednesday, Tuesday, Monday.
+Create a new data frame, `suggest.analysis.wdays`, consisting of decision points that occurred on weekdays. Then compute `steps.window5`, `window5.steps60.var`, `window5.steps60.log.var`, `window5.steps60.sd`, `window5.steps60.log.sd`. These have similar definitions to the 7-day variables given above, but now the "universe" only consists of weekdays. So the previous 5 weekdays on a Wednesday will consist of the prior Tuesday, Monday, Friday, Thursday, Wednesday.
 
-Here's an example of the variance calculation for weekdays:
+Table \ref{tab:wdayvar} contains an example of the 5-day variance calculation for weekdays.
 ```{r, results='asis'}
 
-suggest.analysis.wdays %>% filter(user==1,slot%in%c(1,2),study.weekday.nogap <9) %>%
+suggest.analysis.wdays %>% filter(user==1,slot%in%c(1,2),study.weekday.nogap <8) %>%
   ungroup %>% 
   mutate(dayname = strftime(study.date,'%a'))%>%
   select(dayname,study.weekday.nogap,slot,jbsteps30pre.zero,
          jbsteps30.zero,slot.steps60.prepost.zero,
-         window7.steps60.var) -> tt
+         window5.steps60.var) -> tt
 
 tt <- as.matrix(tt)
-colnames(tt) <- c('Day of week','Study day index, weekdays only','Within-day decision index','Steps 30-minutes before','Steps 30-minutes after','Steps in 1-hour centered interval','Variance from previous 7 days')
+colnames(tt) <- c('Day of week','Study day index, weekdays only','Within-day decision index','Steps 30-minutes before','Steps 30-minutes after','Steps in 1-hour centered interval','Variance from previous 5 days')
 
 print(xtable(tt,
              align='rp{0.1\\textwidth}p{0.1\\textwidth}p{0.125\\textwidth}p{0.125\\textwidth}p{0.125\\textwidth}p{0.125\\textwidth}p{0.125\\textwidth}',
+             label='tab:wdayvar',
              digits=c(0,0,0,0,0,0,0,2),
-             caption='Example calculation, weekdays only, variance from previous 7 decision points.'),
+             caption='Example calculation, weekdays only, variance from previous 5 decision points.'),
       include.rownames=F,
       comment=F)
 ```
 
 
-Here's an example of the 7-day total step count calculation for weekdays:
+Table \ref{tab:wdaystep} contains an example of the 5-day total step count calculation for weekdays.
 ```{r, results='asis'}
 suggest.analysis.wdays %>%
-  filter(user==1,study.weekday.nogap <10,slot==5) %>%
+  filter(user==1,study.weekday.nogap < 9,slot==5) %>%
   select(study.weekday.nogap,study.date,daily.jbsteps.direct.NA0,
-         steps.window7) %>%
+         steps.window5) %>%
   mutate(dayname=strftime(study.date,'%a')) %>% select(-study.date) -> tt
-colnames(tt) <- c('Study day index, weekdays only','Daily step count','7-day window cumulative count','Day of week')
+colnames(tt) <- c('Study day index, weekdays only','Daily step count','5-day window cumulative count','Day of week')
 print(xtable(tt,
              digits=c(0,0,0,0,0),
-             caption='Example of weekdays only, total step count over previuos 7 days.'),
+             label='tab:wdaystep',
+             caption='Example of weekdays only, total step count over previous 5 days.'),
       include.rownames=F,
       hline.after=0,comment=FALSE)
 
@@ -268,4 +272,8 @@ print(xtable(tt,
 
 ## Survey responses
 
-Survey responses are available in the data frame `users`, which can be joined to the suggestion-level data frames using the `user` column. 
+Both data frames (`suggest.analysis` and `suggest.analysis.wdays`) contain the following two variables computed from the intake survey:
+
+* `selfeff_sum`: Self efficacy score. This is the sum of the following columns from the `users` data frame:  `r paste(select(users, starts_with('selfeff')) %>%
+  select(-ends_with('exit')) %>%names,collapse=', ')`
+* `conc_sum`: Conscientiousness score. This is the sum of the following colmns from the `users` data frame: `r paste(conc_item_names, collapse=', ')`
