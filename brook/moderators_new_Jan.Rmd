@@ -45,27 +45,33 @@ source('make_new_moderators_Jan.R')
 
 `suggest.analysis.wdays` only has decision points that occurred on a weekday; the windowed daily step counts and windowed step count variances are recomputed in this data frame using weekdays only. **The weekday data frame uses a 5-day window for the variables described below.**
 
-`make_new_moderators_Jan.R` adds the following columns to `suggest.analysis`:
+For variables described below that count sent suggestion messages, I also created identical versions where only the ACTIVE messages are counted. These are the variables in `suggest.analysis` with `_active_` somwhere in the name.
+
+**Simple exponential weighting**: For a variable $y_t$ at decision point $t$, the exponentially weighted version of $y_t$ is $r_t$, computed by
+$$
+ r_t = \alpha y_t +(1-\alpha)r_{t-1}
+$$
+where $\alpha$ is the smoothing factor. I used $\alpha=0.05$ and $\alpha=0.1$. Higher values of $\alpha$ give more weight to recent values.
 
 | Column name  | Description |
 | ------------------------: | :------------------------------------------------------------|
-`n_prev_sent_have_response` | Number of previous decision points where a message was sent and the response is not NA
-`n_prev_thumbs_updown` | Number of previous decision points where a message was sent and the response is either thumbs up or thumbs down (not NA)
-`prop_prev_thumbs_updown` | `n_prev_thumbs_updown / n_prev_sent_have_response`. **Proportion of past messages where the user responded thumbs up or thumbs down.** When the denominator is zero, I set this proportion equal to zero.
+`n_prev_sent_have_response` | Number of previous decision points (current point excluded) where a message was sent and the response is not NA. `n_prev_active_have_response` only counts active sent messages.
+`n_prev_thumbs_updown` | Number of previous decision points (current point excluded) where a message was sent and the response is either thumbs up or thumbs down (not NA).
+`prop_prev_thumbs_updown` | `n_prev_thumbs_updown / n_prev_sent_have_response`. **Proportion of past messages where the user responded thumbs up or thumbs down.** Equals zero when the denominator is zero.
 `n_window_sent_have_response` | Number of decision points in the previous 7 days where a message was sent and the respnose is not NA. The start of the window moves day-by-day; the end of the window moves on each decision point.
 `n_window_thumbs_updown` | Number of decision points in the previous 7 days where a message was sent and the response was either thumbs up or down. 
-`prop_window_thumbs_updown` | `n_window_thumbs_updown / n_window_sent_have_response`. Zero when the denominator is zero.
+`prop_window_thumbs_updown`| `n_window_thumbs_updown / n_window_sent_have_response`. Zero when the denominator is zero.
 `prop_window_thumbs_exp05` | Exponentially weighted `prop_window_thumbs_updown` with $\alpha=0.05$. 
 `prop_window_thumbs_exp1` |  Exponentially weighted `prop_window_thumbs_updown` with $\alpha=0.1$. 
-`daily.jbsteps.direct`  | Daily step count from "perceived day"
+`daily.jbsteps.direct`  | Daily step count from "perceived day". If someone travels from Ann Arbor to Chicago and spends the night, then their perceived day is 25 hours long.
 `daily.jbsteps.direct.NA0`  | Daily step count from perceived day, NA values replaced with 0
 `daily.csteps.direct.NA0`  | Cumulative (within user) daily step count. NA values contribute 0.
 `steps.window7` | **Total number of steps in the previous 7 days**, using perceived day counts. NA values contribute 0. Current day excluded.
+`steps.window7.avg` | Average number of steps in previous 7 days. The denominator starts at 1 and increases to 7. On the first day of the study (`study.day.nogap` is zero), this equals zero. Also have exponentially weighted versions with suffixes `.exp05` and `.exp1`.
+`steps.window7.log.avg` | log(`steps.window7.avg` + 0.5). Also have exponentially weighted versions with suffixes `.exp05` and `.exp1`.
 `slot.steps60.prepost.zero` | Number of steps in the 60-minute interval centered at the decision point. Zero-imputed where missing.
-`window7.steps60.var` | Variance of the number of steps in the 60-minute intervals centered at the matching within-day decision points from the previous 7 days (e.g. for an evening decision point, the variance from the previous 7 evening decision points).
-`window7.steps60.sd` | Square root of `window7.steps60.var`.
-`window7.steps60.log.var` | Same as `window7.steps60.var`, but compute the variance of log(steps + 0.5) instead of the raw steps
-`window7.steps60.log.sd` | Square root of `window7.steps60.log.var`
+`window7.steps60.sd` | Standard deviation of the number of steps in the 60-minute intervals centered at the matching within-day decision points from the previous 7 days (e.g. for an evening decision point, the standard deviation from the previous 7 evening decision points).
+`window7.steps60.log.sd` | Same as `window7.steps60.sd`, but compute the standard deviation of log(steps + 0.5) instead of the raw steps. Also have exponentially weighted versions with suffixes `.exp05` and `.exp1`.
 `selfeff_sum` | Sum of the following columns from the `users` data frame:  `r paste(select(users, starts_with('selfeff')) %>%
   select(-ends_with('exit')) %>%names,collapse=', ')`
 `conc_sum` | Sum of the following colmns from the `users` data frame: `r paste(conc_item_names, collapse=', ')`

@@ -73,7 +73,7 @@ suggest.analysis.wdays <-
   filter(suggest.analysis, !weekendTrue) %>%
   left_join(
     suggest.analysis %>% filter(!weekendTrue) %>%
-      group_by(user,study.day.nogap) %>% summarise(npoints=n())%>%
+      group_by(user, study.day.nogap) %>% summarise(npoints=n())%>%
       group_by(user)%>% mutate(nwdays = n())%>% 
       mutate(study.weekday.nogap = 0:(max(nwdays)-1)) %>%
       select(user,study.day.nogap,study.weekday.nogap),
@@ -84,12 +84,20 @@ suggest.analysis <-
   suggest.analysis %>%
   group_by(user) %>%
   mutate(n_prev_sent_have_response =
-           cumsum(send & have_thumbs),
-         n_prev_thumbs_updown = 
-           cumsum(have_thumbs & thumbs_up_or_down),
+           cumsum(c(0,(send & have_thumbs)[-n()])), # exclude current decision point
+         n_prev_active_have_response = 
+           cumsum(c(0,(send.active & have_thumbs)[-n()])),
+         n_prev_thumbs_updown =  # sedentary AND active messages
+           cumsum(c(0,(send & have_thumbs & thumbs_up_or_down)[-n()])),
+         n_prev_active_thumbs_updown = 
+           cumsum(c(0,(send.active & have_thumbs & thumbs_up_or_down)[-n()])),
          prop_prev_thumbs_updown = 
            ifelse(n_prev_sent_have_response==0, 0, # Setting 0/0 = 0
-                  n_prev_thumbs_updown / n_prev_sent_have_response)) %>%
+                  n_prev_thumbs_updown / n_prev_sent_have_response),
+         prop_prev_active_thumbs_updown = 
+           ifelse(n_prev_active_have_response==0, 0, # Setting 0/0 = 0
+                  n_prev_active_thumbs_updown / n_prev_active_have_response)
+         ) %>%
   ungroup
 
 ## Count types of response to sent suggestion messages (WEEKDAYS)
@@ -97,12 +105,20 @@ suggest.analysis.wdays <-
   suggest.analysis.wdays %>%
   group_by(user) %>%
   mutate(n_prev_sent_have_response =
-           cumsum(send & have_thumbs),
-         n_prev_thumbs_updown = 
-           cumsum(have_thumbs & thumbs_up_or_down),
+           cumsum(c(0,(send & have_thumbs)[-n()])),
+         n_prev_active_have_response = 
+           cumsum(c(0,(send.active & have_thumbs)[-n()])),
+         n_prev_thumbs_updown =  # sedentary AND active messages
+           cumsum(c(0,(send & have_thumbs & thumbs_up_or_down)[-n()])),
+         n_prev_active_thumbs_updown = 
+           cumsum(c(0, (send.active & have_thumbs & thumbs_up_or_down)[-n()])),
          prop_prev_thumbs_updown = 
            ifelse(n_prev_sent_have_response==0, 0, # Setting 0/0 = 0
-                  n_prev_thumbs_updown / n_prev_sent_have_response)) %>%
+                  n_prev_thumbs_updown / n_prev_sent_have_response),
+         prop_prev_active_thumbs_updown = 
+           ifelse(n_prev_active_have_response==0, 0, # Setting 0/0 = 0
+                  n_prev_active_thumbs_updown / n_prev_active_have_response)
+  ) %>%
   ungroup
 
 # Use a sliding window for the proportion of previous messages 
@@ -116,13 +132,15 @@ suggest.analysis <-
   suggest.analysis %>%
   left_join( 
     suggest.analysis %>%
-      filter(slot==5) %>%
-      mutate(study.day.plus7 = study.day.nogap + ndays_window_thumbs,
+      filter(slot==1) %>%
+      mutate(study.day.plus6 = study.day.nogap + ndays_window_thumbs - 1,
              n_out7_sent_have_response = n_prev_sent_have_response,
-             n_out7_thumbs_updown = n_prev_thumbs_updown) %>%
-      select(user, study.day.plus7, n_out7_sent_have_response,
-             n_out7_thumbs_updown),
-    by=c('user'='user','study.day.nogap'='study.day.plus7')
+             n_out7_thumbs_updown = n_prev_thumbs_updown,
+             n_out7_active_have_response = n_prev_active_have_response,
+             n_out7_active_thumbs_updown = n_prev_active_thumbs_updown) %>%
+      select(user, study.day.plus6, n_out7_sent_have_response,
+             n_out7_thumbs_updown, n_out7_active_have_response, n_out7_active_thumbs_updown),
+    by=c('user'='user','study.day.nogap'='study.day.plus6')
   ) %>%
   mutate(n_window_sent_have_response = 
            n_prev_sent_have_response - ifelse(is.na(n_out7_sent_have_response),
@@ -134,7 +152,18 @@ suggest.analysis <-
                                          n_out7_thumbs_updown),
          prop_window_thumbs_updown =
            ifelse(n_window_sent_have_response==0, 0,
-                  n_window_thumbs_updown / n_window_sent_have_response))
+                  n_window_thumbs_updown / n_window_sent_have_response),
+         n_window_active_have_response = 
+           n_prev_active_have_response - ifelse(is.na(n_out7_active_have_response),
+                                              0,
+                                              n_out7_active_have_response),
+         n_window_active_thumbs_updown =
+           n_prev_active_thumbs_updown - ifelse(is.na(n_out7_active_thumbs_updown),
+                                         0,
+                                         n_out7_active_thumbs_updown),
+         prop_window_active_thumbs_updown =
+           ifelse(n_window_active_have_response==0, 0,
+                  n_window_active_thumbs_updown / n_window_active_have_response))
 
 ## Exponential weighting of proportion
 suggest.analysis <- 
@@ -143,9 +172,13 @@ suggest.analysis <-
   mutate(prop_window_thumbs_exp05 = as.numeric(fitted.values(ses(prop_window_thumbs_updown,
                                         initial='simple', alpha=0.05))),
          prop_window_thumbs_exp1 = as.numeric(fitted.values(ses(prop_window_thumbs_updown,
+                                                                initial='simple', alpha=0.1))),
+         prop_window_active_thumbs_exp05 = as.numeric(fitted.values(ses(prop_window_active_thumbs_updown,
+                                                                 initial='simple', alpha=0.05))),
+         prop_window_active_thumbs_exp1 = as.numeric(fitted.values(ses(prop_window_active_thumbs_updown,
                                                                 initial='simple', alpha=0.1))))
 
-# Step count from previous 7 days, excluding current day
+# Total step count from previous 7 days, excluding current day
 # NA daily step counts add 0 to the moving-window step count
 suggest.analysis <-
   suggest.analysis %>%
@@ -157,7 +190,7 @@ suggest.analysis <-
       mutate(cumsteps = cumsum(jbsteps.direct.NA0),
              steps.window7 = cumsteps - lag(cumsteps, 7, default=0),
              study.day.plus1 = study.day.nogap + 1) %>% ungroup %>%
-      select(user,steps.window7, study.day.plus1),
+      select(user, steps.window7, study.day.plus1),
     by=c('user'='user','study.day.nogap'='study.day.plus1') 
   ) %>%
   left_join(
@@ -170,7 +203,11 @@ suggest.analysis <-
       mutate(daily.csteps.direct.NA0 = cumsum(daily.jbsteps.direct.NA0)) %>% ungroup,
     by=c('user'='user','study.day.nogap'='study.day.nogap'))
 suggest.analysis$steps.window7[suggest.analysis$study.day.nogap==0] <- 0
-
+suggest.analysis$steps.window7.avg <- 
+  with(suggest.analysis, steps.window7 / ifelse(study.day.nogap < 7, study.day.nogap, 7))
+suggest.analysis$steps.window7.avg[suggest.analysis$study.day.nogap==0] <- 0
+suggest.analysis$steps.window7.log <- with(suggest.analysis, log(steps.window7 +0.5))
+suggest.analysis$steps.window7.log.avg <- with(suggest.analysis, log(steps.window7.avg + 0.5))
 
 ## Variance of 1-hour centered window from previous 7 days
 suggest.analysis <- 
@@ -196,6 +233,22 @@ suggest.analysis <-
   mutate(window7.steps60.sd = sqrt(window7.steps60.var),
          window7.steps60.log.sd = sqrt(window7.steps60.log.var))
 
+suggest.analysis <- 
+  suggest.analysis %>% 
+  group_by(user) %>%
+  mutate(window7.steps60.sd.exp05 = as.numeric(fitted.values(ses(window7.steps60.sd,
+                                                                 initial='simple', alpha=0.05))),
+         window7.steps60.sd.exp1 = as.numeric(fitted.values(ses(window7.steps60.sd,
+                                                                 initial='simple', alpha=0.1))),
+         steps.window7.avg.exp05= as.numeric(fitted.values(ses(steps.window7.avg,
+                                                               initial='simple', alpha=0.05))),
+         steps.window7.avg.exp1= as.numeric(fitted.values(ses(steps.window7.avg,
+                                                              initial='simple', alpha=0.1))),
+         steps.window7.log.avg.exp05 = as.numeric(fitted.values(ses(steps.window7.log.avg,
+                                                                    initial='simple', alpha=0.05))),
+         steps.window7.log.avg.exp1 = as.numeric(fitted.values(ses(steps.window7.log.avg,
+                                                                   initial='simple', alpha=0.1))))
+
 ###
 ### WEEKDAY DATA FRAME
 ###
@@ -218,6 +271,11 @@ suggest.analysis.wdays <-
     by=c('user'='user','study.weekday.nogap'='study.weekday.plus1') 
   ) %>% ungroup
 suggest.analysis.wdays$steps.window5[suggest.analysis.wdays$study.weekday.nogap==0] <- 0
+suggest.analysis.wdays$steps.window5.avg <- 
+  with(suggest.analysis.wdays, steps.window5 / ifelse(study.weekday.nogap < 5, study.weekday.nogap, 5))
+suggest.analysis.wdays$steps.window5.avg[suggest.analysis.wdays$study.weekday.nogap==0] <- 0
+suggest.analysis.wdays$steps.window5.log <- with(suggest.analysis.wdays, log(steps.window5 +0.5))
+suggest.analysis.wdays$steps.window5.log.avg <- with(suggest.analysis.wdays, log(steps.window5.avg + 0.5))
 
 suggest.analysis.wdays <-
   suggest.analysis.wdays %>%
@@ -258,19 +316,37 @@ suggest.analysis.wdays <-
   mutate(window5.steps60.sd = sqrt(window5.steps60.var),
          window5.steps60.log.sd = sqrt(window5.steps60.log.var))
 
+suggest.analysis.wdays <-
+  suggest.analysis.wdays %>% 
+  group_by(user) %>%
+  mutate(window5.steps60.sd.exp05 = as.numeric(fitted.values(ses(window5.steps60.sd,
+                                                                 initial='simple', alpha=0.05))),
+         window5.steps60.sd.exp1 = as.numeric(fitted.values(ses(window5.steps60.sd,
+                                                                initial='simple', alpha=0.1))),
+         steps.window5.avg.exp05= as.numeric(fitted.values(ses(steps.window5.avg,
+                                                               initial='simple', alpha=0.05))),
+         steps.window5.avg.exp1= as.numeric(fitted.values(ses(steps.window5.avg,
+                                                               initial='simple', alpha=0.1))),
+         steps.window5.log.avg.exp05 = as.numeric(fitted.values(ses(steps.window5.log.avg,
+                                                                    initial='simple', alpha=0.05))),
+         steps.window5.log.avg.exp1 = as.numeric(fitted.values(ses(steps.window5.log.avg,
+                                                                    initial='simple', alpha=0.1))))
+
 # Get the cumulative number of sent messages with a response from 5 weekdays
 # before (take the count at the end of the day, so the window slides on the day scale) 
 suggest.analysis.wdays <-
   suggest.analysis.wdays %>%
   left_join( 
     suggest.analysis.wdays %>%
-      filter(slot==5) %>%
-      mutate(study.day.plus5 = study.day.nogap + ndays_window_thumbs_wdays,
+      filter(slot==1) %>%
+      mutate(study.weekday.plus4 = study.weekday.nogap + ndays_window_thumbs_wdays - 1,
              n_out5_sent_have_response = n_prev_sent_have_response,
-             n_out5_thumbs_updown = n_prev_thumbs_updown) %>%
-      select(user, study.day.plus5, n_out5_sent_have_response,
-             n_out5_thumbs_updown),
-    by=c('user'='user','study.day.nogap'='study.day.plus5')
+             n_out5_active_have_response = n_prev_active_have_response,
+             n_out5_thumbs_updown = n_prev_thumbs_updown,
+             n_out5_active_thumbs_updown = n_prev_active_thumbs_updown) %>%
+      select(user, study.weekday.plus4, n_out5_sent_have_response, n_out5_thumbs_updown, 
+             n_out5_active_have_response, n_out5_active_thumbs_updown),
+    by=c('user'='user','study.weekday.nogap'='study.weekday.plus4')
   ) %>%
   mutate(n_window_sent_have_response = 
            n_prev_sent_have_response - ifelse(is.na(n_out5_sent_have_response),
@@ -282,7 +358,18 @@ suggest.analysis.wdays <-
                                          n_out5_thumbs_updown),
          prop_window_thumbs_updown =
            ifelse(n_window_sent_have_response==0, 0,
-                  n_window_thumbs_updown / n_window_sent_have_response))
+                  n_window_thumbs_updown / n_window_sent_have_response),
+         n_window_active_have_response = 
+           n_prev_active_have_response - ifelse(is.na(n_out5_active_have_response),
+                                              0,
+                                              n_out5_active_have_response),
+         n_window_active_thumbs_updown =
+           n_prev_active_thumbs_updown - ifelse(is.na(n_out5_active_thumbs_updown),
+                                         0,
+                                         n_out5_active_thumbs_updown),
+         prop_window_active_thumbs_updown =
+           ifelse(n_window_active_have_response==0, 0,
+                  n_window_active_thumbs_updown / n_window_active_have_response))
 
 ## Exponential weighting of proportion (weekdays)
 suggest.analysis.wdays <- 
@@ -291,5 +378,9 @@ suggest.analysis.wdays <-
   mutate(prop_window_thumbs_exp05 = as.numeric(fitted.values(ses(prop_window_thumbs_updown,
                                                                  initial='simple', alpha=0.05))),
          prop_window_thumbs_exp1 = as.numeric(fitted.values(ses(prop_window_thumbs_updown,
+                                                                initial='simple', alpha=0.1))),
+         prop_window_active_thumbs_exp05 = as.numeric(fitted.values(ses(prop_window_active_thumbs_updown,
+                                                                 initial='simple', alpha=0.05))),
+         prop_window_active_thumbs_exp1 = as.numeric(fitted.values(ses(prop_window_active_thumbs_updown,
                                                                 initial='simple', alpha=0.1)))) %>%
   ungroup
