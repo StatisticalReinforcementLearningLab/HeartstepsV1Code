@@ -1,0 +1,279 @@
+---
+title: "Additonal Moderators"
+author: "Brook Luers"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+linestretch: 1.5
+output: pdf_document
+---
+
+```{r setup, echo=FALSE, message=FALSE,warning=FALSE,results='hide'}
+knitr::opts_chunk$set(echo = FALSE)
+library(ggplot2)
+library(RColorBrewer)
+library(dplyr)
+library(gridExtra)
+library(knitr)
+library(grid)
+library(reshape2)
+library(geepack)
+library(Matrix)
+
+
+source('../init.R', chdir=TRUE)
+if (!exists('suggest')){
+  load(paste(sys.var$mbox.data,'csv.RData',sep=''))
+  load(paste(sys.var$mbox.data,"analysis-small.RData",sep=''))
+}
+gridline <- element_line(color='lightgrey',linetype='dashed')
+ptheme <-
+  theme_bw(base_size = 11) +
+  theme(panel.grid.major.x=gridline,
+        panel.grid.minor.x=element_blank(),
+        panel.grid.major.y=gridline,
+        panel.grid.minor.y=element_blank(),
+        strip.background=element_rect(fill=NA,color='white'),
+        legend.position='right',
+        legend.direction='vertical')
+
+source('make_new_moderators_Jan.R')
+```
+
+## Summary of new variables
+`suggest` is the unedited data frame with one row per decision point.
+
+`suggest.analysis` (created by `make_new_moderators_Jan.R`) excludes decision points according to the rules in the primary analysis document.
+
+`suggest.analysis.wdays` only has decision points that occurred on a weekday; the windowed daily step counts and windowed step count variances are recomputed in this data frame using weekdays only. **The weekday data frame uses a 5-day window for the variables described below.**
+
+`make_new_moderators_Jan.R` adds the following columns to `suggest.analysis`:
+
+| Column name  | Description |
+| ------------------------: | :------------------------------------------------------------|
+`n_prev_sent_have_response` | Number of previous decision points where a message was sent and the response is not NA
+`n_prev_thumbs_updown` | Number of previous decision points where a message was sent and the response is either thumbs up or thumbs down (not NA)
+`prop_prev_thumbs_updown` | `n_prev_thumbs_updown / n_prev_sent_have_response`. **Proportion of past messages where the user responded thumbs up or thumbs down.** When the denominator is zero, I set this proportion equal to zero.
+`n_window_sent_have_response` | Number of decision points in the previous 7 days where a message was sent and the respnose is not NA. The start of the window moves day-by-day; the end of the window moves on each decision point.
+`n_window_thumbs_updown` | Number of decision points in the previous 7 days where a message was sent and the response was either thumbs up or down. 
+`prop_window_thumbs_updown` | `n_window_thumbs_updown / n_window_sent_have_response`. Zero when the denominator is zero.
+`prop_window_thumbs_exp05` | Exponentially weighted `prop_window_thumbs_updown` with $\alpha=0.05$. 
+`prop_window_thumbs_exp1` |  Exponentially weighted `prop_window_thumbs_updown` with $\alpha=0.1$. 
+`daily.jbsteps.direct`  | Daily step count from "perceived day"
+`daily.jbsteps.direct.NA0`  | Daily step count from perceived day, NA values replaced with 0
+`daily.csteps.direct.NA0`  | Cumulative (within user) daily step count. NA values contribute 0.
+`steps.window7` | **Total number of steps in the previous 7 days**, using perceived day counts. NA values contribute 0. Current day excluded.
+`slot.steps60.prepost.zero` | Number of steps in the 60-minute interval centered at the decision point. Zero-imputed where missing.
+`window7.steps60.var` | Variance of the number of steps in the 60-minute intervals centered at the matching within-day decision points from the previous 7 days (e.g. for an evening decision point, the variance from the previous 7 evening decision points).
+`window7.steps60.sd` | Square root of `window7.steps60.var`.
+`window7.steps60.log.var` | Same as `window7.steps60.var`, but compute the variance of log(steps + 0.5) instead of the raw steps
+`window7.steps60.log.sd` | Square root of `window7.steps60.log.var`
+`selfeff_sum` | Sum of the following columns from the `users` data frame:  `r paste(select(users, starts_with('selfeff')) %>%
+  select(-ends_with('exit')) %>%names,collapse=', ')`
+`conc_sum` | Sum of the following colmns from the `users` data frame: `r paste(conc_item_names, collapse=', ')`
+
+## Missingness of thumbs up/down
+Out of `r sum(with(suggest.analysis,send==TRUE))` decision points when a message was sent.
+```{r, thumbs-summary}
+
+thumbcounts <-
+  xtabs(~response+avail, data=suggest.analysis, subset=send==TRUE,
+        exclude=NULL, na.action=NULL)
+
+kable(cbind(thumbcounts, round(thumbcounts /sum(thumbcounts),4)),
+      col.names=c('Number decision points','Proportion'))
+
+```
+
+## Proportion of sent messages with a "thumbs" response
+
+Denominator: number of prior decision points for which a suggestion message was sent and the response is non-missing.
+
+Numerator: number of prior decision points for which a suggestion message was sent and the response is thumbs up ("good") or thumbs down ("bad").
+
+When the denominator is zero, set the proportion equal to zero.
+
+```{r, plot-prop-updown,fig.align='center',fig.width=6,fig.height=3,out.width='0.75\\textwidth'}
+suggest.analysis %>%
+  #filter(user==10) %>%
+  ggplot()+
+  geom_line(aes(x=decision.index.nogap,y=prop_prev_thumbs_updown,
+                group=user),alpha=I(1/3)) +
+  ptheme + xlab('Decision point') + ylab('Proportion of prior messages\nwith up/down response')
+
+```
+
+### Sliding window
+
+Compute the same proportion using a sliding `r ndays_window_thumbs`-day window, including the current day. 
+The window slides on the day scale even though the proportion changes on the decision point scale.
+Here's an example of how the proportion is calculated for a single user.
+
+```{r, fig.align='center',fig.width=8.5,fig.height=5.5,out.width='0.9\\textwidth'}
+suggest.analysis %>%
+  filter(user==6,study.day.nogap %in% 0:8) %>%
+  select(user,decision.index.nogap,denominator=n_prev_sent_have_response,
+         numerator=n_prev_thumbs_updown,study.day.nogap,
+         window_denominator=n_window_sent_have_response,
+         window_numerator=n_window_thumbs_updown) %>%
+  melt(id=c('user','decision.index.nogap','study.day.nogap'))%>%
+  ggplot(aes(x=decision.index.nogap,y=value))+
+  geom_line() + geom_point()+ facet_grid(variable~.) +
+  geom_vline(aes(xintercept=decision.index.nogap),
+             data=filter(suggest.analysis,user==6,study.day.nogap %in%0:8,slot==1))+
+  scale_y_continuous(breaks=seq(0,16,by=2)) +
+  xlab('Decision point') + ylab('number of decision points') +
+  ptheme +
+  theme(panel.grid.major=element_blank()) +
+  ggtitle('Top two lines: numerator and denominator for cumulative proportion\nbottom two lines: numerator and denominator in previous 7-day window')
+```
+
+Here's the proportion using the sliding `r ndays_window_thumbs`-day window for all users.
+
+```{r,fig.width=6,fig.height=4,out.width='0.75\\textwidth'}
+suggest.analysis %>%
+  #filter(user==10) %>%
+  ggplot()+
+  geom_line(aes(x=decision.index.nogap,y=prop_window_thumbs_updown,
+                group=user),alpha=I(1/3)) +
+  ptheme + xlab('Decision point') + ylab('Proportion of prior messages\nwith up/down response')+
+  ggtitle(paste("Sliding ",ndays_window_thumbs,'-day window',sep=''))
+```
+
+### Exponentially weighted proportion
+Simple exponential weighting of the sliding window proportion. At decision time $t$, the exponentially weighted proportion is 
+$$
+ s_t = \alpha p_t +(1-\alpha)s_{t-1}
+$$
+where $p_t$ is the sliding-window proportion at decision point $t$ and $\alpha$ is the smoothing factor. I used $\alpha=0.05$ and $\alpha=0.1$. Higher values of $\alpha$ give more weight to recent values.
+
+```{r,fig.width=9,fig.height=3.5,out.width='0.9\\textwidth',fig.align='center'}
+ suggest.analysis %>%
+  filter(user %in% c(1,10,14)) %>%
+  select(user,decision.index.nogap,prop_window_thumbs_updown,
+         prop_window_thumbs_exp05, prop_window_thumbs_exp1) %>%
+  melt(id=c('user','decision.index.nogap'))%>%
+  mutate(user = factor(user,levels=c(1,10,14),
+                       labels=c('User 1','10','14')))%>%
+  ggplot(aes(x=decision.index.nogap,y=value)) +
+  geom_line(aes(color=variable)) +
+  facet_wrap(~user) +
+  scale_color_brewer(palette='Set1',name='') +
+  ptheme +
+  theme(legend.position=c(1,0),legend.justification=c(1,0))+
+  xlab('Decision point') + ylab('')
+
+```
+
+## Step count in the last 7 days
+
+* Using the "perceived day" step count (e.g. if someone travels from Ann Arbor to Chicago, their perceived day is 25 hours long). This is the `daily$jbsteps.direct` column.
+* Days with missing daily step counts contribute 0 to the cumulative step count.
+
+```{r,fig.align='center',fig.width=7,fig.height=4,out.width='0.9\\textwidth'}
+suggest.analysis %>%
+  filter(user==5,study.day.nogap%in%0:12) %>%
+  ggplot(aes(x=decision.index.nogap,y=daily.csteps.direct.NA0)) +
+  geom_line() +
+  geom_line(aes(x=decision.index.nogap,y=steps.window7),
+            color='red')+geom_point()+
+  geom_vline(aes(xintercept=decision.index.nogap),
+             color='grey',
+             data=filter(suggest.analysis,user==5,study.day.nogap%in%0:12,slot==1)) + 
+  ptheme +
+  theme(panel.grid.major.x=element_blank(),
+        panel.grid.minor=element_blank()) +
+  ggtitle('User 5\nRed line = steps in previous 7 days\nblack line = cumulative steps')+
+  ylab('steps') 
+```
+
+## Variance of step count near decision point in last 7 days
+
+* Compute the number of steps in the interval (30 min before $t$, 30 min after $t$). Using the zero-imputed step counts.
+* At the $j$th decision point each day ($j=1,2,3,4,5$), compute the variance of the step counts from the previous 7 days (or 5 weekdays for the weekday-only analysis) in the 1-hour window surrounding the $j$th decision point on those days.
+* This variance is NA for study days 0 through 6. On study day 7, the first non-NA value will correspond to the first decision point index from study day 0. E.g. if the first decision point "slot" on day 0 is the evening, $j=5$, then the first non-NA value for this variance will be on study day 7 for decision point $j=5$ (evening).
+
+Table \ref{tab:alldayvar} displays the first and second decision points from the first 9 days for user 1.
+```{r,results='asis'}
+suggest.analysis %>% filter(user==1,slot%in%c(1,2),study.day.nogap <9) %>%
+  ungroup %>%
+  select(study.day.nogap,slot,jbsteps30pre.zero,
+         jbsteps30.zero,slot.steps60.prepost.zero,
+         window7.steps60.var) -> tt
+
+tt <- as.matrix(tt)
+colnames(tt) <- c('Study day','Within-day decision index','Steps 30-minutes before','Steps 30-minutes after','Steps in 1-hour centered interval','Variance from previous 7 days')
+
+print(xtable(tt,
+             align='rp{0.1\\textwidth}p{0.15\\textwidth}p{0.15\\textwidth}p{0.15\\textwidth}p{0.15\\textwidth}p{0.15\\textwidth}',
+             label='tab:alldayvar',
+             caption='Example of previous 7-day variance calculation.',
+             digits=c(0,0,0,0,0,0,2)),
+      include.rownames=F,
+      comment=F)
+```
+
+To understand Table \ref{tab:alldayvar}, here is how one of the numbers is calculated.
+
+These are the 1-hour centered window step counts for user 1, morning decision point ($j=1$) for the first 7 days:
+```{r,echo=FALSE}
+with(suggest.analysis %>% filter(user==1,slot==1,study.day.nogap <8),
+     slot.steps60.prepost.zero)
+```
+
+This is the corresponding variance:
+```{r}
+var(with(suggest.analysis %>% filter(user==1,slot==1,study.day.nogap <8),
+     slot.steps60.prepost.zero))
+```
+
+
+## Weekdays Only
+
+Create a new data frame, `suggest.analysis.wdays`, consisting of decision points that occurred on weekdays. Then compute `steps.window5`, `window5.steps60.var`, `window5.steps60.log.var`, `window5.steps60.sd`, `window5.steps60.log.sd`. These have similar definitions to the 7-day variables given above, but now the "universe" only consists of weekdays. So the previous 5 weekdays on a Wednesday will consist of the prior Tuesday, Monday, Friday, Thursday, Wednesday.
+
+Table \ref{tab:wdayvar} contains an example of the 5-day variance calculation for weekdays.
+```{r, results='asis'}
+
+suggest.analysis.wdays %>% filter(user==1,slot%in%c(1,2),study.weekday.nogap <8) %>%
+  ungroup %>% 
+  mutate(dayname = strftime(study.date,'%a'))%>%
+  select(dayname,study.weekday.nogap,slot,jbsteps30pre.zero,
+         jbsteps30.zero,slot.steps60.prepost.zero,
+         window5.steps60.var) -> tt
+
+tt <- as.matrix(tt)
+colnames(tt) <- c('Day of week','Study day index, weekdays only','Within-day decision index','Steps 30-minutes before','Steps 30-minutes after','Steps in 1-hour centered interval','Variance from previous 5 days')
+
+print(xtable(tt,
+             align='rp{0.1\\textwidth}p{0.1\\textwidth}p{0.125\\textwidth}p{0.125\\textwidth}p{0.125\\textwidth}p{0.125\\textwidth}p{0.125\\textwidth}',
+             label='tab:wdayvar',
+             digits=c(0,0,0,0,0,0,0,2),
+             caption='Example calculation, weekdays only, variance from previous 5 decision points.'),
+      include.rownames=F,
+      comment=F)
+```
+
+
+Table \ref{tab:wdaystep} contains an example of the 5-day total step count calculation for weekdays.
+```{r, results='asis'}
+suggest.analysis.wdays %>%
+  filter(user==1,study.weekday.nogap < 9,slot==5) %>%
+  select(study.weekday.nogap,study.date,daily.jbsteps.direct.NA0,
+         steps.window5) %>%
+  mutate(dayname=strftime(study.date,'%a')) %>% select(-study.date) -> tt
+colnames(tt) <- c('Study day index, weekdays only','Daily step count','5-day window cumulative count','Day of week')
+print(xtable(tt,
+             digits=c(0,0,0,0,0),
+             label='tab:wdaystep',
+             caption='Example of weekdays only, total step count over previous 5 days.'),
+      include.rownames=F,
+      hline.after=0,comment=FALSE)
+
+```
+
+## Survey responses
+
+Both data frames (`suggest.analysis` and `suggest.analysis.wdays`) contain the following two variables computed from the intake survey:
+
+* `selfeff_sum`: Self efficacy score. This is the sum of the following columns from the `users` data frame:  `r paste(select(users, starts_with('selfeff')) %>%
+  select(-ends_with('exit')) %>%names,collapse=', ')`
+* `conc_sum`: Conscientiousness score. This is the sum of the following colmns from the `users` data frame: `r paste(conc_item_names, collapse=', ')`
