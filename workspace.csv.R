@@ -260,7 +260,7 @@ messages <- read.data("Reviewed_Heartsteps_Messages.csv", NULL, skip = 1)
 messages$message <- normalize.text(messages$message)
 ## replace recurrent tag variable with tag indicators
 tags <- sort(unique(unlist(subset(messages, select = tag.1:tag.14))))
-tags <- tags[!(tags %in% c("", "other", "outdoor_snow"))]
+tags <- tags[!(tags %in% c("", "other"))]
 ## no tags imply that all tags apply
 temp <- messages$tag.1 == ""
 messages <- data.frame(message = messages$message,

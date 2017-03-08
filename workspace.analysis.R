@@ -316,7 +316,8 @@ suggest <- merge(suggest,
                                    home, work, city, location.exact, 
                                    location.category, weather.condition,
                                    temperature, windspeed, precipitation.chance,
-                                   snow, tag.active)),
+                                   snow, tag.active, tag.indoor, tag.outdoor,
+                                   tag.outdoor_snow)),
                  by.x = c("user", "study.date", "slot"),
                  by.y = c("user", "date.stamp", "slot"), all.x = TRUE)
 
