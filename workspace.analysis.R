@@ -259,6 +259,13 @@ jawbone$end.date <-
 jawbone$start.date <- 
   do.call("c", with(jawbone, mapply(format, x = start.utime, tz = "US/Eastern",
                                     format = "%Y-%m-%d", SIMPLIFY = FALSE)))
+## Add EST timestamps
+jawbone$start.utime.local <- 
+  do.call("c", with(jawbone, mapply(format, x = start.utime, tz = "US/Eastern",
+                                    format = "%Y-%m-%d %H:%M:%S", SIMPLIFY = FALSE)))
+jawbone$end.utime.local <- 
+  do.call("c", with(jawbone, mapply(format, x = end.utime, tz = "US/Eastern",
+                                    format = "%Y-%m-%d %H:%M:%S", SIMPLIFY = FALSE)))
 jawbone <- jawbone[with(jawbone, order(user, end.utime)), ]
 
 daily <- merge(daily,
