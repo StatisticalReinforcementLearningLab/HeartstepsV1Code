@@ -1,0 +1,299 @@
+---
+title: "Analyses for HeartSteps Moderator Paper"
+author: "Brook Luers"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+linestretch: 1.5
+output: pdf_document
+---
+
+```{r setup, echo=FALSE, message=FALSE,warning=FALSE,results='hide'}
+knitr::opts_chunk$set(echo = FALSE)
+library(ggplot2)
+library(RColorBrewer)
+library(dplyr)
+library(gridExtra)
+library(knitr)
+library(grid)
+library(reshape2)
+library(geepack)
+library(Matrix)
+
+source('../init.R', chdir=TRUE)
+load(paste(sys.var$mbox.data,'csv.RData',sep=''))
+load(paste(sys.var$mbox.data,"analysis-small.RData",sep=''))
+
+gridline <- element_line(color='lightgrey',linetype='dashed')
+ptheme <-
+  theme_bw(base_size = 11) +
+  theme(panel.grid.major.x=gridline,
+        panel.grid.minor.x=element_blank(),
+        panel.grid.major.y=gridline,
+        panel.grid.minor.y=element_blank(),
+        strip.background=element_rect(fill=NA,color='white'),
+        legend.position='right',
+        legend.direction='vertical',
+        text=element_text(color='black'))
+
+source('make_new_moderators_Jan.R')
+source('estimation_functions_brook.R')
+printmod <- function(fit, alpha_ix, beta_ix, moderator_ix=NULL, alpha=0.05){
+  if(is.null(moderator_ix)) stop('provide moderator index')
+  vc <- vcov.heartsteps.bgl(fit, small=T)
+  se <- diag(vc)
+  cc <- coef(fit)
+  test <- pointwise.table.small(cc, vc,
+                                n=length(fit$geese$clusz),
+                                alpha=alpha)
+  ret <- 
+    cbind('Estimate' = cc,
+            "SE" = sqrt(se),
+            test)
+  rownames(ret) <- c(paste('$\\alpha_',alpha_ix,'$',sep=''),
+                     paste('$\\beta_',beta_ix,'$',sep=''))
+  colnames(ret)[3:6] <- c('Hotelling','p-value','95% LCL','95% UCL')
+  mod.pval <- ret[moderator_ix,'p-value']
+  mod.row <- ret[moderator_ix,]
+  return(list(table=ret,moderator.pval=mod.pval,moderator.results=mod.row))
+}
+
+```
+
+```{r modformulas,echo=FALSE}
+suggest.analysis$trt <- suggest.analysis$send.active
+trtprob <- 0.3
+
+allformulas <-
+  list(
+  'loc.is.home'=list(
+    formula=jbsteps30.log ~ jbsteps30pre.log  + loc.is.home + I(trt - trtprob) + I(trt - trtprob):loc.is.home, 
+                     alpha_ix=0:2, beta_ix=1:2, moderator_ix=5, subset=rep(TRUE,nrow(suggest.analysis))),
+  'loc.is.work'=list(
+    formula=jbsteps30.log ~ jbsteps30pre.log  + loc.is.work + I(trt - trtprob) + I(trt - trtprob):loc.is.work,
+    alpha_ix=0:2, beta_ix=1:2, moderator_ix=5, subset=rep(TRUE,nrow(suggest.analysis))),
+  'loc.is.other'=list(
+    formula=jbsteps30.log ~ jbsteps30pre.log  + loc.is.other + I(trt - trtprob) + I(trt - trtprob):loc.is.other,
+    alpha_ix=0:2, beta_ix=1:2, moderator_ix=5, subset=rep(TRUE,nrow(suggest.analysis))),
+  'window7.steps60.sd' = list(
+    formula=jbsteps30.log ~ jbsteps30pre.log + window7.steps60.sd + I(trt - trtprob) + I(trt - trtprob):window7.steps60.sd,
+    alpha_ix = 0:2, beta_ix=1:2, moderator_ix =5, subset=!is.na(suggest.analysis$window7.steps60.sd)),
+  'window7.steps60.sd.exp05' = list(
+    formula=jbsteps30.log ~ jbsteps30pre.log + window7.steps60.sd.exp05 + I(trt - trtprob) + I(trt - trtprob):window7.steps60.sd.exp05,
+    alpha_ix = 0:2, beta_ix=1:2, moderator_ix =5, subset=!is.na(suggest.analysis$window7.steps60.sd)),
+  'selfeff_sum' = list(
+    formula = jbsteps30.log ~ jbsteps30pre.log + selfeff_sum + I(trt - trtprob) + I(trt - trtprob):selfeff_sum,
+    alpha_ix=0:2, beta_ix=1:2, moderator_ix = 5, subset=rep(TRUE,nrow(suggest.analysis))),
+  'conc_sum' = list(
+    formula = jbsteps30.log ~ jbsteps30pre.log + conc_sum + I(trt - trtprob) + I(trt - trtprob):conc_sum,
+    alpha_ix=0:2, beta_ix=1:2, moderator_ix = 5, subset=rep(TRUE,nrow(suggest.analysis))),
+  'prop_window_active_thumbs_exp05' = list(
+    formula = jbsteps30.log ~ jbsteps30pre.log + prop_window_active_thumbs_exp05 +
+      I(trt - trtprob) + I(trt - trtprob):prop_window_active_thumbs_exp05,
+    alpha_ix=0:2, beta_ix=1:2, moderator_ix =5, subset=rep(TRUE, nrow(suggest.analysis))),
+  'weekendTrue' = list(
+    formula = jbsteps30.log ~ jbsteps30pre.log + weekendTrue +
+      I(trt - trtprob) + I(trt - trtprob):weekendTrue,
+    alpha_ix=0:2, beta_ix=1:2, moderator_ix =5, subset=rep(TRUE, nrow(suggest.analysis))),
+  'study.day.nogap' = list(
+    formula = jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
+      I(trt - trtprob) + I(trt - trtprob):study.day.nogap,
+    alpha_ix=0:2, beta_ix=1:2, moderator_ix =5, subset=rep(TRUE, nrow(suggest.analysis))),
+  'steps.window7.sqrt.avg.exp05' = list(
+    formula = jbsteps30.log ~ jbsteps30pre.log + steps.window7.sqrt.avg.exp05 +
+      I(trt - trtprob) + I(trt - trtprob):steps.window7.sqrt.avg.exp05,
+    alpha_ix=0:2, beta_ix=1:2, moderator_ix =5, subset=rep(TRUE, nrow(suggest.analysis)))
+  )
+
+
+fitfunc <- function(modinfo){
+  ss <- modinfo$subset
+  d <- subset(suggest.analysis, ss)
+  myid <- d$user
+  w <- as.numeric(d$avail)
+  a <- list(
+    formula = modinfo$formula,
+    id = myid, corstr='independence',
+    weights = w, scale.fix=TRUE, data=d
+  )
+  ret <- do.call('geeglm', a)
+  return(ret)
+}
+
+```
+
+```{r varkey}
+
+varkey <- setNames(c(
+  'Indicator of whether the person is at home. 1 if yes, 0 if any other location.',
+  'Indicator of whether the person is at work. 1 if yes, 0 if any other location.',
+  'Indicator of whether the person is in any location besides home or work. 1 if yes, 0 if at home or work.',
+  'Standard deviation of number of steps in the same 60-minute window from the previous 7 days. NA for study days 0 through 6; these days discarded in analysis.',
+  'Exponentially weighted standard deviation of number of steps in the same 60-minute window from the previous 7 days. Using smoothing parameter $\\alpha=0.05$.',
+  'Self efficacy score from intake survey.',
+  'Conscientiousness score from intake survey.',
+  'Proportion of active suggestion messages in previous 7 days where the response was either thumbs up or thumbs down. Exponentially weighted with $\\alpha=0.05$',
+  'Indicator of weekend or weekday. 1 if weekend, 0 if weekday.',
+  'Study day index, from 0 to 41.',
+  'Square root of average daily step count from previous 7 days. Exponentially weighted with $\\alpha=0.05$.'
+  ),
+  names(allformulas)
+)
+
+
+varkeyshort <- setNames(c(
+  'Home indicator',
+  'Work indicator',
+  'Other location indicator',
+  'SD of num. steps in 60-minute window from prev 7 days',
+  'Exp. weighted (alpha=0.05) SD of num. steps in 60-minute window from the prev 7 days.',
+  'Self efficacy',
+  'Conscientiousness',
+  'Exp. weighted (alpha=0.05) proportion thumbs up/down; active suggestions in prev 7 days',
+  'Weekend indicator',
+  'Study day index',
+  'Exp. weighted (alpha=0.05) sq. root average daily step count, prev 7 days'
+  ),
+  names(allformulas)
+)
+```
+
+```{r modfits, cache=TRUE, dependson='modformulas'}
+allmodels <-
+  lapply(allformulas, function(e){
+    return(printmod(
+      fitfunc(e), alpha_ix=e$alpha_ix, beta_ix=e$beta_ix,
+      moderator_ix=e$moderator_ix
+    ))
+  })
+```
+
+# Interpretation guide
+
+* **Proximal outcome**: $Y_{t+1}$ is log(stepcount + 0.5) in the 30 minutes following the $t$th decision point.
+* $Z_t$ is log(stepcount + 0.5) in the 30 minutes prior to the $t$th decision point.
+* **Treatment variable**: $A_{1,t}$ is 1 if an active suggestion message was sent at decision point $t$ and 0 otherwise.
+* $M_t$ will denote the moderator of interest at decision point $t$.
+* All models only use decision points for which users are available.
+
+**Model formula**
+$$ 
+   Y_{t+1} \sim \alpha_0 + \alpha_1Z_t + \alpha_2 M_t + \beta_1 (A_{1,t} - 0.3) + \beta_2(A_{1,t} - 0.3)M_t
+$$
+
+We are interested in $\beta_2$.
+
+# Definitions of moderator variables
+
+1. Suggestion weather type. **currently undefined, more work needed**
+2. Location  
+Home, work, or other, based on GPS location. NA values are treated as Other.
+3. Standard deviation of the number of steps in the 60-minute intervals centered at the matching within-day decision points from the previous 7 days.  
+For example, for an evening decision point, the standard deviation from the previous 7 60-minute intervals centered at the evening decision points. We also compute an exponentially weighted version of this variable.  
+This is NA for study days 0 through 6. Analyses using this variable will discard these study days.
+4. Self efficacy  
+For each user, the sum of their numerical responses to the five self efficacy-related items on the intake survey.
+5. Conscientiousness  
+For each user, the sum of their numerical responses to the seven conscientiousness-related items on the intake survey.
+6. Proportion of suggestion messages in the past 7 days rated either thumbs up or thumbs down  
+The denominator is the number of decision points (excluding the current decision point) in the previous 7 days where a message (of either type, active or sedentary) was sent and the response is not NA. The numerator is the number of these messages where the response was either thumbs up or thumbs down. The complementary proportion is the proportion of these messages where the response was either No Response, Snooze for 12 Hours, or Snooze for 4 Hours.  
+We also compute exponentially weighted versions of this proportion (see below). 
+7. Proportion of *active* suggestion messages in the past 7 days rated either thumbs up or thumbs down.  
+This is the same as number 6 but the numerator and denominator only count active suggestion messages.
+8. Indicator of whether the day is a weekend or weekday.
+9. Step count during the 30 minutes prior to the decision point.
+10. Study day index, from 0 to 41
+11. Square root of average daily step count from the previous 7 days.  
+The ``perceived`` daily step count is the total number of steps on a day where additional hours due to a change of time zone are included. So if someone travels from Ann Arbor to Chicago and spends the night, then their perceived day has 25 hours. The average daily step count from the previous 7 days is the average of the perceived day step counts from the previous 7 days excluding the current day. On the first study day, this is zero; on the second study day, the denominator is 1; on the third study day, the denominator is 2; for study days after the eigth, the denominator is 7.
+
+# Coefficient estimates and CIs for all moderators
+
+```{r coefplot, echo=FALSE, fig.width=6.5, fig.height=6, out.width='0.9\\textwidth',fig.cap='Coefficient estimates and 95\\% confidence intervals for all moderator variables.',fig.align='center'}
+plotdat <-
+  data.frame(
+  varname=names(allmodels),
+  coef=sapply(allmodels,function(e) return(e$moderator.results[1])),
+  lwr95=sapply(allmodels,function(e) return(e$moderator.results[5])),
+  upr95=sapply(allmodels,function(e) return(e$moderator.results[6])),
+  pval=sapply(allmodels,function(e) return(e$moderator.pval)),
+  lab=varkeyshort[names(allmodels)]
+)
+plotdat <- 
+  plotdat %>% 
+  arrange(coef) %>%
+  mutate(coefrank = 1:n(),
+         coefrank_f = factor(coefrank, levels=coefrank,
+                             labels=lab))
+
+ggplot(plotdat) +
+  geom_segment(aes(x=lwr95, xend=upr95, y=coefrank_f,yend=coefrank_f),
+               color='darkgrey') + 
+  geom_point(aes(x=coef, y=coefrank_f),size=0.5) +
+  ptheme +
+  xlab('') + ylab('') +
+  theme(panel.grid.major.y=element_blank(),
+        panel.grid.major.x=element_blank())
+  
+  
+
+```
+
+
+```{r coefplotpval, echo=FALSE, fig.width=6.5, fig.height=6, out.width='0.9\\textwidth',fig.cap='Coefficient estimates ordered by p-value.',fig.align='center'}
+pvalfunc <- function(p){
+  return(formatC(signif(p, digits=2), digits=2, format='fg',flag="#"))
+}
+plotdat_pval <- 
+  plotdat %>% 
+  arrange(pval) %>%
+  mutate(prank = 1:n(),
+         prank_f = factor(prank, levels=rev(prank),
+                             labels=rev(paste(lab,
+                                              paste('P=',pvalfunc(pval),sep='')
+                                              ,sep='\n'))))
+
+ggplot(plotdat_pval) +
+  #geom_segment(aes(x=lwr95, xend=upr95, y=prank_f,yend=prank_f),
+  #             color='darkgrey') + 
+  geom_point(aes(x=coef, y=prank_f)) +
+  ptheme +
+  xlab('') + ylab('') +
+  theme(panel.grid.major.y=element_blank(),
+        panel.grid.major.x=element_blank())
+```
+
+
+\newpage
+
+# Complete results in table form
+
+```{r printall, echo=FALSE, results='asis'}
+modsymbol <- 'M_t'
+
+for (nn in names(allmodels)){
+  jj <- allmodels[[nn]]
+  cap <- paste('$',modsymbol,'$: ',varkey[nn],
+             ' Moderator 95\\% CI: $[', paste(round(jj$moderator.results[5:6],3),collapse=', '), ']$.',
+             ' Moderator p-value: ', pvalfunc(jj$moderator.pval),
+             sep='')
+  lab <- paste('tab:',nn,sep='')
+  print(xtable(jj$table, digits=c(0,3,3,3,3,2,2),
+               caption=cap, label=lab),
+      comment=FALSE, sanitize.rownames.function=identity,
+      hline.after=0)
+}
+
+```
+
+
+```{r locatble,echo=FALSE,results='asis',include=FALSE,eval=FALSE}
+round(with(suggest.analysis,table(loc.is.work,loc.is.home)) / nrow(suggest.analysis),3) -> tt
+colnames(tt) <-c('Not home','Home')
+rownames(tt) <-c('Not at work','At work')
+
+print(xtable(tt,
+             caption=paste('Decision points classified by location, out of',nrow(suggest.analysis),'total decision points.'),
+             label='tab:loc'),
+      hline.after=NULL,
+      comment=FALSE)
+
+```
+

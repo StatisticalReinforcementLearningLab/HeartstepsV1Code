@@ -33,7 +33,7 @@ ptheme <-
         panel.grid.minor.y=element_blank(),
         strip.background=element_rect(fill=NA,color='white'),
         legend.position='right',
-        legend.direction='vertical')
+        legend.direction='vertical', text=element_text(color='black'))
 
 source('make_new_moderators_Jan.R')
 ```
@@ -97,7 +97,7 @@ Numerator: number of prior decision points for which a suggestion message was se
 
 When the denominator is zero, set the proportion equal to zero.
 
-```{r, plot-prop-updown,fig.align='center',fig.width=6,fig.height=3,out.width='0.75\\textwidth'}
+```{r, plot-prop-updown,fig.align='center',fig.width=6,fig.height=3,out.width='0.75\\textwidth',fig.cap='Proportion of past messages where a suggestion was sent and the user responded thumbs up or thumbs down.'}
 suggest.analysis %>%
   #filter(user==10) %>%
   ggplot()+
@@ -113,7 +113,7 @@ Compute the same proportion using a sliding `r ndays_window_thumbs`-day window, 
 The window slides on the day scale even though the proportion changes on the decision point scale.
 Here's an example of how the proportion is calculated for a single user.
 
-```{r, fig.align='center',fig.width=8.5,fig.height=5.5,out.width='0.9\\textwidth'}
+```{r, fig.align='center',fig.width=8.5,fig.height=5.5,out.width='0.9\\textwidth',fig.cap='Example of calculation for past 7-day proportion of suggestion messages where the user responded either thumbs up or thumbs down.'}
 suggest.analysis %>%
   filter(user==6,study.day.nogap %in% 0:8) %>%
   select(user,decision.index.nogap,denominator=n_prev_sent_have_response,
@@ -132,9 +132,7 @@ suggest.analysis %>%
   ggtitle('Top two lines: numerator and denominator for cumulative proportion\nbottom two lines: numerator and denominator in previous 7-day window')
 ```
 
-Here's the proportion using the sliding `r ndays_window_thumbs`-day window for all users.
-
-```{r,fig.width=6,fig.height=4,out.width='0.75\\textwidth'}
+```{r,fig.width=6,fig.height=4,out.width='0.75\\textwidth',fig.cap='Past 7-day proportion of suggestion messages where the user responded either thumbs up or thumbs down.'}
 suggest.analysis %>%
   #filter(user==10) %>%
   ggplot()+
@@ -151,7 +149,7 @@ $$
 $$
 where $p_t$ is the sliding-window proportion at decision point $t$ and $\alpha$ is the smoothing factor. I used $\alpha=0.05$ and $\alpha=0.1$. Higher values of $\alpha$ give more weight to recent values.
 
-```{r,fig.width=9,fig.height=3.5,out.width='0.9\\textwidth',fig.align='center'}
+```{r,fig.width=9,fig.height=3.5,out.width='0.9\\textwidth',fig.align='center',fig.cap='Exponentially weighted past 7-day proportion of thumbs up or down messages for a few users.'}
  suggest.analysis %>%
   filter(user %in% c(1,10,14)) %>%
   select(user,decision.index.nogap,prop_window_thumbs_updown,
@@ -169,12 +167,30 @@ where $p_t$ is the sliding-window proportion at decision point $t$ and $\alpha$ 
 
 ```
 
+```{r,fig.width=9,fig.height=3.5,out.width='0.9\\textwidth',fig.align='center',fig.cap='Exponentially weighted past 7-day proportion of thumbs up or down ACTIVE messages for a few users.'}
+suggest.analysis %>%
+  filter(user %in% c(1,10,14)) %>%
+  select(user,decision.index.nogap,prop_window_active_thumbs_updown,
+         prop_window_active_thumbs_exp05, prop_window_active_thumbs_exp1) %>%
+  melt(id=c('user','decision.index.nogap'))%>%
+  mutate(user = factor(user,levels=c(1,10,14),
+                       labels=c('User 1','10','14')))%>%
+  ggplot(aes(x=decision.index.nogap,y=value)) +
+  geom_line(aes(color=variable)) +
+  facet_wrap(~user) +
+  scale_color_brewer(palette='Set1',name='') +
+  ptheme +
+  theme(legend.position=c(1,0),legend.justification=c(1,0))+
+  xlab('Decision point') + ylab('')
+```
+
+
 ## Step count in the last 7 days
 
 * Using the "perceived day" step count (e.g. if someone travels from Ann Arbor to Chicago, their perceived day is 25 hours long). This is the `daily$jbsteps.direct` column.
 * Days with missing daily step counts contribute 0 to the cumulative step count.
 
-```{r,fig.align='center',fig.width=7,fig.height=4,out.width='0.9\\textwidth'}
+```{r,fig.align='center',fig.width=7,fig.height=4,out.width='0.8\\textwidth',fig.cap='Example calculation of total step count in the last 7 days.'}
 suggest.analysis %>%
   filter(user==5,study.day.nogap%in%0:12) %>%
   ggplot(aes(x=decision.index.nogap,y=daily.csteps.direct.NA0)) +
@@ -190,6 +206,24 @@ suggest.analysis %>%
   ggtitle('User 5\nRed line = steps in previous 7 days\nblack line = cumulative steps')+
   ylab('steps') 
 ```
+
+```{r, fig.width=9,fig.height=3.5,out.width='0.9\\textwidth',fig.align='center',fig.cap='Square root of average daily step count from previous 7 days for a few users. With exponentially weighted versions.'}
+suggest.analysis %>%
+  filter(user %in% c(1,10,14)) %>%
+  select(user,decision.index.nogap,steps.window7.sqrt.avg,
+         steps.window7.sqrt.avg.exp05, steps.window7.sqrt.avg.exp1) %>%
+  melt(id=c('user','decision.index.nogap'))%>%
+  mutate(user = factor(user,levels=c(1,10,14),
+                       labels=c('User 1','10','14')))%>%
+  ggplot(aes(x=decision.index.nogap,y=value)) +
+  geom_line(aes(color=variable)) +
+  facet_wrap(~user) +
+  scale_color_brewer(palette='Set1',name='') +
+  ptheme +
+  theme(legend.position=c(1,0),legend.justification=c(1,0))+
+  xlab('Decision point') + ylab('')
+```
+
 
 ## Variance of step count near decision point in last 7 days
 
@@ -231,6 +265,26 @@ var(with(suggest.analysis %>% filter(user==1,slot==1,study.day.nogap <8),
      slot.steps60.prepost.zero))
 ```
 
+The exponentially weighted 7-day standard deviation is displayed below for a few users.
+```{r,fig.width=8.5,fig.height=5.5,out.width='\\textwidth',fig.cap='Exponential weighting of previous 7-day standard deviation of the log steps in the 60-minute window surrounding each decision point.',warning=FALSE}
+suggest.analysis %>%
+  filter(user %in% c(1,10,14,25,30)) %>%
+  select(user,decision.index.nogap,window7.steps60.log.sd,
+         window7.steps60.log.sd.exp05, window7.steps60.log.sd.exp1) %>%
+  melt(id=c('user','decision.index.nogap'))%>%
+  mutate(user = factor(user,levels=c(1,10,14,25,30),
+                       labels=c('User 1','10','14','25','30')))%>%
+  ggplot(aes(x=decision.index.nogap,y=value)) +
+  geom_line(aes(color=variable)) +
+  facet_wrap(~user) +
+  scale_color_brewer(palette='Set1',name='') +
+  ptheme +
+  theme(legend.position=c(1,0),legend.justification=c(1,0))+
+  xlab('Decision point') + ylab('')
+
+
+```
+
 
 ## Weekdays Only
 
@@ -257,7 +311,6 @@ print(xtable(tt,
       include.rownames=F,
       comment=F)
 ```
-
 
 Table \ref{tab:wdaystep} contains an example of the 5-day total step count calculation for weekdays.
 ```{r, results='asis'}

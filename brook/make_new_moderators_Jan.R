@@ -67,7 +67,16 @@ suggest.analysis <-
   suggest.analysis %>%
   mutate(have_thumbs = !is.na(response),
          thumbs_up_or_down = ifelse(is.na(response), NA,
-                                    response %in% c("good","bad"))) 
+                                    response %in% c("good","bad")),
+         location.cat3 = ifelse(location.category=='work', 'work',
+                                ifelse(location.category=='home','home','other'))) 
+suggest.analysis$location.cat3[which(is.na(suggest.analysis$location.category))] <- 'other'
+suggest.analysis$loc.is.home <-
+  with(suggest.analysis, location.cat3=='home')
+suggest.analysis$loc.is.work <-
+  with(suggest.analysis, location.cat3=='work')
+suggest.analysis$loc.is.other <-
+  with(suggest.analysis, location.cat3=='other')
 
 suggest.analysis.wdays <- 
   filter(suggest.analysis, !weekendTrue) %>%
@@ -208,6 +217,7 @@ suggest.analysis$steps.window7.avg <-
 suggest.analysis$steps.window7.avg[suggest.analysis$study.day.nogap==0] <- 0
 suggest.analysis$steps.window7.log <- with(suggest.analysis, log(steps.window7 +0.5))
 suggest.analysis$steps.window7.log.avg <- with(suggest.analysis, log(steps.window7.avg + 0.5))
+suggest.analysis$steps.window7.sqrt.avg <- with(suggest.analysis, sqrt(steps.window7.avg))
 
 ## Variance of 1-hour centered window from previous 7 days
 suggest.analysis <- 
@@ -233,21 +243,43 @@ suggest.analysis <-
   mutate(window7.steps60.sd = sqrt(window7.steps60.var),
          window7.steps60.log.sd = sqrt(window7.steps60.log.var))
 
+# Exponential weighting of past 7-day average step count
 suggest.analysis <- 
   suggest.analysis %>% 
   group_by(user) %>%
-  mutate(window7.steps60.sd.exp05 = as.numeric(fitted.values(ses(window7.steps60.sd,
-                                                                 initial='simple', alpha=0.05))),
-         window7.steps60.sd.exp1 = as.numeric(fitted.values(ses(window7.steps60.sd,
-                                                                 initial='simple', alpha=0.1))),
-         steps.window7.avg.exp05= as.numeric(fitted.values(ses(steps.window7.avg,
+  mutate(steps.window7.avg.exp05= as.numeric(fitted.values(ses(steps.window7.avg,
                                                                initial='simple', alpha=0.05))),
          steps.window7.avg.exp1= as.numeric(fitted.values(ses(steps.window7.avg,
                                                               initial='simple', alpha=0.1))),
          steps.window7.log.avg.exp05 = as.numeric(fitted.values(ses(steps.window7.log.avg,
                                                                     initial='simple', alpha=0.05))),
          steps.window7.log.avg.exp1 = as.numeric(fitted.values(ses(steps.window7.log.avg,
+                                                                   initial='simple', alpha=0.1))),
+         steps.window7.sqrt.avg.exp05 = as.numeric(fitted.values(ses(steps.window7.sqrt.avg,
+                                                                    initial='simple', alpha=0.05))),
+         steps.window7.sqrt.avg.exp1 = as.numeric(fitted.values(ses(steps.window7.sqrt.avg,
                                                                    initial='simple', alpha=0.1))))
+
+# Exponential weighting of past 7-day standard deviation
+suggest.analysis <-
+  suggest.analysis %>%
+  left_join(
+    suggest.analysis %>% 
+      filter(!is.na(window7.steps60.sd))%>%
+      group_by(user) %>%
+      mutate(window7.steps60.sd.exp05 = as.numeric(fitted.values(ses(window7.steps60.sd,
+                                                                     initial='simple', alpha=0.05))),
+             window7.steps60.sd.exp1 = as.numeric(fitted.values(ses(window7.steps60.sd,
+                                                                    initial='simple', alpha=0.1))),
+             window7.steps60.log.sd.exp1 = as.numeric(fitted.values(ses(window7.steps60.log.sd,
+                                                                        initial='simple', alpha=0.1))),
+             window7.steps60.log.sd.exp05 = as.numeric(fitted.values(ses(window7.steps60.log.sd,
+                                                                         initial='simple', alpha=0.05)))) %>%
+      ungroup %>%
+      select(user, decision.index.nogap, window7.steps60.sd.exp05,
+             window7.steps60.sd.exp1,window7.steps60.log.sd.exp1,window7.steps60.log.sd.exp05),
+    by=c('user'='user','decision.index.nogap'='decision.index.nogap')
+  )
 
 ###
 ### WEEKDAY DATA FRAME
@@ -276,6 +308,7 @@ suggest.analysis.wdays$steps.window5.avg <-
 suggest.analysis.wdays$steps.window5.avg[suggest.analysis.wdays$study.weekday.nogap==0] <- 0
 suggest.analysis.wdays$steps.window5.log <- with(suggest.analysis.wdays, log(steps.window5 +0.5))
 suggest.analysis.wdays$steps.window5.log.avg <- with(suggest.analysis.wdays, log(steps.window5.avg + 0.5))
+suggest.analysis.wdays$steps.window5.sqrt.avg <- with(suggest.analysis.wdays, sqrt(steps.window5.avg))
 
 suggest.analysis.wdays <-
   suggest.analysis.wdays %>%
@@ -316,21 +349,39 @@ suggest.analysis.wdays <-
   mutate(window5.steps60.sd = sqrt(window5.steps60.var),
          window5.steps60.log.sd = sqrt(window5.steps60.log.var))
 
-suggest.analysis.wdays <-
+# Exponential weighting of past 7-day average step count
+suggest.analysis.wdays <- 
   suggest.analysis.wdays %>% 
   group_by(user) %>%
-  mutate(window5.steps60.sd.exp05 = as.numeric(fitted.values(ses(window5.steps60.sd,
-                                                                 initial='simple', alpha=0.05))),
-         window5.steps60.sd.exp1 = as.numeric(fitted.values(ses(window5.steps60.sd,
-                                                                initial='simple', alpha=0.1))),
-         steps.window5.avg.exp05= as.numeric(fitted.values(ses(steps.window5.avg,
+  mutate(steps.window5.avg.exp05= as.numeric(fitted.values(ses(steps.window5.avg,
                                                                initial='simple', alpha=0.05))),
          steps.window5.avg.exp1= as.numeric(fitted.values(ses(steps.window5.avg,
-                                                               initial='simple', alpha=0.1))),
+                                                              initial='simple', alpha=0.1))),
          steps.window5.log.avg.exp05 = as.numeric(fitted.values(ses(steps.window5.log.avg,
                                                                     initial='simple', alpha=0.05))),
          steps.window5.log.avg.exp1 = as.numeric(fitted.values(ses(steps.window5.log.avg,
-                                                                    initial='simple', alpha=0.1))))
+                                                                   initial='simple', alpha=0.1))))
+
+# Exponential weighting of past 5-day standard deviation
+suggest.analysis.wdays <-
+  suggest.analysis.wdays %>%
+  left_join(
+    suggest.analysis.wdays %>% 
+      filter(!is.na(window5.steps60.sd))%>%
+      group_by(user) %>%
+      mutate(window5.steps60.sd.exp05 = as.numeric(fitted.values(ses(window5.steps60.sd,
+                                                                     initial='simple', alpha=0.05))),
+             window5.steps60.sd.exp1 = as.numeric(fitted.values(ses(window5.steps60.sd,
+                                                                    initial='simple', alpha=0.1))),
+             window5.steps60.log.sd.exp1 = as.numeric(fitted.values(ses(window5.steps60.log.sd,
+                                                                        initial='simple', alpha=0.1))),
+             window5.steps60.log.sd.exp05 = as.numeric(fitted.values(ses(window5.steps60.log.sd,
+                                                                         initial='simple', alpha=0.05)))) %>%
+      ungroup %>%
+      select(user, decision.index.nogap, window5.steps60.sd.exp05,
+             window5.steps60.sd.exp1,window5.steps60.log.sd.exp1,window5.steps60.log.sd.exp05),
+    by=c('user'='user','decision.index.nogap'='decision.index.nogap')
+  )
 
 # Get the cumulative number of sent messages with a response from 5 weekdays
 # before (take the count at the end of the day, so the window slides on the day scale) 
