@@ -204,34 +204,24 @@ suggest.analysis <-
 suggest.analysis <- 
   suggest.analysis %>%
   group_by(user) %>%
-  mutate(dose_sent_exp8.5 =
-           c(0, as.numeric(fitted.values(ses(send, initial='simple',alpha=0.8/5)))[-n()]),
-         dose_sent_exp5.5 =
-           c(0, as.numeric(fitted.values(ses(send, initial='simple',alpha=0.5/5)))[-n()]),
-         dose_sent_10points = 
-           c(0,
-           rollapply(data=send, width=10, FUN=sum,
-                     align='right', fill=0, partial=TRUE))[-n()],
+  mutate(dose_sent_10points = 
+           rollapply(data=c(0, send[-n()]), width=10, FUN=sum,
+                     align='right', fill=0, partial=TRUE),
          dose_sent_5points = 
-           c(0,
-             rollapply(data=send, width=5, FUN=sum,
-                       align='right', fill=0, partial=TRUE))[-n()],
+           rollapply(data=c(0, send[-n()]), width=5, FUN=sum,
+                     align='right', fill=0, partial=TRUE),
          dose_sent_25points = 
-           c(0,
-             rollapply(data=send, width=25, FUN=sum,
-                       align='right', fill=0, partial=TRUE))[-n()],
+           rollapply(data=c(0, send[-n()]), width=25, FUN=sum,
+                     align='right', fill=0, partial=TRUE),
          dose_sent_40points = 
-           c(0,
-             rollapply(data=send, width=40, FUN=sum,
-                       align='right', fill=0, partial=TRUE))[-n()],
+           rollapply(data=c(0, send[-n()]), width=40, FUN=sum,
+                     align='right', fill=0, partial=TRUE),
          dose_sent_50points = 
-           c(0,
-             rollapply(data=send, width=50, FUN=sum,
-                       align='right', fill=0, partial=TRUE))[-n()],
+           rollapply(data=c(0, send[-n()]), width=50, FUN=sum,
+                     align='right', fill=0, partial=TRUE),
          dose_sent_100points = 
-           c(0,
-             rollapply(data=send, width=100, FUN=sum,
-                       align='right', fill=0, partial=TRUE))[-n()]
+           rollapply(data=c(0, send[-n()]), width=100, FUN=sum,
+                     align='right', fill=0, partial=TRUE)
          ) %>% ungroup
 
 # Total step count from previous 7 days, excluding current day
