@@ -1,5 +1,6 @@
 # need to have suggest data frame in workspace
 library(dplyr)
+library(reshape2)
 library(zoo)
 library(forecast)
 
@@ -207,14 +208,32 @@ suggest.analysis <-
   mutate(dose_sent_10points = 
            rollapply(data=c(0, send[-n()]), width=10, FUN=sum,
                      align='right', fill=0, partial=TRUE),
+         dose_sent_15points = 
+           rollapply(data=c(0, send[-n()]), width=15, FUN=sum,
+                     align='right', fill=0, partial=TRUE),
+         dose_sent_21points = 
+           rollapply(data=c(0, send[-n()]), width=21, FUN=sum,
+                     align='right', fill=0, partial=TRUE),
          dose_sent_5points = 
            rollapply(data=c(0, send[-n()]), width=5, FUN=sum,
+                     align='right', fill=0, partial=TRUE),
+         dose_sent_20points = 
+           rollapply(data=c(0, send[-n()]), width=20, FUN=sum,
                      align='right', fill=0, partial=TRUE),
          dose_sent_25points = 
            rollapply(data=c(0, send[-n()]), width=25, FUN=sum,
                      align='right', fill=0, partial=TRUE),
+         dose_sent_30points = 
+           rollapply(data=c(0, send[-n()]), width=30, FUN=sum,
+                     align='right', fill=0, partial=TRUE),
+         dose_sent_35points = 
+           rollapply(data=c(0, send[-n()]), width=35, FUN=sum,
+                     align='right', fill=0, partial=TRUE),
          dose_sent_40points = 
            rollapply(data=c(0, send[-n()]), width=40, FUN=sum,
+                     align='right', fill=0, partial=TRUE),
+         dose_sent_45points = 
+           rollapply(data=c(0, send[-n()]), width=45, FUN=sum,
                      align='right', fill=0, partial=TRUE),
          dose_sent_50points = 
            rollapply(data=c(0, send[-n()]), width=50, FUN=sum,
