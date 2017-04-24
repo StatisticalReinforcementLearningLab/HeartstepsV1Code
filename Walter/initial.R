@@ -1,3 +1,4 @@
+library(ggplot2)
 source("functions.R")
 
 gitloc <- switch(Sys.info()["sysname"],
@@ -322,20 +323,29 @@ window.time <- merge(window.time,
                by.x = c("user", "window.utime"), by.y = c("user", "window.utime"),
                all.x = TRUE)
 
-window.time$sedentary = is.na(window.time$steps)
+# Sedentary = 40 minutes of < 150 steps
+
+temp = window.time$steps
+temp[is.na(temp)] = 0.0
 
 chosen.width = 8 # 5*8 = 40 minutes
-sedentary.width = rollapply(window.time$sedentary,FUN = prod, width = chosen.width)
+sedentary.width = rollapply(temp,FUN = sum, width = chosen.width)
+window.time$sedentary.width = c(sedentary.width < 150,rep(0,chosen.width-1))
 
-window.time$sedentary.width = c(sedentary.width,rep(0,chosen.width-1))
+# window.time$sedentary = is.na(window.time$steps)
+# 
+# chosen.width = 8 # 5*8 = 40 minutes
+# sedentary.width = rollapply(window.time$sedentary,FUN = prod, width = chosen.width)
+# 
+# window.time$sedentary.width = c(sedentary.width,rep(0,chosen.width-1))
 
 hour.toss = hour(window.time$window.utime)
 minute.toss = minute(window.time$window.utime)
 
 window.time = window.time[-which(hour.toss == 1 & minute.toss >= 20),]
 
-temp.values = aggregate(sedentary.width~ user + study.day, data = window.time, FUN = function(x) c(rle(x)$values))
 temp.length = aggregate(sedentary.width~ user + study.day, data = window.time, FUN = function(x) c(rle(x)$length))
+temp.values = aggregate(sedentary.width~ user + study.day, data = window.time, FUN = function(x) c(rle(x)$values))
 
 Sedentary.values = as.logical(unlist(temp.values[,3]))
 Sedentary.length = as.numeric(unlist(temp.length[,3]))
@@ -346,6 +356,15 @@ write.table(Sedentary.length, "/Volumes/dav/HeartSteps/Walter/sed_length.csv", s
 ### Initial summary
 
 #sedentary.runs = rle(window.time$sedentary.thirty)
+temp.values = vector(length = length(Sedentary.values))
+temp.values[Sedentary.values == 0] = "Not Sedentary"
+temp.values[Sedentary.values == 1] = "Sedentary"
+temp = data.frame(cbind(Sedentary.length,Sedentary.values))
+names(temp) = c("length", "value")
+temp$value = as.factor(temp$value)
+
+ggplot(temp, aes(length, fill = value)) +
+  geom_histogram(binwidth = 1) + xlab("Run Length") + labs(fill = "Sedentary Indicator")
 
 par(mar = c(5,3,1,1)+0.1, mfrow = c(2,1))
 hist(Sedentary.length[Sedentary.values == 0 & Sedentary.length < 100],
