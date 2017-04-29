@@ -96,6 +96,37 @@ users$exclude <- with(users, !en.locale | intake.date >= max.date | days < 13 |
 users$user.index <- cumsum(!users$exclude)
 users$user.index[users$exclude] <- NA
 
+## IPAQ Summary measures
+## directions at http://www.institutferran.org/documentos/scoring_short_ipaq_april04.pdf
+
+# Convert hours + mins to mins
+users$vigact.time.intake <- users$vigact.hrs.intake * 60 + users$vigact.min.intake
+users$modact.time.intake <- users$modact.hrs.intake * 60 + users$modact.min.intake
+users$walk.time.intake   <- users$walk.hrs.intake   * 60 + users$walk.min.intake
+
+# Check for outliers and truncate
+users$vigact.time.intake[users$vigact.time.intake > 240] <- 240
+users$modact.time.intake[users$modact.time.intake > 240] <- 240
+users$walk.time.intake[users$walk.time.intake > 240]     <- 240
+
+users$vigact.time.intake[users$vigact.time.intake <= 10] <- 0
+users$modact.time.intake[users$modact.time.intake <= 10] <- 0
+users$walk.time.intake[users$walk.time.intake <= 10]     <- 0
+
+# Compute "MET-minutes"
+users$vigact.metmins.intake <- 8   * users$vigact.time.intake * users$vigact.days.intake
+users$modact.metmins.intake <- 4   * users$modact.time.intake * users$modact.days.intake
+users$walk.metmins.intake   <- 3.3 * users$walk.time.intake   * users$walk10.days.intake
+users$metmins.intake        <- with(users, vigact.metmins.intake + modact.metmins.intake + walk.metmins.intake)
+
+# Categorical IPAQ score
+users$ipaq.hepa.intake    <- ((users$vigact.days.intake >= 3 & users$metmins.intake >= 1500) | 
+                                ((users$vigact.days.intake + users$modact.days.intake + users$walk10.days.intake) >= 7 & users$metmins.intake >= 3000))
+users$ipaq.minimal.intake <- (!users$ipaq.hepa.intake & ((users$vigact.days.intake >= 3 & users$vigact.time.intake >= 20) | 
+                                                           ((users$modact.days.intake >= 5 & users$modact.time.intake >= 30) | (users$walk10.days.intake >= 5 & users$walk.time.intake >= 30)) |
+                                                           (users$vigact.days.intake + users$modact.days.intake + users$walk10.days.intake >= 5 & users$metmins.intake >= 600)))
+
+
 ##### Daily data #####
 
 ## evaluate user-date combinations, by generating a sequence of dates
