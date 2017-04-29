@@ -104,14 +104,26 @@ users$vigact.time.intake <- users$vigact.hrs.intake * 60 + users$vigact.min.inta
 users$modact.time.intake <- users$modact.hrs.intake * 60 + users$modact.min.intake
 users$walk.time.intake   <- users$walk.hrs.intake   * 60 + users$walk.min.intake
 
+users$vigact.time.exit <- users$vigact.hrs.exit * 60 + users$vigact.min.exit
+users$modact.time.exit <- users$modact.hrs.exit * 60 + users$modact.min.exit
+users$walk.time.exit   <- users$walk.hrs.exit   * 60 + users$walk.min.exit
+
 # Check for outliers and truncate
 users$vigact.time.intake[users$vigact.time.intake > 240] <- 240
 users$modact.time.intake[users$modact.time.intake > 240] <- 240
 users$walk.time.intake[users$walk.time.intake > 240]     <- 240
 
+users$vigact.time.exit[users$vigact.time.exit > 240] <- 240
+users$modact.time.exit[users$modact.time.exit > 240] <- 240
+users$walk.time.exit[users$walk.time.exit > 240]     <- 240
+
 users$vigact.time.intake[users$vigact.time.intake <= 10] <- 0
 users$modact.time.intake[users$modact.time.intake <= 10] <- 0
 users$walk.time.intake[users$walk.time.intake <= 10]     <- 0
+
+users$vigact.time.exit[users$vigact.time.exit <= 10] <- 0
+users$modact.time.exit[users$modact.time.exit <= 10] <- 0
+users$walk.time.exit[users$walk.time.exit <= 10]     <- 0
 
 # Compute "MET-minutes"
 users$vigact.metmins.intake <- 8   * users$vigact.time.intake * users$vigact.days.intake
@@ -119,12 +131,23 @@ users$modact.metmins.intake <- 4   * users$modact.time.intake * users$modact.day
 users$walk.metmins.intake   <- 3.3 * users$walk.time.intake   * users$walk10.days.intake
 users$metmins.intake        <- with(users, vigact.metmins.intake + modact.metmins.intake + walk.metmins.intake)
 
+users$vigact.metmins.exit <- 8   * users$vigact.time.exit * users$vigact.days.exit
+users$modact.metmins.exit <- 4   * users$modact.time.exit * users$modact.days.exit
+users$walk.metmins.exit   <- 3.3 * users$walk.time.exit   * users$walk10.days.exit
+users$metmins.exit        <- with(users, vigact.metmins.exit + modact.metmins.exit + walk.metmins.exit)
+
 # Categorical IPAQ score
 users$ipaq.hepa.intake    <- ((users$vigact.days.intake >= 3 & users$metmins.intake >= 1500) | 
                                 ((users$vigact.days.intake + users$modact.days.intake + users$walk10.days.intake) >= 7 & users$metmins.intake >= 3000))
 users$ipaq.minimal.intake <- (!users$ipaq.hepa.intake & ((users$vigact.days.intake >= 3 & users$vigact.time.intake >= 20) | 
                                                            ((users$modact.days.intake >= 5 & users$modact.time.intake >= 30) | (users$walk10.days.intake >= 5 & users$walk.time.intake >= 30)) |
                                                            (users$vigact.days.intake + users$modact.days.intake + users$walk10.days.intake >= 5 & users$metmins.intake >= 600)))
+
+users$ipaq.hepa.exit    <- ((users$vigact.days.exit >= 3 & users$metmins.exit >= 1500) | 
+                                ((users$vigact.days.exit + users$modact.days.exit + users$walk10.days.exit) >= 7 & users$metmins.exit >= 3000))
+users$ipaq.minimal.exit <- (!users$ipaq.hepa.exit & ((users$vigact.days.exit >= 3 & users$vigact.time.exit >= 20) | 
+                                                           ((users$modact.days.exit >= 5 & users$modact.time.exit >= 30) | (users$walk10.days.exit >= 5 & users$walk.time.exit >= 30)) |
+                                                           (users$vigact.days.exit + users$modact.days.exit + users$walk10.days.exit >= 5 & users$metmins.exit >= 600)))
 
 
 ##### Daily data #####
