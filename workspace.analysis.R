@@ -527,6 +527,8 @@ temp <- with(jbslot, end.utime - decision.utime)
 suggest <- merge(suggest,
                  aggregate(cbind(jbmins10  = temp <= 10 * 60,
                                  jbsteps10 = steps * (temp <= 10 * 60),
+                                 jbmins40  = temp <= 40 * 60,
+                                 jbsteps40 = steps * (temp <= 40 * 60),
                                  jbmins30  = temp <= 30 * 60,
                                  jbsteps30 = steps * (temp <= 30 * 60),
                                  jbmins60  = temp <= 60 * 60,
@@ -550,11 +552,13 @@ suggest <- merge(suggest,
 # internationally and left the tracker at home). We impute zeros.
 suggest$jbsteps10.zero <- with(suggest, ifelse(is.na(jbsteps10), 0, jbsteps10))
 suggest$jbsteps30.zero <- with(suggest, ifelse(is.na(jbsteps30), 0, jbsteps30))
+suggest$jbsteps40.zero <- with(suggest, ifelse(is.na(jbsteps40), 0, jbsteps40))
 suggest$jbsteps60.zero <- with(suggest, ifelse(is.na(jbsteps60), 0, jbsteps60))
 
 ## Log transform step count
 suggest$jbsteps10.log <- log(suggest$jbsteps10.zero + 0.5)
 suggest$jbsteps30.log <- log(suggest$jbsteps30.zero + 0.5)
+suggest$jbsteps40.log <- log(suggest$jbsteps40.zero + 0.5)
 suggest$jbsteps60.log <- log(suggest$jbsteps60.zero + 0.5)
 
 
@@ -563,6 +567,8 @@ temp <- with(jbslotpre, decision.utime - end.utime)
 suggest <- merge(suggest,
                  aggregate(cbind(jbmins30pre = (temp <= 30 * 60),
                                  jbsteps30pre = steps * (temp <= 30 * 60),
+                                 jbmins40pre = (temp <= 40 * 60),
+                                 jbsteps40pre = steps * (temp <= 40 * 60),
                                  jbmins60pre = (temp <= 60 * 60),
                                  jbsteps60pre = steps * (temp <= 60 * 60))
                            ~ decision.index + user, data = jbslotpre, FUN = sum,
@@ -581,8 +587,10 @@ suggest <- merge(suggest,
 
 ## As above, impute zeros whenever missing
 suggest$jbsteps30pre.zero <- suggest$jbsteps30pre
+suggest$jbsteps40pre.zero <- suggest$jbsteps40pre
 suggest$jbsteps60pre.zero <- suggest$jbsteps60pre
 suggest$jbsteps30pre.zero[is.na(suggest$jbsteps30pre)] <- 0
+suggest$jbsteps40pre.zero[is.na(suggest$jbsteps40pre)] <- 0
 suggest$jbsteps60pre.zero[is.na(suggest$jbsteps60pre)] <- 0
 
 ## Spline imputation
@@ -593,6 +601,7 @@ suggest$steps60.spl <- with(suggest, impute(user, decision.index, jbsteps60,
 
 ## Log-transform step count
 suggest$jbsteps30pre.log <- log(suggest$jbsteps30pre.zero + 0.5)
+suggest$jbsteps40pre.log <- log(suggest$jbsteps40pre.zero + 0.5)
 suggest$jbsteps60pre.log <- log(suggest$jbsteps60pre.zero + 0.5)
 
 
