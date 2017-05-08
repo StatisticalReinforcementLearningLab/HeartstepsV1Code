@@ -3,7 +3,7 @@
 library(lme4)
 source("init.R")
 setwd(sys.var$mbox.data)
-load("analysis-small.RData")
+load("analysis.RData")
 setwd(sys.var$repo)
 
 ## Formatting choices
@@ -22,7 +22,7 @@ analysis.data <- function(days = 0:35, max.day = 41) {
                          slot, study.date, intake.date, intake.utime, intake.slot,
                          travel.start, travel.end, exit.date, dropout.date,
                          last.date, last.utime, last.slot, recognized.activity,
-                         avail, send, send.active, send.sedent\ary, jbsteps10, 
+                         avail, send, send.active, send.sedentary, jbsteps10, 
                          jbsteps10.zero, jbsteps10.log, jbsteps30pre,
                          jbsteps30, jbsteps30pre.zero, jbsteps30.zero, 
                          jbsteps30pre.log, jbsteps30.log, jbsteps60pre,
@@ -34,6 +34,27 @@ days <- 0:35
 primary <- analysis.data(days = days)
 ids     <- primary$ids
 primary <- primary$data
+
+##### Descriptives #####
+mean(users$age[users$user %in% ids])
+sum(users$age[users$user %in% ids] <= 25)
+table(users$gender[users$user %in% ids]) / length(ids)
+table(users$ethnicity[users$user %in% ids]) / length(ids)
+table(users$education[users$user %in% ids]) / length(ids)
+table(users$marital[users$user %in% ids]) / length(ids)
+
+table(users$fittracker[users$user %in% ids])
+table(users$fitapp[users$user %in% ids])
+
+mean(users$vigact.days.intake[users$user %in% ids])
+sd(users$vigact.days.intake[users$user %in% ids])
+mean(users$modact.days.intake[users$user %in% ids])
+sd(users$modact.days.intake[users$user %in% ids])
+
+sum(users$ipaq.minimal.intake[users$user %in% ids & !is.na(users$ipaq.minimal.intake)])
+sum(users$ipaq.hepa.intake[users$user %in% ids & !is.na(users$ipaq.hepa.intake)])
+
+sum(users$own.phone[users$user %in% ids])
 
 # Find users' last days on study
 x <- aggregate(study.day.nogap ~ user, data = subset(daily, !is.na(daily$jbsteps.direct)), max)
