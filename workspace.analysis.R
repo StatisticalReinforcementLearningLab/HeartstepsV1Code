@@ -149,6 +149,11 @@ users$ipaq.minimal.exit <- (!users$ipaq.hepa.exit & ((users$vigact.days.exit >= 
                                                            ((users$modact.days.exit >= 5 & users$modact.time.exit >= 30) | (users$walk10.days.exit >= 5 & users$walk.time.exit >= 30)) |
                                                            (users$vigact.days.exit + users$modact.days.exit + users$walk10.days.exit >= 5 & users$metmins.exit >= 600)))
 
+# Imputation based on heuristic look at data, some loose guessing, and conversation between NJS and SNS
+users$ipaq.hepa.intake[users$user %in% c(8, 10, 28, 34, 46)] <- F
+users$ipaq.hepa.intake[users$user %in% c(13)] <- T
+users$ipaq.minimal.intake[users$user %in% c(8, 10, 34, 46)] <- T
+users$ipaq.minimal.intake[users$user %in% c(13, 28)] <- F
 
 ##### Daily data #####
 
@@ -532,7 +537,11 @@ suggest <- merge(suggest,
                                  jbmins30  = temp <= 30 * 60,
                                  jbsteps30 = steps * (temp <= 30 * 60),
                                  jbmins60  = temp <= 60 * 60,
-                                 jbsteps60 = steps * (temp <= 60 * 60))
+                                 jbsteps60 = steps * (temp <= 60 * 60),
+                                 jbmins90  = temp <= 90 * 60,
+                                 jbsteps90 = steps * (temp <= 90 * 60),
+                                 jbmins120 = (temp <= 120 * 60),
+                                 jbsteps120 = steps * (temp <= 120 * 60))
                            ~ decision.index + user, data = jbslot, FUN = sum),
                  by = c("user", "decision.index"), all.x = TRUE)
 
@@ -554,12 +563,16 @@ suggest$jbsteps10.zero <- with(suggest, ifelse(is.na(jbsteps10), 0, jbsteps10))
 suggest$jbsteps30.zero <- with(suggest, ifelse(is.na(jbsteps30), 0, jbsteps30))
 suggest$jbsteps40.zero <- with(suggest, ifelse(is.na(jbsteps40), 0, jbsteps40))
 suggest$jbsteps60.zero <- with(suggest, ifelse(is.na(jbsteps60), 0, jbsteps60))
+suggest$jbsteps90.zero <- with(suggest, ifelse(is.na(jbsteps90), 0, jbsteps90))
+suggest$jbsteps120.zero <- with(suggest, ifelse(is.na(jbsteps120), 0, jbsteps120))
 
 ## Log transform step count
 suggest$jbsteps10.log <- log(suggest$jbsteps10.zero + 0.5)
 suggest$jbsteps30.log <- log(suggest$jbsteps30.zero + 0.5)
 suggest$jbsteps40.log <- log(suggest$jbsteps40.zero + 0.5)
 suggest$jbsteps60.log <- log(suggest$jbsteps60.zero + 0.5)
+suggest$jbsteps90.log <- log(suggest$jbsteps90.zero + 0.5)
+suggest$jbsteps120.log <- log(suggest$jbsteps120.zero + 0.5)
 
 
 ## --- add steps counts 30 and 60 minutes PRIOR TO each decision point
@@ -604,6 +617,24 @@ suggest$jbsteps30pre.log <- log(suggest$jbsteps30pre.zero + 0.5)
 suggest$jbsteps40pre.log <- log(suggest$jbsteps40pre.zero + 0.5)
 suggest$jbsteps60pre.log <- log(suggest$jbsteps60pre.zero + 0.5)
 
+
+##### App Usage data #####
+## Construct "session index" to group rows together based on whether they were accessed immediately after each other
+usage$session.index <- NA
+usage <- do.call("rbind", lapply(split.data.frame(usage, usage$user), function(x) {
+  x$session.index[1] <- 1
+  for (i in 2:dim(x)[1]) {
+    if (x$start.utime[i] == x$end.utime[i - 1]) {
+      x$session.index[i] <- x$session.index[i - 1]
+    } else {
+      x$session.index[i] <- x$session.index[i - 1] + 1
+    }
+  }
+  x
+}))
+
+## Compute length of each interaction in seconds
+usage$screen.duration <- as.numeric(usage$end.utime - usage$start.utime)
 
 save(max.day, max.date, users, daily, suggest, jbslot, gfslot, jbslotpre, gfslotpre,
      file = "analysis.RData")

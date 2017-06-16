@@ -53,6 +53,8 @@ sd(users$modact.days.intake[users$user %in% ids])
 
 sum(users$ipaq.minimal.intake[users$user %in% ids & !is.na(users$ipaq.minimal.intake)])
 sum(users$ipaq.hepa.intake[users$user %in% ids & !is.na(users$ipaq.hepa.intake)])
+with(subset(users, user %in% ids), table(ipaq.hepa.intake, ipaq.minimal.intake))
+
 
 sum(users$own.phone[users$user %in% ids])
 
@@ -73,8 +75,16 @@ median(y, na.rm = T)
 # Compute daily step count on last full day of study
 z <- sapply(unique(daily$user[daily$user %in% ids]), function(u) {
   daily$jbsteps.direct[daily$study.day.nogap == x$study.day.nogap[x$user == u] - 1 & !is.na(daily$study.day.nogap) & daily$user == u]
-  }, simplify = TRUE)  
+  }, simplify = TRUE)
 
+# Number of days for which we have Jawbone data
+stepdays <- sapply(ids, function(i) sum(!is.na(daily$jbsteps.direct[daily$user == i & daily$study.day.nogap <= x$study.day.nogap[x$user == i]])))
 # Merge daily and user data frames to link baseline data with daily step counts
 daily2 <- merge(daily, users, by = "user", all = T)
+
+# Number of total EMAs delivered
+emacount <- aggregate(ema.set.length ~ user, data = subset(daily, user %in% ids & !is.na(study.day.nogap) & study.day.nogap <= 41), function(x) sum(!is.na(x)))
+
+##### Mixed Effects Modeling #####
+summary(aov(I(log(jbsteps.direct)) ~ ipaq.hepa.intake + ipaq.minimal.intake, data = subset(daily2, !is.na(study.day.nogap) & study.day.nogap == 1 & user %in% ids)))
 
