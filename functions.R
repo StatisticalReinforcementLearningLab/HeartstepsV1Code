@@ -26,8 +26,9 @@ capitalize <- function(x) {
 }
 
 ## copy variable from y to x, taking first matches in an identifier
-copy <- function(x, y, var.name, id.name)
+copy <- function(x, y, var.name, id.name) {
   y[match(x[[id.name]], y[[id.name]]), names(y) == var.name]
+}
 
 ## data frame of unique variable values
 get.values <- function(var.name, ...) {
@@ -166,8 +167,9 @@ gps2timezone <- function(lat, long, utime = 0) {
 }
 
 ## convert character string to Date, under the given format
-char2date <- function(x, format = "%Y-%m-%d")
+char2date <- function(x, format = "%Y-%m-%d") {
   as.Date(paste(x), format = format)
+}
 
 ## convert character string to POSIXct in GMT/UTC,
 ## under the given offset and format
