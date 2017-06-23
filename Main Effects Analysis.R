@@ -5,7 +5,7 @@
 ## Load helper functions and data frames
 source("init.R")
 setwd(sys.var$mbox.data)
-# load("csv.RData")
+load("csv.RData")
 load("analysis-small.RData")
 setwd(sys.var$repo)
 
@@ -25,12 +25,12 @@ analysis.data <- function(days = 0:35, max.day = 41) {
                     slot, study.date, intake.date, intake.utime, intake.slot,
                     travel.start, travel.end, exit.date, dropout.date,
                     last.date, last.utime, last.slot, recognized.activity,
-                    avail, send, send.active, send.sedentary, jbsteps10, 
+                    avail, connect, send, send.active, send.sedentary, jbsteps10, 
                     jbsteps10.zero, jbsteps10.log, jbsteps30pre,
                     jbsteps30, jbsteps30pre.zero, jbsteps30.zero, 
                     jbsteps30pre.log, jbsteps30.log, jbsteps60pre,
-                    jbsteps60, jbsteps60pre.zero, jbsteps60.zero,
-                    jbsteps60pre.log, jbsteps60.log, response, location.category))
+                    jbsteps60, jbsteps60pre.zero, jbsteps60.zero, steps30.spl,
+                    jbsteps60pre.log, jbsteps60.log, response, location.category, jbmins120, jbmins90))
   return(list(data = d, ids = ids))
 }
 days <- 0:35
@@ -83,10 +83,10 @@ missing.step.plot <- recordPlot()
 ## Average proximal step counts by day, user, and whether or not a suggestion
 ## was delivered (only for six weeks, and only among available times)
 x <- aggregate(jbsteps30.zero ~ send + study.day.nogap + user,
-               data = subset(suggest, !is.na(study.day.nogap) & study.day.nogap <= 41 &
-                               user %in% ids & avail == T),
+               data = subset(primary, avail),
                FUN = mean)
 x <- x[with(x, order(user, study.day.nogap, send)), ]
+x <- x[, c("user", "study.day.nogap", "send", "jbsteps30.zero")]
 x$jbsteps30.log <- log(x$jbsteps30.zero + .5)
 y <- aggregate(jbsteps30.zero ~ study.day.nogap + user, data = x, FUN = diff)
 y1 <- aggregate(jbsteps30.log ~ study.day.nogap + user, data = x, FUN = diff)
@@ -126,7 +126,7 @@ rm(x, y, y1, z)
 
 # Create plot of percent unavailability at each decision point
 ## Count number of people available at each decision index 
-y <- aggregate(avail ~ decision.index.nogap,  data = primary, FUN = sum)
+y <- aggregate(avail ~ decision.index.nogap, data = primary, FUN = sum)
 ## Count number of people currently walking at each decision index and merge with above
 y <- merge(y, aggregate(recognized.activity ~ decision.index.nogap,
                         data = primary, FUN = function(x) sum(x == "ON_FOOT")),
@@ -148,6 +148,20 @@ legend("topright", legend = c("Any-Cause Unavailability", "Unavailbility due to 
 avail.plot <- recordPlot()
 rm(y)
 
+## Plot mean daily step count against time, with smoother
+x <- subset(daily, user %in% ids & !is.na(study.day.nogap) & study.day.nogap <= 41 & study.day.nogap > 0)
+y <- aggregate(jbsteps.direct ~ study.day.nogap, x, median)
+with(x, scatter.smooth(jbsteps.direct ~ study.day.nogap, span = 2/3, lpars = list(lwd = 2, col = color)))
+with(y, scatter.smooth(jbsteps.direct ~ study.day.nogap, span = 2/3, lpars = list(lwd = 2, col = color)))
+
+## Spaghetti plot of daily step count by user
+with(x, 
+     interaction.plot(x.factor = study.day.nogap, trace.factor = user,
+                      response = jbsteps.direct,, legend = F, cex.axis = .6, 
+                      xlab = "Study Day (excluding travel)",
+                      ylab = "Daily Step Count"))
+spaghetti.plot <- recordPlot()
+
 
 ##### Model Fitting #####
 
@@ -167,7 +181,6 @@ model2 <- geeglm(jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
                 id = user, weights = as.numeric(avail), 
                 scale.fix = T, data = primary)
 # estimate(model2, normal = FALSE)
-
 
 ##### Model Fit Plots #####
 # y <- aggregate(jbsteps30.log ~ study.day.nogap + send, 
@@ -353,6 +366,8 @@ with(y, scatter.smooth(resid.send ~ study.day.nogap, type = "l", span = 1/3,
 abline(0, 0, col = "grey50")
 
 mean.resid.interaction.quad <- recordPlot()
+
+
 
 ##### Active vs. Sedentary Suggestions #####
 model3 <- geeglm(jbsteps30.log ~ jbsteps30pre.log + study.day.nogap + 
