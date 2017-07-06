@@ -155,6 +155,11 @@ users$ipaq.hepa.intake[users$user %in% c(13)] <- T
 users$ipaq.minimal.intake[users$user %in% c(8, 10, 34, 46)] <- T
 users$ipaq.minimal.intake[users$user %in% c(13, 28)] <- F
 
+
+## Self-Efficacy Summary Measure
+users$selfeff.intake <- with(users, selfeff.tired.intake + selfeff.badmood.intake + selfeff.notime.intake + selfeff.vaca.intake + selfeff.precip.intake)
+users$selfeff.exit <- with(users, selfeff.tired.exit + selfeff.badmood.exit + selfeff.notime.exit + selfeff.vaca.exit + selfeff.precip.exit)
+
 ##### Daily data #####
 
 ## evaluate user-date combinations, by generating a sequence of dates
@@ -230,7 +235,7 @@ daily <- merge(daily,
                                  notify, context.date, context.utime,
                                  context.year:context.sec,
                                  planning.today, recognized.activity,
-                                 front.end.application, calendar,
+                                 front.end.application,
                                  gps.coordinate, home, work, city,
                                  location.exact, location.category,
                                  weather.condition, temperature, windspeed,
@@ -371,7 +376,7 @@ suggest <- merge(suggest,
                                    is.prefetch, slot, time.slot, time.stamp.slot,
                                    link, notify, is.randomized, snooze.status,
                                    recognized.activity, front.end.application,
-                                   returned.message, calendar, gps.coordinate,
+                                   returned.message, gps.coordinate,
                                    home, work, city, location.exact, 
                                    location.category, weather.condition,
                                    temperature, windspeed, precipitation.chance,
@@ -389,7 +394,7 @@ suggest <- merge(suggest,
                                    notified.time.year:notified.time.sec,
                                    responded.time.year:responded.time.sec,
                                    recognized.activity, interaction.count,
-                                   calendar, gps.coordinate, home, work, city,
+                                   gps.coordinate, home, work, city,
                                    location.exact, location.category,
                                    weather.condition, temperature, windspeed,
                                    precipitation.chance, snow,
@@ -607,9 +612,9 @@ suggest$jbsteps40pre.zero[is.na(suggest$jbsteps40pre)] <- 0
 suggest$jbsteps60pre.zero[is.na(suggest$jbsteps60pre)] <- 0
 
 ## Spline imputation
-suggest$steps30.spl <- with(suggest, impute(user, decision.index, jbsteps30,
+suggest$jbsteps30.spl <- with(suggest, impute(user, decision.index, jbsteps30,
                                             fun = na.spline))
-suggest$steps60.spl <- with(suggest, impute(user, decision.index, jbsteps60,
+suggest$jbsteps60.spl <- with(suggest, impute(user, decision.index, jbsteps60,
                                             fun = na.spline))
 
 ## Log-transform step count
@@ -619,6 +624,17 @@ suggest$jbsteps60pre.log <- log(suggest$jbsteps60pre.zero + 0.5)
 
 
 ##### App Usage data #####
+## Build study day indexing variables
+usage <- do.call('rbind', lapply(split.data.frame(usage, usage$user), function(d) { 
+  d$intake.date <- users$intake.date[users$user == unique(d$user)]
+  d$travel <- (d$start.date >= users$travel.start[users$user == unique(d$user)] &
+                 d$start.date <= users$travel.end[users$user == unique(d$user)])
+  d
+    })
+)
+usage$study.day <- with(usage, as.numeric(difftime(start.date, intake.date, units = "days")))
+usage$study.day.nogap <- with(usage, ifelse(travel, NA, study.day))
+
 ## Construct "session index" to group rows together based on whether they were accessed immediately after each other
 usage$session.index <- NA
 usage <- do.call("rbind", lapply(split.data.frame(usage, usage$user), function(x) {
@@ -634,9 +650,9 @@ usage <- do.call("rbind", lapply(split.data.frame(usage, usage$user), function(x
 }))
 
 ## Compute length of each interaction in seconds
-usage$screen.duration <- as.numeric(usage$end.utime - usage$start.utime)
+usage$screen.duration <- as.numeric(difftime(usage$end.utime, usage$start.utime, units = "secs"))
 
-save(max.day, max.date, users, daily, suggest, jbslot, gfslot, jbslotpre, gfslotpre,
+save(max.day, max.date, users, daily, suggest, jbslot, gfslot, jbslotpre, gfslotpre, usage,
      file = "analysis.RData")
-save(suggest, users, daily, jawbone, timezone, file = "analysis-small.RData")
+save(suggest, users, daily, jawbone, timezone, usage, file = "analysis-small.RData")
 setwd(sys.var$repo)
