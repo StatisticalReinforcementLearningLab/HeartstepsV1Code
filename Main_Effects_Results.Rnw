@@ -71,6 +71,11 @@ color.name <- "blue"
 
 \section{Changes from Previous Versions}
 \label{sec:changes}
+\subsection{January 13, 2017 - July 5, 2017}
+Corrected sensitivity analyses for increasing minimum-required time-on-study (see \Cref{sec:sens-analysis-min-time-on-study}
+to include participant 35. 
+He was previously excluded for being ``anomalous''. Pedja and Susan were unable to sufficiently justify this, so the analyses
+have been adjusted so that he is included in all sensitivity analyses in \Cref{sec:sens-analysis-min-time-on-study}.
 \subsection{November 21, 2016 - January 13, 2017}
 Added sensitivity analyses for model 5, which is marginal over time but splits the treatment indicator into indicators for both active and anti-sedentary suggestions.
 \subsection{August 8, 2016 - November 21, 2016}
@@ -544,6 +549,7 @@ print(xtable(estimate(model3.sens6, normal = FALSE), floating = TRUE, digits = 3
 @
 
 \subsection{Increase Minimum-Required Time-on-Study}
+\label{sec:sens-analysis-min-time-on-study}
 In the primary analysis, participants were included if they remained on-study for at least \Sexpr{max(days) + 1} days (with the possible exception of participant 35). Here, we increase this required time-on-study to exclude more participants. We present model results as above when we require 37, 38, and 40 
 Participant 35 is excluded from all of these analyses.
 
@@ -692,8 +698,5 @@ print(xtable(estimate(model3.sens5, normal = FALSE), floating = TRUE, digits = 3
              label = "tab:actsed-model-sens5"), 
       sanitize.rownames.function = identity, table.placement = "H")
 @
-
-\section{Substitution Effect}
-
 
 \end{document}

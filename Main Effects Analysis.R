@@ -417,7 +417,7 @@ model4.sens1 <- geeglm(jbsteps30.log ~ jbsteps30pre.log + I(send.active - 0.3) +
                        data = sens1, scale.fix = T)
 
 ### Require 37 days on study
-sens2 <- subset(analysis.data(0:36)$data, user != 35)
+sens2 <- subset(analysis.data(0:36)$data)
 
 ## Model 1: No time effect
 model1.sens2 <- geeglm(jbsteps30.log ~ jbsteps30pre.log + I(send - .6), 
@@ -449,7 +449,7 @@ model4.sens2 <- geeglm(jbsteps30.log ~ jbsteps30pre.log + I(send.active - 0.3) +
                        data = sens2, scale.fix = T)
 
 ### Require 38 days on study
-sens3 <- subset(analysis.data(0:37)$data, user != 35)
+sens3 <- subset(analysis.data(0:37)$data)
 
 ## Model 1: No time effect
 model1.sens3 <- geeglm(jbsteps30.log ~ jbsteps30pre.log + I(send - .6),
@@ -481,7 +481,7 @@ model4.sens3 <- geeglm(jbsteps30.log ~ jbsteps30pre.log + I(send.active - 0.3) +
                        data = sens3, scale.fix = T)
 
 ### Require 41 days on study
-sens4 <- subset(analysis.data(0:40)$data, user != 35)
+sens4 <- subset(analysis.data(0:40)$data)
 
 ## Model 1: No time effect
 model1.sens4 <- geeglm(jbsteps30.log ~ jbsteps30pre.log + I(send - .6), 
@@ -513,7 +513,7 @@ model4.sens4 <- geeglm(jbsteps30.log ~ jbsteps30pre.log + I(send.active - 0.3) +
                        data = sens4, scale.fix = T)
 
 ### Require 42 days on study
-sens5 <- subset(analysis.data(0:41)$data, user != 35)
+sens5 <- subset(analysis.data(0:41)$data)
 
 ## Model 1: No time effect
 model1.sens5 <- geeglm(jbsteps30.log ~ jbsteps30pre.log + I(send - .6),
