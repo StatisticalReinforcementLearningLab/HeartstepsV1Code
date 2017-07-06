@@ -72,7 +72,7 @@ color.name <- "blue"
 \section{Changes from Previous Versions}
 \label{sec:changes}
 \subsection{January 13, 2017 - July 5, 2017}
-Corrected sensitivity analyses for increasing minimum-required time-on-study (see \Cref{sec:sens-analysis-min-time-on-study}
+Corrected sensitivity analyses for increasing minimum-required time-on-study (see \Cref{sec:sens-analysis-min-time-on-study})
 to include participant 35. 
 He was previously excluded for being ``anomalous''. Pedja and Susan were unable to sufficiently justify this, so the analyses
 have been adjusted so that he is included in all sensitivity analyses in \Cref{sec:sens-analysis-min-time-on-study}.
@@ -550,8 +550,7 @@ print(xtable(estimate(model3.sens6, normal = FALSE), floating = TRUE, digits = 3
 
 \subsection{Increase Minimum-Required Time-on-Study}
 \label{sec:sens-analysis-min-time-on-study}
-In the primary analysis, participants were included if they remained on-study for at least \Sexpr{max(days) + 1} days (with the possible exception of participant 35). Here, we increase this required time-on-study to exclude more participants. We present model results as above when we require 37, 38, and 40 
-Participant 35 is excluded from all of these analyses.
+In the primary analysis, participants were included if they remained on-study for at least \Sexpr{max(days) + 1} days. Here, we increase this required time-on-study to exclude more participants. We present model results as above when we require 37, 38, and 40 days on-study. \textit{Note that participant 35 is included in these analyses.}
 
 \subsubsection*{37 days required}
 Effective sample size for this analysis is \textbf{\Sexpr{length(unique(sens2$user))}} individuals, and \textbf{\Sexpr{dim(sens2)[1]}} person-decision points.
@@ -559,7 +558,7 @@ Effective sample size for this analysis is \textbf{\Sexpr{length(unique(sens2$us
 <<sens2-req37d, results = "asis">>=
 names(model1.sens2$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$", "$\\beta_{1}$")
 print(xtable(estimate(model1.sens2, normal = FALSE),
-             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-no-day-effect} after removing participant 35 and requiring 37 days on-study",
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-no-day-effect} after requiring 37 days on-study",
              label = "tab:model-no-day-effect-sens2",
              floating = FALSE, digits = 3), 
       sanitize.rownames.function = identity)
@@ -568,14 +567,14 @@ names(model2.sens2$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$",
                                       "$\\alpha_{2}$", "$\\beta_{1}$",
                                       "$\\beta_{2}$")
 print(xtable(estimate(model2.sens2, normal = FALSE),
-             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-with-day-effect} after removing participant 35 and requiring 37 days on-study",
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-with-day-effect} after requiring 37 days on-study",
              label = "tab:model-with-day-effect-sens2", floating = FALSE, digits = 3), 
       sanitize.rownames.function = identity)
 
 names(model4.sens2$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$",
                                       "$\\beta_{1}$",  "$\\beta_{2}$")
 print(xtable(estimate(model4.sens2, normal = FALSE), floating = TRUE, digits = 3,
-             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:actsed-marginal-model} after removing participant 35 and requiring 37 days on-study",
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:actsed-marginal-model} after requiring 37 days on-study",
              label = "tab:actsed-marginal-model-sens2"),
       sanitize.rownames.function = identity, table.placement = "H")
 
@@ -585,7 +584,7 @@ names(model3.sens2$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$",
                                       "$\\beta_{2}$", "$\\beta_{3}$",
                                       "$\\beta_{4}$")
 print(xtable(estimate(model3.sens2, normal = FALSE), floating = FALSE, digits = 3,
-             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:actsed-model} after removing participant 35 and requiring 37 days on-study",
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:actsed-model} after requiring 37 days on-study",
              label = "tab:actsed-model-sens2"), 
       sanitize.rownames.function = identity)
 @
@@ -596,7 +595,7 @@ Effective sample size for this analysis is \textbf{\Sexpr{length(unique(sens3$us
 <<sens3-req38d, results = "asis">>=
 names(model1.sens3$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$", "$\\beta_{1}$")
 print(xtable(estimate(model1.sens3, normal = FALSE),
-             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-no-day-effect} after removing participant 35 and requiring 38 days on-study",
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-no-day-effect} after requiring 38 days on-study",
              label = "tab:model-no-day-effect-sens3",
              floating = TRUE, digits = 3), 
       sanitize.rownames.function = identity, table.placement = "H")
@@ -605,14 +604,14 @@ names(model2.sens3$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$",
                                       "$\\alpha_{2}$", "$\\beta_{1}$",
                                       "$\\beta_{2}$")
 print(xtable(estimate(model2.sens3, normal = FALSE),
-             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-with-day-effect} after removing participant 35 and requiring 38 days on-study",
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-with-day-effect} after requiring 38 days on-study",
              label = "tab:model-with-day-effect-sens3", floating = TRUE, digits = 3), 
       sanitize.rownames.function = identity, table.placement = "H")
 
 names(model4.sens3$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$",
                                       "$\\beta_{1}$",  "$\\beta_{2}$")
 print(xtable(estimate(model4.sens3, normal = FALSE), floating = TRUE, digits = 3,
-             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:actsed-marginal-model} after removing participant 35 and requiring 38 days on-study",
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:actsed-marginal-model} after requiring 38 days on-study",
              label = "tab:actsed-marginal-model-sens3"),
       sanitize.rownames.function = identity, table.placement = "H")
 
@@ -621,7 +620,7 @@ names(model3.sens3$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$",
                                       "$\\beta_{2}$", "$\\beta_{3}$",
                                       "$\\beta_{4}$")
 print(xtable(estimate(model3.sens3, normal = FALSE), floating = TRUE, digits = 3,
-             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:actsed-model} after removing participant 35 and requiring 38 days on-study",
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:actsed-model} after requiring 38 days on-study",
              label = "tab:actsed-model-sens3"), 
       sanitize.rownames.function = identity, table.placement = "H")
 @
@@ -633,7 +632,7 @@ Effective sample size for this analysis is \textbf{\Sexpr{length(unique(sens4$us
 <<sens4-req41d, results = "asis">>=
 names(model1.sens4$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$", "$\\beta_{1}$")
 print(xtable(estimate(model1.sens4, normal = FALSE),
-             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-no-day-effect} after removing participant 35 and requiring 41 days on-study",
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-no-day-effect} after requiring 41 days on-study",
              label = "tab:model-no-day-effect-sens4",
              floating = TRUE, digits = 3), 
       sanitize.rownames.function = identity, table.placement = "H")
@@ -642,14 +641,14 @@ names(model2.sens4$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$",
                                       "$\\alpha_{2}$", "$\\beta_{1}$",
                                       "$\\beta_{2}$")
 print(xtable(estimate(model2.sens4, normal = FALSE),
-             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-with-day-effect} after removing participant 35 and requiring 41 days on-study",
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-with-day-effect} after requiring 41 days on-study",
              label = "tab:model-with-day-effect-sens4", floating = TRUE, digits = 3), 
       sanitize.rownames.function = identity, table.placement = "H")
 
 names(model4.sens4$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$",
                                       "$\\beta_{1}$",  "$\\beta_{2}$")
 print(xtable(estimate(model4.sens4, normal = FALSE), floating = TRUE, digits = 3,
-             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:actsed-marginal-model} after removing participant 35 and requiring 41 days on-study",
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:actsed-marginal-model} after requiring 41 days on-study",
              label = "tab:actsed-marginal-model-sens4"),
       sanitize.rownames.function = identity, table.placement = "H")
 
@@ -658,7 +657,7 @@ names(model3.sens4$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$",
                                       "$\\beta_{2}$", "$\\beta_{3}$",
                                       "$\\beta_{4}$")
 print(xtable(estimate(model3.sens4, normal = FALSE), floating = TRUE, digits = 3,
-             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:actsed-model} after removing participant 35 and requiring 41 days on-study",
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:actsed-model} after requiring 41 days on-study",
              label = "tab:actsed-model-sens4"), 
       sanitize.rownames.function = identity, table.placement = "H")
 @
@@ -669,7 +668,7 @@ Effective sample size for this analysis is \textbf{\Sexpr{length(unique(sens5$us
 <<sens5-req42d, results = "asis">>=
 names(model1.sens5$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$", "$\\beta_{1}$")
 print(xtable(estimate(model1.sens5, normal = FALSE),
-             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-no-day-effect} after removing participant 35 and requiring 42 days on-study",
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-no-day-effect} after requiring 42 days on-study",
              label = "tab:model-no-day-effect-sens5",
              floating = TRUE, digits = 3), 
       sanitize.rownames.function = identity, table.placement = "H")
@@ -678,14 +677,14 @@ names(model2.sens5$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$",
                                       "$\\alpha_{2}$", "$\\beta_{1}$",
                                       "$\\beta_{2}$")
 print(xtable(estimate(model2.sens5, normal = FALSE),
-             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-with-day-effect} after removing participant 35 and requiring 42 days on-study",
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:model-with-day-effect} after requiring 42 days on-study",
              label = "tab:model-with-day-effect-sens5", floating = TRUE, digits = 3), 
       sanitize.rownames.function = identity, table.placement = "H")
 
 names(model4.sens5$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$",
                                       "$\\beta_{1}$",  "$\\beta_{2}$")
 print(xtable(estimate(model4.sens5, normal = FALSE), floating = TRUE, digits = 3,
-             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:actsed-marginal-model} after removing participant 35 and requiring 42 days on-study",
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:actsed-marginal-model} after requiring 42 days on-study",
              label = "tab:actsed-marginal-model-sens5"),
       sanitize.rownames.function = identity, table.placement = "H")
 
@@ -694,7 +693,7 @@ names(model3.sens5$coefficients) <- c("$\\alpha_{0}$", "$\\alpha_{1}$",
                                       "$\\beta_{2}$", "$\\beta_{3}$",
                                       "$\\beta_{4}$")
 print(xtable(estimate(model3.sens5, normal = FALSE), floating = TRUE, digits = 3,
-             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:actsed-model} after removing participant 35 and requiring 42 days on-study",
+             caption = "Fitted coefficients and univariate Hotelling's T tests for Model~\\labelcref{eqn:actsed-model} after requiring 42 days on-study",
              label = "tab:actsed-model-sens5"), 
       sanitize.rownames.function = identity, table.placement = "H")
 @
