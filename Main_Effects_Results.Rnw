@@ -69,6 +69,13 @@ source("Main Effects Analysis.R")
 color.name <- "blue"
 @
 
+\footnotesize{\texttt{
+\textbf{Compilation Information} \\
+User: \Sexpr{as.character(Sys.info()["login"])} \\
+System: \Sexpr{as.character(Sys.info()["sysname"])} version \Sexpr{as.character(Sys.info()["release"])} \\
+\Sexpr{R.version$version.string}
+}}
+
 \section{Changes from Previous Versions}
 \label{sec:changes}
 \subsection{January 13, 2017 - July 5, 2017}
