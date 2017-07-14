@@ -174,8 +174,9 @@ temp <- do.call("rbind",
 ## expand user level data to user-date level
 daily <- data.frame(users[match(temp[, 1], users$user), ],
                     study.date = temp[, 2])
+daily$weekday <- strftime(daily$study.date, format = "%u") %in% 1:5
 daily <- subset(daily, select = c(user, user.index, intake.date:last.slot,
-                                  study.date, own.phone))
+                                  study.date, weekday, own.phone))
 
 ## Add indicator for travel time
 daily$travel <- with(daily, study.date >= travel.start & study.date <= travel.end)
