@@ -29,7 +29,7 @@ analysis.data <- function(days = 0:35, max.day = 41) {
                     jbsteps10.zero, jbsteps10.log, jbsteps30pre,
                     jbsteps30, jbsteps30pre.zero, jbsteps30.zero, 
                     jbsteps30pre.log, jbsteps30.log, jbsteps60pre,
-                    jbsteps60, jbsteps60pre.zero, jbsteps60.zero, steps30.spl,
+                    jbsteps60, jbsteps60pre.zero, jbsteps60.zero, 
                     jbsteps60pre.log, jbsteps60.log, response, location.category, jbmins120, jbmins90))
   return(list(data = d, ids = ids))
 }
