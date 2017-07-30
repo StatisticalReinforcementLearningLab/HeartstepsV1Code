@@ -354,6 +354,11 @@ names(daily)[ncol(daily)] <- "gfsteps"
 
 daily <- daily[with(daily, order(user, study.day)), ]
 
+
+##### Minimal Data for Planning #####
+minPlan <- subset(daily, select = c("user", "study.day.nogap", "planning", "response"))
+
+
 ##### Suggestion data #####
 
 ## number of suggestion decision points in a given day
@@ -626,17 +631,19 @@ suggest$jbsteps60pre.log <- log(suggest$jbsteps60pre.zero + 0.5)
 
 ##### App Usage data #####
 ## Build study day indexing variables
-usage <- do.call('rbind', lapply(split.data.frame(usage, usage$user), function(d) { 
-  d$intake.date <- users$intake.date[users$user == unique(d$user)]
-  d$travel <- (d$start.date >= users$travel.start[users$user == unique(d$user)] &
-                 d$start.date <= users$travel.end[users$user == unique(d$user)])
-  d
-    })
-)
-usage$study.day <- with(usage, as.numeric(difftime(start.date, intake.date, units = "days")))
-usage$study.day.nogap <- with(usage, ifelse(travel, NA, study.day))
+# usage <- do.call('rbind', lapply(split.data.frame(usage, usage$user), function(d) { 
+  # d$intake.date <- users$intake.date[users$user == unique(d$user)]
+  # d$travel <- (d$start.date >= users$travel.start[users$user == unique(d$user)] &
+                 # d$start.date <= users$travel.end[users$user == unique(d$user)])
+  # d
+    # })
+# )
+
+usage <- merge(x = usage, y = subset(daily, select = c("user", "study.date", "study.day.nogap")), 
+               by.x = c("user", "start.date"), by.y = c("user", "study.date"), all.x = TRUE)
 
 ## Construct "session index" to group rows together based on whether they were accessed immediately after each other
+## Note that these indices are PER USER, and not per user per day!
 usage$session.index <- NA
 usage <- do.call("rbind", lapply(split.data.frame(usage, usage$user), function(x) {
   x$session.index[1] <- 1
@@ -653,7 +660,24 @@ usage <- do.call("rbind", lapply(split.data.frame(usage, usage$user), function(x
 ## Compute length of each interaction in seconds
 usage$screen.duration <- as.numeric(difftime(usage$end.utime, usage$start.utime, units = "secs"))
 
+## Find number of sessions per day that last at least 2 seconds and merge this number into daily
+x <- aggregate(session.index ~ user + start.date, 
+               data = subset(usage, screen.duration >= 2),
+               length)
+names(x) <- c(names(x)[-length(names(x))], "app.sessions")
+daily <- merge(daily, x, by.x = c("user", "study.date"), by.y = c("user", "start.date"), all.x = T)
+daily$app.sessions[is.na(daily$app.sessions) & !is.na(daily$study.day.nogap)] <- 0
+
+# Compute total number of seconds spent in app per day and merge into daily
+x <- aggregate(screen.duration ~ user + start.date, data = subset(usage, screen.duration >= 2), sum)
+names(x) <- c(names(x)[-length(names(x))], "app.secs")
+daily <- merge(daily, x, by.x = c("user", "study.date"), by.y = c("user", "start.date"), all.x = T)
+x <- aggregate(screen.duration ~ user + start.date, data = usage, sum)
+names(x) <- c(names(x)[-length(names(x))], "app.secs.all")
+daily <- merge(daily, x, by.x = c("user", "study.date"), by.y = c("user", "start.date"), all.x = T)
+
 save(max.day, max.date, users, daily, suggest, jbslot, gfslot, jbslotpre, gfslotpre, usage,
      file = "analysis.RData")
 save(suggest, users, daily, jawbone, timezone, usage, file = "analysis-small.RData")
+write.csv(minPlan, "minimal-planning-data.csv")
 setwd(sys.var$repo)
