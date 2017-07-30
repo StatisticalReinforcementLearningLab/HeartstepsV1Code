@@ -672,9 +672,13 @@ daily$app.sessions[is.na(daily$app.sessions) & !is.na(daily$study.day.nogap)] <-
 x <- aggregate(screen.duration ~ user + start.date, data = subset(usage, screen.duration >= 2), sum)
 names(x) <- c(names(x)[-length(names(x))], "app.secs")
 daily <- merge(daily, x, by.x = c("user", "study.date"), by.y = c("user", "start.date"), all.x = T)
-x <- aggregate(screen.duration ~ user + start.date, data = usage, sum)
+
+x <- aggregate(screen.duration ~ user + start.date, data = usage, sum) # include sessions less than 2 seconds long
 names(x) <- c(names(x)[-length(names(x))], "app.secs.all")
 daily <- merge(daily, x, by.x = c("user", "study.date"), by.y = c("user", "start.date"), all.x = T)
+
+daily$app.secs[is.na(daily$app.secs)     & !is.na(daily$study.day.nogap)] <- 0
+daily$app.secs[is.na(daily$app.secs.all) & !is.na(daily$study.day.nogap)] <- 0
 
 save(max.day, max.date, users, daily, suggest, jbslot, gfslot, jbslotpre, gfslotpre, usage,
      file = "analysis.RData")
