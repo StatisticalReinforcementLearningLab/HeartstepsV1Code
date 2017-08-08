@@ -29,7 +29,7 @@ analysis.data <- function(days = 0:35, max.day = 41) {
                     jbsteps10.zero, jbsteps10.log, jbsteps30pre,
                     jbsteps30, jbsteps30pre.zero, jbsteps30.zero, 
                     jbsteps30pre.log, jbsteps30.log, jbsteps60pre,
-                    jbsteps60, jbsteps60pre.zero, jbsteps60.zero, steps30.spl,
+                    jbsteps60, jbsteps60pre.zero, jbsteps60.zero, 
                     jbsteps60pre.log, jbsteps60.log, response, location.category, jbmins120, jbmins90))
   return(list(data = d, ids = ids))
 }
@@ -417,7 +417,7 @@ model4.sens1 <- geeglm(jbsteps30.log ~ jbsteps30pre.log + I(send.active - 0.3) +
                        data = sens1, scale.fix = T)
 
 ### Require 37 days on study
-sens2 <- subset(analysis.data(0:36)$data, user != 35)
+sens2 <- subset(analysis.data(0:36)$data)
 
 ## Model 1: No time effect
 model1.sens2 <- geeglm(jbsteps30.log ~ jbsteps30pre.log + I(send - .6), 
@@ -449,7 +449,7 @@ model4.sens2 <- geeglm(jbsteps30.log ~ jbsteps30pre.log + I(send.active - 0.3) +
                        data = sens2, scale.fix = T)
 
 ### Require 38 days on study
-sens3 <- subset(analysis.data(0:37)$data, user != 35)
+sens3 <- subset(analysis.data(0:37)$data)
 
 ## Model 1: No time effect
 model1.sens3 <- geeglm(jbsteps30.log ~ jbsteps30pre.log + I(send - .6),
@@ -481,7 +481,7 @@ model4.sens3 <- geeglm(jbsteps30.log ~ jbsteps30pre.log + I(send.active - 0.3) +
                        data = sens3, scale.fix = T)
 
 ### Require 41 days on study
-sens4 <- subset(analysis.data(0:40)$data, user != 35)
+sens4 <- subset(analysis.data(0:40)$data)
 
 ## Model 1: No time effect
 model1.sens4 <- geeglm(jbsteps30.log ~ jbsteps30pre.log + I(send - .6), 
@@ -513,7 +513,7 @@ model4.sens4 <- geeglm(jbsteps30.log ~ jbsteps30pre.log + I(send.active - 0.3) +
                        data = sens4, scale.fix = T)
 
 ### Require 42 days on study
-sens5 <- subset(analysis.data(0:41)$data, user != 35)
+sens5 <- subset(analysis.data(0:41)$data)
 
 ## Model 1: No time effect
 model1.sens5 <- geeglm(jbsteps30.log ~ jbsteps30pre.log + I(send - .6),

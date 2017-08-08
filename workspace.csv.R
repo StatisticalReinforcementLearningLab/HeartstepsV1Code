@@ -40,15 +40,6 @@ usage <- usage[!temp, ]
 ## snooze enabled or disabled
 snooze <- read.data("Snoozed_FromInApp.csv", list(user, utime.stamp))
 
-## home and work locations
-## nb: time zone data are unavailable
-address <- read.data("User_Addresses.csv", list(user, time.updated))
-
-## calendars
-## nb: Google calendar API data are unavailable
-## nb: time zone data are unavailable
-calendar <- read.data("User_Calendars.csv", list(user, time.updated))
-
 ## suggestion and EMA timeslots
 timeslot <- read.data("User_Decision_Times.csv", list(user, utime.updated))
 ## drop redundant timeslot updates
