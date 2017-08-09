@@ -1,4 +1,8 @@
 ### Setup
+sys.var_repo = "~/Documents/github/heartstepsdata"
+setwd(sys.var_repo)
+source("init.R")
+
 sys.var <- switch(Sys.info()["sysname"],
                   "Windows" = list(locale = "English",
                                    mbox = "Z:/HeartSteps/Data"),
@@ -7,9 +11,6 @@ sys.var <- switch(Sys.info()["sysname"],
                   "Linux" = list(locale = "en_US.UTF-8",
                                  mbox = "~/mbox/HeartSteps/Data"))
 
-sys.var_repo = "~/Documents/github/heartstepsdata"
-setwd(sys.var_repo)
-source("init.R")
 setwd(sys.var$mbox)
 load("csv.RData")
 load("analysis.RData")
@@ -150,6 +151,7 @@ tmp1$weekendTrue=tmp1$wday %in% 6:7
 
 model.plan.week <- geeglm(dailyjb.sqrt~ dailyjbpre.sqrt + I(weekendTrue)+I(planTrue.pre - .5)+I(planTrue.pre - .5):I(weekendTrue), id = user, scale.fix = T, data = tmp1)
 
+summary(model.plan.week)
 
 ### Data that we want for now ###
 
