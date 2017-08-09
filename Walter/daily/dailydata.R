@@ -176,5 +176,20 @@ tmp1$planning.today
 
 ## I know how many EMAS were filled out
 tmp1$ema.set.length # 243 NA's , 4 with less than 7 filled out, 793 with 7 or 8 ; I'd count 243 + 4 as not answering
+is.na(tmp1$ema.set.length) # Measure of engagement
+
+## App USAGE
+
+## App sessions: the number of times the user opened the app that day 
+## and remained in the app for at least 2 seconds
+tmp1$app.sessions[1:10] 
+
+## App secs: is the total time in seconds that the user spent in the 
+## app over those sessions counted in app.sessions
+tmp1$app.secs[1:10]
+
+cor(log(tmp1$app.sessions[tmp1$app.secs > 0]), log(tmp1$app.secs[tmp1$app.secs > 0]))
+
+plot(log(tmp1$app.sessions[tmp1$app.secs > 0]), log(tmp1$app.secs[tmp1$app.secs > 0]))
 
 # STill need (a) thumbs up / down, and (b) number of times app is used
