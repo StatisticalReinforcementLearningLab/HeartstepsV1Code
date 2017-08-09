@@ -176,7 +176,11 @@ tmp1$planning.today
 
 ## I know how many EMAS were filled out
 tmp1$ema.set.length # 243 NA's , 4 with less than 7 filled out, 793 with 7 or 8 ; I'd count 243 + 4 as not answering
-is.na(tmp1$ema.set.length) # Measure of engagement
+ema.indicator = !is.na(tmp1$ema.set.length) # Measure of engagement
+
+logit.test = glm(as.numeric(ema.indicator)~log(tmp1$app.sessions+0.5)+log(tmp1$app.secs+0.5), family = "binomial")
+
+summary(logit.test)
 
 ## App USAGE
 
@@ -192,4 +196,10 @@ cor(log(tmp1$app.sessions[tmp1$app.secs > 0]), log(tmp1$app.secs[tmp1$app.secs >
 
 plot(log(tmp1$app.sessions[tmp1$app.secs > 0]), log(tmp1$app.secs[tmp1$app.secs > 0]))
 
-# STill need (a) thumbs up / down, and (b) number of times app is used
+## Type of Day data (Latent class model)
+tmp1$stressful
+tmp1$energetic
+tmp1$hectic
+tmp1$typical
+
+# STill need (a) thumbs up / down
