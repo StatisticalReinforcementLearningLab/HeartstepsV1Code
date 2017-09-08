@@ -64,7 +64,7 @@ weighted.history <- function(current.state, time.diff, old.states, lambda, old.A
   
 }
 
-randomization.probability <- function(current.state, remaining.time, current.run.length, current.hour, H.t, lambda, eta, max.prob = 0.995, min.prob = 0.005) {
+randomization.probability <- function(N, current.state, remaining.time, current.run.length, current.hour, H.t, lambda, eta, max.prob = 0.995, min.prob = 0.005) {
   ## Randomization probabilifty function 
   ## depending on weighted history and full.remainder.fn.
   
@@ -100,7 +100,7 @@ action.assignment <- function(N, lambda, eta, X.t) {
       rho.t = 0
       A.t[t] = 0
     } else {
-      rho.t = randomization.probability(current.state, remaining.time, current.run.length, current.hour, H.t, lambda, eta)
+      rho.t = randomization.probability(N, current.state, remaining.time, current.run.length, current.hour, H.t, lambda, eta)
       A.t[t] = rbinom(n = 1, size = 1, prob = rho.t)
     }    
     
@@ -134,3 +134,61 @@ random.assignment.fn <- function(all.persondays) {
        )
   )  
 }
+
+
+
+## Functions for crossvalid.R
+
+which.partition <- function(x) {
+  ## Block assignment function
+  ceiling(which(partitions == x)/block.size)
+}
+
+otherblock.assignment.fn <- function(all.persondays, blockid, N) {
+  ## Give this the full data and the hold out block id
+  ## AND the N choice.
+  ## Returns mean number of actions
+  set.seed("541891")
+  
+  subset.persondays = subset(all.persondays, block != blockid)
+  
+  return(
+    mean(sapply(1:nrow(subset.persondays), mean.assignment.fn, subset.persondays, N))
+  )  
+}
+
+mean.assignment.fn <- function(obs, subset.persondays, N) {
+  userday.combo = as.numeric(subset.persondays[obs,])
+  sampled.personday = window.time[window.time$user==userday.combo[1] & window.time$study.day==userday.combo[2],]
+
+  X.t = sampled.personday$sedentary.width
+  
+  A.t <- action.assignment(N, lambda, eta, X.t)
+
+  return( 
+    sum(c( A.t[1:min(136,length(A.t))], 
+            rep(0,max(0,136-length(A.t)))))
+  )  
+}
+
+cv.assignment.fn <- function(sampled.obs, all.persondays, all.Ns) {
+  
+  userday.combo = as.numeric(all.persondays[sampled.obs,])
+  
+  sampled.personday = window.time[window.time$user==userday.combo[1] & window.time$study.day==userday.combo[2],]
+  
+  X.t = sampled.personday$sedentary.width
+  
+  N = c(0,all.Ns[all.persondays[sampled.obs,3]])
+  
+  A.t <- action.assignment(N, lambda, eta, X.t)
+  
+  return( 
+    c( A.t[1:min(136,length(A.t))], 
+       rep(0,max(0,136-length(A.t))), 
+       X.t[1:min(136,length(X.t))], 
+       rep(0,max(0,136-length(X.t))) 
+    )
+  )  
+}
+
