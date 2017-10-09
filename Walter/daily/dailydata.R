@@ -27,6 +27,55 @@ daily <- merge(daily,
                by.x = c("user", "study.date"),
                by.y = paste("Group", 1:2, sep = "."), all.x = TRUE)
 
+##############attach thumbs up/down data##############################
+df.sent = subset(suggest, send == TRUE)
+temp.good = aggregate(df.sent$response,
+          by = with(df.sent, list(user, study.date)),
+          function(x) sum(x[!is.na(x)]=="good"))
+
+temp.bad = aggregate(df.sent$response,
+          by = with(df.sent, list(user, study.date)),
+          function(x) sum(x[!is.na(x)]=="bad"))
+
+temp.noresponse = aggregate(df.sent$response,
+          by = with(df.sent, list(user, study.date)),
+          function(x) sum(x[!is.na(x)]=="no_response"))
+
+temp.snooze4 = aggregate(df.sent$response,
+          by = with(df.sent, list(user, study.date)),
+          function(x) sum(x[!is.na(x)]=="snoozed_for_4_hours"))
+
+temp.snooze12 = aggregate(df.sent$response,
+          by = with(df.sent, list(user, study.date)),
+          function(x) sum(x[!is.na(x)]=="snoozed_for_12_hours"))
+
+temp.na = aggregate(df.sent$response,
+                    by = with(df.sent, list(user, study.date)),
+                    function(x) sum(is.na(x)))
+
+temp.total = aggregate(df.sent$response,
+                       by = with(df.sent, list(user, study.date)),
+                       function(x) length(x))
+
+daily.disengaged = temp.noresponse[,3]
+daily.engaged = temp.good[,3] + temp.bad[,3] + temp.snooze12[,3] + temp.snooze4[,3] 
+daily.nan = temp.na[,3]
+daily.sendtotal = temp.total[,3]
+
+df.dailysend = cbind(temp.total[,1:2], daily.sendtotal, 
+                     daily.engaged, daily.disengaged, 
+                     daily.nan) 
+
+df.dailysend = data.frame(df.dailysend)
+names(df.dailysend) = c("user", "study.date", "send.total", 
+                        "send.engaged", "send.disengaged",
+                        "send.nan")
+
+daily <- merge(daily,
+               df.dailysend,
+               by.x = c("user", "study.date"),
+               by.y = c("user", "study.date"), all.x = TRUE)
+
 ##############attach daily jbsteps##############################
 daily.jb$DATE=as.character(daily.jb$DATE)
 daily.jb$DATE = as.Date(daily.jb$DATE, "%Y%m%d")
@@ -35,12 +84,12 @@ daily=merge(daily, subset(daily.jb,select=c(user, DATE, m_steps)), by.x=c("user"
         , by.y = c("user","DATE"), all.x=TRUE)
 
 ## daily log jawbone steps and pre log jawbone steps
-daily$dailyjb.log=log(daily$m_steps.x+1/2)
+daily$dailyjb.log=log(daily$m_steps+1/2)
 daily$dailyjbpre.log=c(0,daily$dailyjb.log[-nrow(daily)])
 daily$dailyjbpre.log[daily$study.day==0] = 0
 
 ## daily sqrt jbsteps and pre sqrt jbsteps
-daily$dailyjb.sqrt=sqrt(daily$m_steps.x)
+daily$dailyjb.sqrt=sqrt(daily$m_steps)
 daily$dailyjbpre.sqrt=c(0,daily$dailyjb.sqrt[-nrow(daily)])
 daily$dailyjbpre.sqrt[daily$study.day==0] = 0
 
@@ -63,7 +112,7 @@ daily$planTrue.pre[daily$study.day==0] = 0
 daily$planWeight=(daily$planning %in% c("structured","unstructured","no_planning"))
 daily$planWeight.pre=c(0,daily$planWeight[-nrow(daily)])
 
-## unstructured planning 
+## unstructured planning
 daily$USplanTrue=(daily$planning %in% c("unstructured"))
 daily$USplanTrue.pre=c(0,daily$USplanTrue[-nrow(daily)])
 daily$USplanTrue.pre[daily$study.day==0] = 0
@@ -72,7 +121,7 @@ daily$SplanTrue=(daily$planning %in% c("structured"))
 daily$SplanTrue.pre=c(0,daily$SplanTrue[-nrow(daily)])
 daily$SplanTrue.pre[daily$study.day==0] = 0
 
-## respond 
+## respond
 #daily$respond.pre=c(0,daily$respond[-nrow(daily)])
 #daily$respond.pre[daily$study.day==0] = 0
 
@@ -82,7 +131,7 @@ decision$state.coor=location_for_decision$state.coor
 
 
 ## attaching city and state####################################
-tmp=aggregate(paste(city.coor,state.coor,sep="_")~date.stamp+user,data=decision, 
+tmp=aggregate(paste(city.coor,state.coor,sep="_")~date.stamp+user,data=decision,
                FUN = function(x) length(unique(x)))
 names(tmp)[1]="study.date" ;names(tmp)[3]="city.number"
 temp1=merge(daily, tmp, by.x = c("user", "study.date"), by.y = c("user", "study.date"),
@@ -110,7 +159,7 @@ suggest_temp$precipitation.chance[suggest_temp$precipitation.chance==(-1)] <- NA
 tmp <- aggregate(temperature~study.date+user
               , data=suggest_temp, FUN = function(x) mean(x, na.rm = TRUE), na.action = na.pass)
 tmp1 <- aggregate(temperature~study.date+user
-               , data=suggest_temp, FUN = function(x) paste(sum(!is.na(x)),"/",length(x),sep=""), 
+               , data=suggest_temp, FUN = function(x) paste(sum(!is.na(x)),"/",length(x),sep=""),
                na.action = na.pass)
 
 tmp <- cbind(tmp,tmp1[,3])
@@ -139,11 +188,13 @@ temp1 <- with(temp1,temp1[order(user,study.date),])
 temp <- temp1[!is.na(temp1$study.day.nogap),]
 temp <- temp[temp$study.day.nogap %in% 0:41,]
 
-temp=temp[temp$study.day.nogap!=0,]
-temp=temp[temp$study.day.nogap!=1,]
+# temp=temp[temp$study.day.nogap!=0,]
+# temp=temp[temp$study.day.nogap!=1,]
 
-temp=temp[!is.na(temp$dailyjb.sqrt) & !is.na(temp$dailyjbpre.sqrt),]
-tmp1=temp[as.logical(temp$planWeight.pre),]
+# temp=temp[!is.na(temp$dailyjb.sqrt) & !is.na(temp$dailyjbpre.sqrt),]
+# tmp1=temp[as.logical(temp$planWeight.pre),]  
+
+tmp1 = temp
 ## there is missing value in context.wday which is wrong########################################
 tmp1$wday=strftime(tmp1$study.date,'%u')
 tmp1$weekendTrue=tmp1$wday %in% 6:7
@@ -162,7 +213,7 @@ tmp1$study.day.nogap # Study day
 # Days with missing data are indicators of missing tracker data!!
 # We currently don't have weather data for those days!!
 # Example:
-tmp1$study.day.nogap[1:10] # Missing days 4 & 11 & 12 !
+tmp1$study.day.nogap[1:10]
 
 ## Exogenous variables:
 tmp1$precipitation.chance # Precipitation chance
@@ -184,11 +235,11 @@ summary(logit.test)
 
 ## App USAGE
 
-## App sessions: the number of times the user opened the app that day 
+## App sessions: the number of times the user opened the app that day
 ## and remained in the app for at least 2 seconds
-tmp1$app.sessions[1:10] 
+tmp1$app.sessions[1:10]
 
-## App secs: is the total time in seconds that the user spent in the 
+## App secs: is the total time in seconds that the user spent in the
 ## app over those sessions counted in app.sessions
 tmp1$app.secs[1:10]
 
@@ -198,8 +249,73 @@ plot(log(tmp1$app.sessions[tmp1$app.secs > 0]), log(tmp1$app.secs[tmp1$app.secs 
 
 ## Type of Day data (Latent class model)
 tmp1$stressful
-tmp1$energetic
+tmp1$follow
 tmp1$hectic
 tmp1$typical
 
-# STill need (a) thumbs up / down
+# Thumbs up / down
+tmp1$send.total[1:10] ## Total number of sent messages
+tmp1$send.engaged[1:10] ## Total number of engaged responses to sent messages
+tmp1$send.disengaged[1:10] ## Total number of disengaged responses to sent messages
+tmp1$send.nan[1:10] ## Total number of NaN (i.e., technical issue) responses to sent messages
+
+### Final data.frame creation!! ###
+df.daily <- data.frame(
+  tmp1$user, # User,
+  tmp1$study.day.nogap, # Study day w/ no gap,
+  tmp1$study.date, # Study date,
+  tmp1$jbsteps.direct, # Direct pull of jawbone daily stepcount
+  tmp1$precipitation.chance, # Precipitation chance,
+  tmp1$daily.precip_mean, # Mean precipitation rainfall
+  tmp1$temp_mean, # Mean temparature
+  tmp1$weekendTrue, # Weekend indicator
+  tmp1$planning.today, # Action data
+  ema.indicator, # Measure of engagement
+  tmp1$app.sessions, # Number of times user opened app and remained in for at least 2 seconds
+  tmp1$app.secs, # Total time in seconds spent in the app
+  tmp1$stressful, # Only available if they responded
+  tmp1$follow, # Only available if they responded
+  tmp1$hectic, # Only available if they responded
+  tmp1$typical, # Only available if they responded
+  tmp1$active.cardio, # Only available if they responded
+  tmp1$active.strength, # Only available if they responded
+  tmp1$active.flex, # Only available if they responded
+  tmp1$active.housework, # Only available if they responded
+  tmp1$active.none, # Only available if they responded
+  tmp1$send.total, # Total number of sent messages
+  tmp1$send.engaged, # Total number of engaged responses to sent messages
+  tmp1$send.disengaged, # Total number of disengaged responses to sent messages
+  tmp1$send.nan # Total number of NaN (i.e., technical issue) responses to sent messages
+)
+
+names(df.daily) = c(
+  "user", # user
+  "study.day.nogap",
+  "study.date", 
+  "jbsteps.direct", # Direct pull of jawbone daily stepcount
+  "precipitation.chance", # Precipitation chance,
+  "daily.precip_mean", # Mean precipitation
+  "temp_mean", # Mean temparature
+  "weekendTrue", # Weekend indicator
+  "planning.today", # Action data
+  "ema.indicator", # Measure of engagement
+  "app.sessions", # Number of times user opened app and remained in for at least 2 seconds
+  "app.secs", # Total time in seconds spent in the app
+  "stressful", # Only available if they responded
+  "follow", # Only available if they responded
+  "hectic", # Only available if they responded
+  "typical", # Only available if they responded
+  "active.cardio", # Only available if they responded
+  "active.strength", # Only available if they responded
+  "active.flex", # Only available if they responded
+  "active.housework", # Only available if they responded
+  "active.none", # Only available if they responded"
+  "send.total", # Total number of sent messages
+  "send.engaged", # Total number of engaged responses to sent messages
+  "send.disengaged", # Total number of disengaged responses to sent messages
+  "send.nan" # Total number of NaN (i.e., technical issue) responses to sent messages
+)
+
+setwd("/Volumes/dav/HeartSteps/Walter/daily")
+
+saveRDS(df.daily, "dfdaily_v2.rds")
