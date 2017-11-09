@@ -46,11 +46,30 @@ suggest.analysis$weekendTrue <-
 user_selfeff <- 
   select(users, user, starts_with('selfeff')) %>%
   select(-ends_with('exit')) %>%
+  select(-matches('selfeff.intake')) %>%
   melt(id='user') %>% group_by(user) %>%
   summarise(selfeff_sum = sum(value))
 suggest.analysis <-
   suggest.analysis %>%
   left_join(user_selfeff, by='user')
+
+### IPAQ Scores
+user_ipaq_minimal <- 
+  select(users, user, starts_with('ipaq.minimal')) %>%
+  select(-ends_with('exit')) %>%
+  melt(id='user') %>% group_by(user) %>%
+  summarise(ipaq_minimal = value)
+suggest.analysis <-
+  suggest.analysis %>%
+  left_join(user_ipaq_minimal, by='user')
+user_ipaq_hepa <- 
+  select(users, user, starts_with('ipaq.hepa')) %>%
+  select(-ends_with('exit')) %>%
+  melt(id='user') %>% group_by(user) %>%
+  summarise(ipaq_hepa = value)
+suggest.analysis <-
+  suggest.analysis %>%
+  left_join(user_ipaq_hepa, by='user')
 
 ## Conscientiousness
 conc_item_names <- 

@@ -62,6 +62,13 @@ sum(users$ipaq.minimal.intake[users$user %in% ids & !is.na(users$ipaq.minimal.in
 sum(users$ipaq.hepa.intake[users$user %in% ids & !is.na(users$ipaq.hepa.intake)])
 with(subset(users, user %in% ids), table(ipaq.hepa.intake, ipaq.minimal.intake))
 
+# Descriptive plots for self-efficacy and IPAQ
+barplot(table(users$selfeff.intake[users$user %in% ids]), main = "Self-Efficacy at Intake")
+with(subset(users, user %in% ids), barplot(c(sum(ipaq.hepa.intake), sum(ipaq.minimal.intake),
+                                             length(ids) - sum(ipaq.hepa.intake) - sum(ipaq.minimal.intake)),
+                                           names.arg = c("HEPA Active", "Minimally Active", "Inactive"),
+                                           main = "IPAQ Classification at Baseline"))
+
 # Number of participants using their own phones
 sum(users$own.phone[users$user %in% ids])
 
@@ -139,6 +146,23 @@ mod2 <- lmer(log(jbsteps.direct + .5) ~ (1|user) + ipaq.hepa.intake +
 mod3 <- lmer(log(jbsteps.direct + .5) ~ (1|user) + selfeff.intake + study.day.nogap + 
                study.day.nogap * selfeff.intake, 
              data = subset(daily2, user %in% ids & !is.na(study.day.nogap) & study.day.nogap %in% 1:41))
+
+# Merge IPAQ and self efficacy data into primary (suggestion-level data)
+primary <- merge(primary, subset(users, select = c('user', 'selfeff.intake', 'ipaq.hepa.intake', 'ipaq.minimal.intake')), by = 'user')
+
+ipaqmod <-  geeglm(jbsteps30.log ~ jbsteps30pre.log + ipaq.minimal.intake + ipaq.hepa.intake +
+                         I(send.active - 0.3) +  I(send.sedentary - 0.3) +
+                         I(send.active - 0.3):ipaq.minimal.intake + I(send.active - 0.3):ipaq.hepa.intake +
+                         I(send.sedentary - 0.3):ipaq.minimal.intake + I(send.sedentary - 0.3):ipaq.hepa.intake,
+                  id = user, weights = as.numeric(avail),
+                  data = primary, scale.fix = T)
+
+selfeffmod <- geeglm(jbsteps30.log ~ jbsteps30pre.log + selfeff.intake +
+                       I(send.active - 0.3) +  I(send.sedentary - 0.3) +
+                       I(send.active - 0.3):selfeff.intake +
+                       I(send.sedentary - 0.3):selfeff.intake,
+                     id = user, weights = as.numeric(avail),
+                     data = primary, scale.fix = T)
 
 ##### App Usage by Session #####
 # Create a session-level data.frame for app usage, rather than screen view-level
