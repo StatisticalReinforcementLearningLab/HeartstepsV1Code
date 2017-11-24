@@ -160,6 +160,9 @@ users$ipaq.minimal.intake[users$user %in% c(13, 28)] <- F
 users$selfeff.intake <- with(users, selfeff.tired.intake + selfeff.badmood.intake + selfeff.notime.intake + selfeff.vaca.intake + selfeff.precip.intake)
 users$selfeff.exit <- with(users, selfeff.tired.exit + selfeff.badmood.exit + selfeff.notime.exit + selfeff.vaca.exit + selfeff.precip.exit)
 
+# Conscientiousness summary measure
+users$conscientious <- with(users, detail + prepared + carryplans + startwork + wastetime + duties + makeplans)
+
 ##### Daily data #####
 
 ## evaluate user-date combinations, by generating a sequence of dates
