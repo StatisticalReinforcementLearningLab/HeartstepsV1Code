@@ -17,12 +17,14 @@ data {
 int<lower=1> K; // number of groups
 int<lower=1> N; // number of data points
 int<lower=1> T; // length of timeseries
+int<lower=1> aK; // number of actions = 2
 real y[N,T]; // observations
+int a[N,T]; // actions
 }
 parameters {
 real<lower=0,upper=1> p0 ;     //initial prob grp 1
-real<lower=0,upper=1> TP[K] ;  //transition probs of staying in group
-real mu[K]; // locations of mixture components
+real<lower=0,upper=1> TP[K, aK] ;  //transition probs of staying in group
+real mu[K, aK]; // locations of mixture components
 real<lower=0> sigma[K]; // scales of mixture components
 }
 transformed parameters {
@@ -44,19 +46,20 @@ real<lower=0,upper=1> pred[N,T];   //one-step filter prediction of probabililty 
   //Forwards algorithm
   for (n in 1:N) { F[n,1]=p0; 
                    pred[n,1]=F[n,1];}
-  for (t in 1:T){
+  for (t in 2:T){
     for (n in 1:N) {
       //update prior using data
-      like1=exp(normal_lpdf(y[n,t] | mu[1],sigma[1]));
-      like2=exp(normal_lpdf(y[n,t] | mu[2],sigma[2]));
+      if (a[n,t-1] == 0) {
+        like1=exp(normal_lpdf(y[n,t] | mu[1, a[n,t-1]],sigma[1]));
+        like2=exp(normal_lpdf(y[n,t] | mu[2, a[n, t-1]],sigma[2]));
       p1=F[n,t]*like1;
       p2=(1-F[n,t])*like2;
       F[n,t]=p1/(p1+p2);
 
       //predict forward one timestep
       if (t != T) {
-        p1=F[n,t]*TP[1]+(1-F[n,t])*(1-TP[2]);
-        p2=F[n,t]*(1-TP[1])+(1-F[n,t])*TP[2];
+        p1=F[n,t]*TP[1, a[n, t-1]]+(1-F[n,t])*(1-TP[2, a[n, t-1]]);
+        p2=F[n,t]*(1-TP[1, a[n, t-1]])+(1-F[n,t])*TP[2, a[n, t-1]];
         F[n,t+1]=p1/(p1+p2);
         pred[n,t+1]=F[n,t+1];
         }
@@ -70,11 +73,11 @@ real<lower=0,upper=1> pred[N,T];   //one-step filter prediction of probabililty 
   for (t in 1:(T-1)){
     i=t*(-1)+T;      // transform t to get a backwards loop
     for (n in 1:N){
-      like1=exp(normal_lpdf(y[n,i+1] | mu[1],sigma[1]));
-      like2=exp(normal_lpdf(y[n,i+1] | mu[2],sigma[2]));  
+      like1=exp(normal_lpdf(y[n,i+1] | mu[1, a[n, t-1]],sigma[1]));
+      like2=exp(normal_lpdf(y[n,i+1] | mu[2, a[n, t-1]],sigma[2]));  
 
-      B1[n,i]=TP[1]*like1*B1[n,(i+1)]+(1-TP[2])*like2*B2[n,(i+1)];
-      B2[n,i]=(1-TP[1])*like1*B1[n,(i+1)]+TP[2]*like2*B2[n,(i+1)];
+      B1[n,i]=TP[1, a[n, t-1]]*like1*B1[n,(i+1)]+(1-TP[2, a[n, t-1]])*like2*B2[n,(i+1)];
+      B2[n,i]=(1-TP[1, a[n, t-1]])*like1*B1[n,(i+1)]+TP[2, a[n, t-1]]*like2*B2[n,(i+1)];
 
       k=B1[n,i]+B2[n,i];
       B1[n,i]=B1[n,i]/k;
@@ -95,12 +98,15 @@ real<lower=0,upper=1> pred[N,T];   //one-step filter prediction of probabililty 
 model {
 real ps; // temp for log component densities
 sigma ~ cauchy(0,2.5);
-mu ~ normal(0,10);
+mu[1,1] ~ normal(0,10);
+mu[1,2] ~ normal(0,10);
+mu[2,1] ~ normal(0,10);
+mu[2,2] ~ normal(0,10);
 
 for (t in 1:T){
   for (n in 1:N) {
-        ps = pred[n,t]*exp(normal_lpdf(y[n,t] | mu[1],sigma[1]))+
-           (1-pred[n,t])*exp(normal_lpdf(y[n,t] | mu[2],sigma[2]));
+        ps = pred[n,t]*exp(normal_lpdf(y[n,t] | mu[1, a[n, t-1]],sigma[1]))+
+           (1-pred[n,t])*exp(normal_lpdf(y[n,t] | mu[2, a[n, t-1]],sigma[2]));
       increment_log_prob(log(ps));
     }
   }
@@ -112,6 +118,7 @@ N = length(users)
 # max.T = max(dfdaily$study.day.nogap) + 1
 min.T = 36
 Y = matrix(nrow = length(users), ncol = min.T)
+a = matrix(nrow = length(users), ncol = min.T)
 # T = vector(length(users))
 
 for (i in 1:N) {
@@ -119,12 +126,16 @@ for (i in 1:N) {
   # Y[i,] = c(log(temp + 1), rep(0,max.T - length(temp)))
   Y[i,] = log(temp + 1)[1:min.T]
   # T[i] = length(y)
+  temp2 = dfdaily$planning.today[is.element(dfdaily$user, users[i])]
+  a[i,] = as.numeric(temp2 == "structured" | temp2 == "unstructured")[1:min.T]
 }
 
-stan.data=list(K=2,N=N,T=min.T,y=Y)
+a[is.na(a)] = 0.0
+
+stan.data=list(K=2,N=N,T=min.T,y=Y, a=a+1, aK = 2)
 
 
-fit2=stan(model_code=stan.code,data=stan.data,iter=1000,chains=4)
+fit2=stan(model_code=stan.code,data=stan.data,iter=1000,chains=1)
 
 summary(fit2, pars = c("mu", "sigma", "p0", "TP"))$summary
 tmp2=extract(fit2)
