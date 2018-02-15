@@ -1,5 +1,5 @@
 ## Required packages and source files
-source("functions.R");require(mgcv); require(lubridate); 
+source("user_functions.R");require(mgcv); require(lubridate); 
 require(foreach); require(lme4)
 
 setwd("/Volumes/dav/HeartSteps/Walter/")
@@ -16,72 +16,55 @@ window.time$window.utime = as.POSIXct(window.time$window.utime, tz = "GMT") + mi
 ## Range of current hour = c(14:23,0:1)
 
 seq.hour = c(14:23,0:1)
-fraction.data = matrix(nrow = length(seq.hour), ncol = 3)
-
-for (i in 1:length(seq.hour)) {
-  current.hour = seq.hour[i]
-  result = fraction.time.in.state(current.hour)
-  fraction.data[i,] = c(current.hour,result$mean,result$var)
-}
-
-fraction.df = data.frame(fraction.data)
-names(fraction.df) = c("current.hour", "mean", "var")
-
-# pdf(file = "fraction_sedentary.pdf", width = 10, height=7)
-x.axis = (fraction.df$current.hour-14)%%24
-plot(x.axis, fraction.df$mean, pch = 16,
-     cex.lab=1.3, xlab = "Hour Block",
-     ylab = "# of minutes 'Sedentary'", col = "red",
-    ylim = c(0.46, 0.56))
-lines(x.axis, fraction.df$mean, lty = 1,
-     col = "red")
-# dev.off()
+param.list = allmodel.params(seq.hour, all.persons) # Compute all necessary model parameters
+sedwidthdf.list = list.of.sedwidthdfs(seq.hour, window.time) # Compute all necessary dfs
 
 ## Setup
 denom = 2
-init.N = c(0.0,1.74/denom)
+init.N = c(0.0,1.65)
 eta = 0.0
 lambda = 0.0
 
 ## Extract a person-day
 set.seed("541891")
+all.persons = as.matrix(unique(window.time[,1]), ncol = 1)
 all.persondays = unique(window.time[,c(1,3)])
 
 ## Generate the 5 random partitions
-partitions = sample(1:nrow(all.persondays), nrow(all.persondays), replace = FALSE)
-block.size = ceiling(nrow(all.persondays)/5)
+partitions = sample(1:nrow(all.persons), nrow(all.persons), replace = FALSE)
+block.size = ceiling(nrow(all.persons)/5)
 
-all.persondays[,3] = unlist(lapply(1:nrow(all.persondays), which.partition))
+all.persons = cbind(all.persons, unlist(lapply(1:nrow(all.persons), which.partition)))
 
 all.persondays = data.frame(all.persondays)
-names(all.persondays) = c("user", "study.day", "block")
+names(all.persondays) = c("user", "block")
 
 blockid = 1
-N.one = c(0.0,1.74/denom)
-# otherblock.assignment.fn(all.persondays, blockid, N.one)
+N.one = c(0.0,1.63)
+# otherblock.assignment.fn(all.persondays, blockid, N.one, all.persons, param.list, sedwidth.df)
 
 blockid = 2
-N.two = c(0.0,1.77/denom)
-# otherblock.assignment.fn(all.persondays, blockid, N.two)
+N.two = c(0.0,1.63)
+# otherblock.assignment.fn(all.persondays, blockid, N.two, all.persons, param.list, sedwidth.df)
 
 blockid = 3
-N.three = c(0.0,1.78/denom)
-# otherblock.assignment.fn(all.persondays, blockid, N.three)
+N.three = c(0.0,1.62)
+otherblock.assignment.fn(all.persondays, blockid, N.three, all.persons, param.list, sedwidth.df)
 
 blockid = 4
-N.four = c(0.0,1.76/denom)
-# otherblock.assignment.fn(all.persondays, blockid, N.four)
+N.four = c(0.0,1.63)
+otherblock.assignment.fn(all.persondays, blockid, N.four, all.persons, param.list, sedwidth.df)
 
 blockid = 5
-N.five = c(0.0,1.77/denom)
-# otherblock.assignment.fn(all.persondays, blockid, N.five)
+N.five = c(0.0,1.63)
+otherblock.assignment.fn(all.persondays, blockid, N.five, all.persons, param.list, sedwidth.df)
 
 all.Ns= c(N.one[2], N.two[2], 
           N.three[2], N.four[2],
           N.five[2])
 
 set.seed("541891")
-total.At = sapply(1:nrow(all.persondays), cv.assignment.fn, all.persondays, all.Ns)
+total.At = sapply(1:nrow(all.persondays), cv.assignment.fn, all.persondays, all.Ns, param.list, sedwidthdf.list)
 
 mean(colSums(total.At[1:136,]), na.rm = TRUE)
 sd(colSums(total.At[1:136,]), na.rm = TRUE)/sqrt(nrow(all.persondays))
@@ -89,13 +72,13 @@ sd(colSums(total.At[1:136,]), na.rm = TRUE)/sqrt(nrow(all.persondays))
 sim.df = data.frame(colSums(total.At[1:136,]))
 names(sim.df) = c("ints")
 
-# pdf(file = "histogram_numtreatments.pdf", width = 7, height=7)
+pdf(file = "useradj_histogram_numtreatments.pdf", width = 7, height=7)
 values = sim.df$ints
 counts <- table(values)
 counts <- counts/sum(counts);
 names(counts) <- 0:(length(counts)-1);
 barplot(counts, ylim = c(0, 0.35), ylab = "Percent", xlab = "Number of Treatments", cex.lab = 1.3)
-# dev.off()
+dev.off()
 
 time.steps = 1:nrow(total.At[1:136,])
 hour = floor(time.steps/12 + 14 + 35/60)%%24
@@ -115,16 +98,16 @@ altered.hour.At = altered.hour.At[order(altered.hour.At)]
 
 temp.df = data.frame(cbind(altered.hour.At, num.At))
 
-# pdf(file = "fraction_actionreceived.pdf", width = 7, height=7)
+pdf(file = "useradj_fraction_actionreceived.pdf", width = 7, height=7)
 x.axis = temp.df$altered.hour.At
 y.axis = temp.df$num.At
 plot(x.axis, y.axis, pch = 16,
      cex.lab=1.3, xlab = "Hour Block",
      ylab = "Average Number of Treatments", col = "red",
-     ylim = c(0.00, 0.02))
+     ylim = c(0.00, 0.03))
 lines(x.axis, y.axis, lty = 1,
       col = "red")
-# dev.off()
+dev.off()
 
 #  Make curves per person
 
@@ -134,12 +117,11 @@ for(i in 1:length(set.of.users)) {
   user = set.of.users[i]
   user.mean[i] = mean(colSums(total.At[1:136, all.persondays[,1] == user]), na.rm = TRUE)  
 }
-sd(user.mean)
 
-
-# pdf(file = "user_treatment_histogram.pdf", width = 10, height=7)
+pdf(file = "useradj_user_treatment_histogram.pdf", width = 10, height=7)
 hist(user.mean, xlab = "Number of Treatments", cex.lab = 1.3, main = "")
-# dev.off()
+sd(user.mean)
+dev.off()
 
 # sd(colSums(total.At[1:136, all.persondays[,1] == user]), na.rm = TRUE)/sqrt(nrow(all.persondays))
 
@@ -147,7 +129,7 @@ hist(user.mean, xlab = "Number of Treatments", cex.lab = 1.3, main = "")
 global.x.axis = temp.df$altered.hour.At
 global.y.axis = temp.df$num.At
 
-# pdf(file = "user_fraction_actionreceived.pdf", width = 10, height=7)
+pdf(file = "useradj_user_fraction_actionreceived.pdf", width = 10, height=7)
 plot(global.x.axis, global.y.axis, pch = 16,
      cex.lab=1.3, xlab = "Hour Block",
      ylab = "Average Number of Treatments", col = "gray25",
@@ -179,4 +161,4 @@ for(user in set.of.users) {
   
 lines(global.x.axis, global.y.axis, lty = 2, lwd = 2,
       col = "gray20")
-# dev.off()
+dev.off()

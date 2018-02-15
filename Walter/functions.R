@@ -36,6 +36,34 @@ fraction.time.in.state <- function(current.hour) {
   return(list("mean" = mean(temp[,3]), "var" = var(temp[,3])))
 }
 
+fraction.time.in.state.user.re <- function(current.hour) {
+  ## Computes fraction of time in Sedentary 
+  ## or Not Sedentary for remainder of study at the 
+  ## hour level
+  
+  if(current.hour > 24) {stop("Hour outside normal range")}
+  if(current.hour < 3) {
+    remaining.data = window.time[hour(window.time$window.utime) >= current.hour
+                                 & hour(window.time$window.utime) < 3, ] 
+  } else {
+    remaining.data = window.time[hour(window.time$window.utime) >= current.hour
+                                 | hour(window.time$window.utime) < 3, ] 
+  }
+  
+  temp = aggregate(sedentary.width ~ user + study.day, 
+                   data = remaining.data,
+                   FUN = function(x) mean(x == TRUE))
+   
+  temp.lmer = lmer(sedentary.width ~ 1 + (1 | user), data = temp)
+  summary.lmer = summary(temp.lmer)
+  
+  return(list(
+    "mean" = summary.lmer$coefficients[1], 
+    "varcov" = as.numeric(c(summary.lmer$varcor$user, summary.lmer$sigma^2)) 
+  )
+  )
+}
+
 full.remainder.fn <- function(remaining.time, current.state, current.run.length, current.hour, eta) {
   ## Combines exp. and fraction. functions to 
   ## Produce estimate of expectation and standard 
@@ -78,7 +106,19 @@ randomization.probability <- function(N, current.state, remaining.time, current.
   
 }  
 
-action.assignment <- function(N, lambda, eta, X.t) {
+which.block <- function(current.hour) {
+  if( (current.hour >= buckets[[1]][1]) & (current.hour <= buckets[[1]][2])) {
+    return(1)
+  } else if ( (current.hour >= buckets[[2]][1]) & (current.hour <= buckets[[2]][2]) ) {
+    return(2)
+  } else if ( (current.hour >= buckets[[3]][1]) | (current.hour <= buckets[[3]][2]) ) {
+    return(3)
+  } else { 
+    return(0) 
+  }
+}
+
+action.assignment <- function(N, lambda, eta, X.t, buckets) {
   ## Application of the randomization probability
   ## to a particular sequence~$X_t$
   
@@ -89,28 +129,40 @@ action.assignment <- function(N, lambda, eta, X.t) {
     time.diff = rep(0,0))
   time.steps = 1:length(X.t)
   hour = (floor(time.steps/12)+14)%%24
+  block.steps = unlist(lapply(hour, FUN = which.block))
   A.t = vector(length = length(time.steps))
   
   for (t in 1:length(time.steps)) {
     current.state = X.t[t]
     current.hour = hour[t]
+    current.block = block.steps[t]
+    which.blocks = which(block.steps == current.block)
+    start.block = min(which.blocks); stop.block = max(which.blocks)
     current.run.length = t+1 - max(which(X.t == current.state & 1:length(X.t) <= t))
-    remaining.time = length(time.steps) - (t-1)
+    # remaining.time = length(time.steps) - (t-1)
+    remaining.time.in.block = stop.block - (t - 1)
     if(any(A.t[(max(1,t-12)):(t-1)] == 1)) {
       rho.t = 0
       A.t[t] = 0
     } else {
-      rho.t = randomization.probability(N, current.state, remaining.time, current.run.length, current.hour, H.t, lambda, eta)
+      rho.t = randomization.probability(N, current.state, remaining.time.in.block, current.run.length, current.hour, H.t, lambda, eta)
       A.t[t] = rbinom(n = 1, size = 1, prob = rho.t)
     }    
-    
-    H.t = data.frame(
-      old.states = c(H.t$old.states, X.t[t]),
-      old.A = c(H.t$old.A, A.t[t]),
-      old.rho = c(H.t$old.rho, rho.t),
-      time.diff = c(t+1 - 1:t)
-    )
-  }  
+    if (t == stop.block) {
+      H.t = data.frame(
+        old.states = rep(0,0),
+        old.A = rep(0,0),
+        old.rho = rep(0,0),
+        time.diff = rep(0,0))
+    }  else {
+      H.t = data.frame(
+        old.states = c(H.t$old.states, X.t[t]),
+        old.A = c(H.t$old.A, A.t[t]),
+        old.rho = c(H.t$old.rho, rho.t),
+        time.diff = c(t+1 - 1:t)
+      )
+    }  
+  }
   return(A.t)
 }
 

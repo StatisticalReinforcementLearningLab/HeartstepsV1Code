@@ -351,217 +351,100 @@ nrow(unique.persondays)
 
 window.time = window.time[-which(hour.toss == 1 & minute.toss >= 20),]
 
-temp.length = aggregate(sedentary.width~ user + study.day, data = window.time, FUN = function(x) c(rle(x)$length))
-temp.values = aggregate(sedentary.width~ user + study.day, data = window.time, FUN = function(x) c(rle(x)$values))
+## Buckets are defined by 14 - 17, 
+bucket1 = c(14,17); bucket2 = c(18,21); bucket3 = c(22,1)
 
-Sedentary.values = as.logical(unlist(temp.values[,3]))
-Sedentary.length = as.numeric(unlist(temp.length[,3]))
+obs.bucket1 = (hour(window.time$window.utime) >= bucket1[1]) & (hour(window.time$window.utime) <= bucket1[2])
+obs.bucket2 = (hour(window.time$window.utime) >= bucket2[1]) & (hour(window.time$window.utime) <= bucket2[2])
+obs.bucket3 = (hour(window.time$window.utime) >= bucket3[1]) | (hour(window.time$window.utime) <= bucket3[2])
 
-write.table(window.time, "/Volumes/dav/HeartSteps/Walter/window_time.csv", sep = ",")
-write.table(Sedentary.values, "/Volumes/dav/HeartSteps/Walter/sed_values.csv", sep = ",")
-write.table(Sedentary.length, "/Volumes/dav/HeartSteps/Walter/sed_length.csv", sep = ",")
-### Initial summary
+fracsed.bucket1 = mean(window.time$sedentary.width[obs.bucket1])
+fracsed.bucket2 = mean(window.time$sedentary.width[obs.bucket2])
+fracsed.bucket3 = mean(window.time$sedentary.width[obs.bucket3])
 
-#sedentary.runs = rle(window.time$sedentary.thirty)
-temp.values = vector(length = length(Sedentary.values))
-temp.values[Sedentary.values == 0] = "Not Sedentary"
-temp.values[Sedentary.values == 1] = "Sedentary"
-temp = data.frame(cbind(Sedentary.length,Sedentary.values))
-names(temp) = c("length", "value")
-temp$value = as.factor(temp$value)
+prob.bucket1 = (1.5/3)/(12*4*fracsed.bucket1)
+prob.bucket2 = (1.5/3)/(12*4*fracsed.bucket2)
+prob.bucket3 = (1.5/3)/(12*4*fracsed.bucket3)
 
-ggplot(temp, aes(length, fill = value)) +
-  geom_histogram(binwidth = 1) + xlab("Run Length") + labs(fill = "Sedentary Indicator")
+output = c(prob.bucket1,prob.bucket2,prob.bucket3)
 
-par(mar = c(5,3,1,1)+0.1, mfrow = c(2,1))
-hist(Sedentary.length[Sedentary.values == 0 & Sedentary.length < 100],
-     breaks = 75, xlab = "Length of sequential classification to Not Sedentary", main = "")
+# setwd("/Users/walterdempsey/Documents/github/heartstepsdata/Walter")
+# saveRDS(object = output, file = "ema_output")
 
-hist(Sedentary.length[Sedentary.values == 1 & Sedentary.length < 100],
-     breaks = 75, xlab = "Length of sequential classification to Sedentary", main = "")
+## ANOVA DECOMPOSITION
+which.bucket <- function(hour) {
+  if ( (hour >= bucket1[1] & hour <= bucket1[2] ) ) {
+    return(1)
+  } else if ( (hour >= bucket2[1] & hour <= bucket2[2] ) ) {
+    return(2)
+  } else if ( (hour >= bucket3[1] | hour <= bucket3[2] ) ) {
+    return(3)
+  }
+}
+window.time$hour = hour(window.time$window.utime)
+window.time$day = day(window.time$window.utime)
+window.time$bucket = unlist(lapply(window.time$hour,FUN = which.bucket))
 
-### Check for difference between "Early Study" (Day < 21) and "Late Study" (Day >= 21)
+fulldata.anova = aggregate(sedentary.width ~ user + day + bucket, data = window.time, sum)
 
-temp.values.early = aggregate(sedentary.width~ user + study.day,
-                              data = window.time[window.time$study.day < 21,],
-                              FUN = function(x) c(rle(x)$values))
-temp.length.early = aggregate(sedentary.width~ user + study.day,
-                              data = window.time[window.time$study.day < 21,],
-                              FUN = function(x) c(rle(x)$length))
+m1 <- aov(sedentary.width ~ as.factor(user) * as.factor(day) * as.factor(bucket), data = fulldata.anova)
 
-Sedentary.values.early = as.logical(unlist(temp.values.early[,3]))
-Sedentary.length.early = as.numeric(unlist(temp.length.early[,3]))
+summary(m1)
 
-temp.values.late = aggregate(sedentary.width~ user + study.day,
-                              data = window.time[window.time$study.day >= 21,],
-                              FUN = function(x) c(rle(x)$values))
-temp.length.late = aggregate(sedentary.width~ user + study.day,
-                              data = window.time[window.time$study.day >= 21,],
-                              FUN = function(x) c(rle(x)$length))
+### CHECK LATER
+removeuser.anova = aggregate(sedentary.width ~ day + bucket, data = window.time, mean)
 
-Sedentary.values.late = as.logical(unlist(temp.values.late[,3]))
-Sedentary.length.late = as.numeric(unlist(temp.length.late[,3]))
+removeday.anova = aggregate(sedentary.width ~ bucket, data = window.time, mean)
 
+removehour.anova = aggregate(sedentary.width ~ 1, data = window.time, mean)
 
-# early.sedentary.runs = rle(window.time$sedentary.thirty[window.time$study.day< 21])
-# late.sedentary.runs = rle(window.time$sedentary.thirty[window.time$study.day >= 21])
+# ANOVA
+num.obs = dim(fulldata.anova)[1]
+total = 0; mean.total = 0
+D = length(unique(window.time$day))
+N = length(unique(window.time$user))
+K = 3
 
-hist(Sedentary.length.early[Sedentary.values.early == 1 & Sedentary.length.early < 100],
-     breaks = 75, xlab = "Length of sequential classification to Sedentary for Early Study", main = "")
-
-hist(Sedentary.length.late[Sedentary.values.late == 1 & Sedentary.length.late < 100],
-     breaks = 75, xlab = "Length of sequential classification to Sedentary for Late Study", main = "")
-
-
-### Check for difference between "First Half of Day" (14 < Hour < 20)
-### and "Second Half of Day" (20 <= Hour <= 24 or 0 <= Hour < 2)
-temp.values.firsthalf = aggregate(sedentary.width~ user + study.day,
-                                  data = window.time[14 < hour(window.time$window.utime)
-                                                     & hour(window.time$window.utime) < 20,],
-                                  FUN = function(x) c(rle(x)$values))
-temp.length.firsthalf = aggregate(sedentary.width ~ user + study.day,
-                                  data = window.time[14 < hour(window.time$window.utime)
-                                                     & hour(window.time$window.utime) < 20,],
-                                  FUN = function(x) c(rle(x)$length))
-
-Sedentary.values.firsthalf = as.logical(unlist(temp.values.firsthalf[,3]))
-Sedentary.length.firsthalf = as.numeric(unlist(temp.length.firsthalf[,3]))
-
-temp.values.secondhalf = aggregate(sedentary.width~ user + study.day,
-                                   data = window.time[20 <= hour(window.time$window.utime)
-                                                      | hour(window.time$window.utime) <= 2,],
-                                   FUN = function(x) c(rle(x)$values))
-temp.length.secondhalf = aggregate(sedentary.width~ user + study.day,
-                                   data = window.time[20 <= hour(window.time$window.utime)
-                                                      | hour(window.time$window.utime) <= 2,],
-                                   FUN = function(x) c(rle(x)$length))
-
-Sedentary.values.secondhalf = as.logical(unlist(temp.values.secondhalf[,3]))
-Sedentary.length.secondhalf = as.numeric(unlist(temp.length.secondhalf[,3]))
-
-
-# firsthalf.sedentary.runs = rle(window.time$sedentary.thirty[14 < hour(window.time$window.utime)
-#                                                             & hour(window.time$window.utime) < 20])
-# secondhalf.sedentary.runs = rle(window.time$sedentary.thirty[!(14 < hour(window.time$window.utime)
-#                                                                & hour(window.time$window.utime) < 20)])
-
-hist(Sedentary.length.firsthalf[Sedentary.values.firsthalf == 1 & Sedentary.length.firsthalf < 100],
-     breaks = 75, xlab = "Length of sequential classification to Sedentary for first half of day", main = "")
-
-hist(Sedentary.length.secondhalf[Sedentary.values.secondhalf == 1 & Sedentary.length.secondhalf < 100],
-     breaks = 75, xlab = "Length of sequential classification to Sedentary for second half of day", main = "")
-
-## There appears to be no major departures!
-
-## We now check the google.fit data to see if
-## sedentary and non-sedentary plots are similar
-
-gf.window.time = data.frame(rep(used.daily$user,each = repeat.times),
-                         dates,
-                         rep(used.daily$study.day, each = repeat.times))
-
-names(gf.window.time) = c("user", "window.utime", "study.day")
-
-gf.window.time = gf.window.time[!is.na(gf.window.time$window.utime),]
-
-## Merge.first
-
-gfprefive <- merge.first(subset(googlefit,
-                                end.utime >= intake.utime & end.utime <= last.utime),
-                         subset(window.time,
-                                select = c(user, window.utime, study.day)),
-                         id = "user", var.x = "end.utime", var.y = "window.utime")
-
-gfprefive <- gfprefive[with(gfprefive, order(user, end.utime)), ]
-
-gf.window.time <- merge(gf.window.time,
-                     aggregate(steps ~ user + window.utime, data = gfprefive, sum),
-                     by.x = c("user", "window.utime"), by.y = c("user", "window.utime"),
-                     all.x = TRUE)
-
-gf.window.time$sedentary = is.na(gf.window.time$steps)
-
-gf.sedentary.width = rollapply(gf.window.time$sedentary,FUN = prod, width = chosen.width)
-
-gf.window.time$sedentary.width = c(gf.sedentary.width,rep(0,chosen.width-1))
-
-gf.hour.toss = hour(gf.window.time$window.utime)
-gf.minute.toss = minute(gf.window.time$window.utime)
-
-gf.window.time = gf.window.time[-which(gf.hour.toss == 1 & gf.minute.toss >= 30),]
-
-#### Summary of the Google Fit Data
-
-### Initial summary
-
-temp.values.gf = aggregate(sedentary.width ~ user + study.day,
-                                   data = gf.window.time,
-                                   FUN = function(x) c(rle(x)$values))
-temp.length.gf = aggregate(sedentary.width~ user + study.day,
-                                   data = gf.window.time,
-                                   FUN = function(x) c(rle(x)$length))
-
-Sedentary.values.gf = as.logical(unlist(temp.values.gf[,3]))
-Sedentary.length.gf = as.numeric(unlist(temp.length.gf[,3]))
-
-
-# gf.sedentary.runs = rle(gf.window.time$sedentary.thirty)
-
-par(mar = c(5,3,1,1)+0.1, mfrow = c(2,1))
-hist(Sedentary.length.gf[Sedentary.values.gf == 0 & Sedentary.length.gf < 100],
-     breaks = 75, xlab = "Length of sequential classification to Not Sedentary", main = "")
-
-hist(Sedentary.length.gf[Sedentary.values.gf == 1 & Sedentary.length.gf < 100],
-     breaks = 75, xlab = "Length of sequential classification to Sedentary", main = "")
-
-
-#### Situation 3:  Sedentary "only" if both gf and jb say so
-#### Otherwise they are Not Sedentary
-
-### Initial summary
-combo.sedentary.width = gf.window.time$sedentary.width == 1 & window.time$sedentary.width == 1
-
-temp.values.combo = aggregate(combo.sedentary.width ~ gf.window.time$user + gf.window.time$study.day,
-                           FUN = function(x) c(rle(x)$values))
-temp.length.combo = aggregate(combo.sedentary.width ~ gf.window.time$user + gf.window.time$study.day,
-                           FUN = function(x) c(rle(x)$length))
-
-Sedentary.values.combo = as.logical(unlist(temp.values.combo[,3]))
-Sedentary.length.combo = as.numeric(unlist(temp.length.combo[,3]))
-
-par(mar = c(5,3,1,1)+0.1, mfrow = c(2,1))
-hist(Sedentary.length.combo[Sedentary.values.combo==0 & Sedentary.length.combo < 100],
-     breaks = 75, xlab = "Length of sequential classification to Not Sedentary", main = " ")
-
-hist(Sedentary.length.combo[Sedentary.values.combo==1 & Sedentary.length.combo < 100],
-     breaks = 75, xlab = "Length of sequential classification to Sedentary", main = "")
-
-## Check the remainder function
-## for two choices of eta
-
-seq.t = seq(1,130,12)
-seq.hour = (14+floor(seq.t/12))%%24
-seq.remaining.time = 144- seq.t
-current.run.length = 15
-
-False.res = False.res.etaone = seq.t * 0
-True.res = True.res.etaone = seq.t * 0
-
-for(i in 1:length(seq.t)) {
-  False.res[i] = full.remainder.fn(seq.remaining.time[i], FALSE, current.run.length, seq.hour[i], eta = 0)
-  False.res.etaone[i] = full.remainder.fn(seq.remaining.time[i], FALSE, current.run.length, seq.hour[i], eta = 1)
-  True.res[i] = full.remainder.fn(seq.remaining.time[i], TRUE, current.run.length, seq.hour[i], eta = 0)
-  True.res.etaone[i] = full.remainder.fn(seq.remaining.time[i], TRUE, current.run.length, seq.hour[i], eta = 1)
+for( i in 1:num.obs) {
+  obs = which((removeuser.anova[,1] == fulldata.anova[i,2]) & (removeuser.anova[,2] == fulldata.anova[i,3]))
+  total = total + (fulldata.anova[i,4] - removeuser.anova[obs,3])^2
+  mean.total = mean.total + (fulldata.anova[i,4] - removehour.anova)^2
 }
 
-
-par(mar = c(4,4,1,1)+0.1, mfrow = c(2,1))
-plot(seq.t, False.res, ylim = c(0, 60), type = "l", axes = FALSE, xlab = "Time Steps (t)", ylab = "g(Not Sedentary,15,T-t)")
-lines(seq.t, False.res.etaone, lty = 2)
-axis(side = 1); axis(side = 2, at = seq(0,60,20))
+total
+mean.total
 
 
-plot(seq.t, True.res, ylim = c(0, 60), type = "l", axes = FALSE, xlab = "Time Steps (t)", ylab = "g(Sedentary,15, T-t)")
-lines(seq.t, True.res.etaone, lty = 2)
-axis(side = 1); axis(side = 2, at = seq(0,60,20))
+num.obs.1 = dim(removeuser.anova)[1]
+total.1 = 0
+for( i in 1:num.obs.1) {
+  # n.i = sum( (fulldata.anova[,2] == removeuser.anova[i,1]) & (fulldata.anova[,3] == removeuser.anova[i,2]) )
+  n.i = N
+  obs = which((removeday.anova[,1] == removeuser.anova[i,2]))
+  total.1 = total.1 + n.i*(removeuser.anova[i,3] - removeday.anova[obs,2])^2
+}
 
+total.1
+
+num.obs.2 = dim(removeday.anova)[1]
+total.2 = 0
+for( i in 1:num.obs.2) {
+  # n.i = sum( (fulldata.anova[,3] == removeday.anova[i,1]))
+  n.i = N*D
+  total.2 = total.2 + n.i*(removeday.anova[i,2] - removehour.anova)^2
+}
+
+total.2
+
+# D.F.
+df.meantotal  = D*N*3 - 1
+df.total = 3*D*(N-1)
+df.total.1 = 3*D-1
+df.total.2 = 3-1
+
+
+SS = c(total, total.1, total.2, mean.total)
+DF = c( df.total,df.total.1, df.total.2, df.meantotal)
+MS = SS/DF
+
+cbind(DF,SS, MS)

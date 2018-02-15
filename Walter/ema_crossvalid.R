@@ -1,11 +1,10 @@
 ## Required packages and source files
-source("functions.R");require(mgcv); require(lubridate); 
-require(foreach); require(lme4)
+source("ema_functions.R");require(mgcv); require(lubridate); require(foreach)
 
 setwd("/Volumes/dav/HeartSteps/Walter/")
 window.time = read.csv("window_time.csv")
-Sedentary.values = read.csv("sed_values.csv")
-Sedentary.length = read.csv("sed_length.csv")
+# Sedentary.values = read.csv("sed_values.csv")
+# Sedentary.length = read.csv("sed_length.csv")
 setwd("~//Documents/github/heartstepsdata/Walter/figs/")
 bucket1 = c(14,17); bucket2 = c(18,21); bucket3 = c(22,1)
 buckets = list(bucket1,bucket2, bucket3)
@@ -16,32 +15,9 @@ window.time$window.utime = as.POSIXct(window.time$window.utime, tz = "GMT") + mi
 ## Range of current hour = c(14:23,0:1)
 
 seq.hour = c(14:23,0:1)
-fraction.data = matrix(nrow = length(seq.hour), ncol = 3)
-
-for (i in 1:length(seq.hour)) {
-  current.hour = seq.hour[i]
-  result = fraction.time.in.state(current.hour)
-  fraction.data[i,] = c(current.hour,result$mean,result$var)
-}
-
-fraction.df = data.frame(fraction.data)
-names(fraction.df) = c("current.hour", "mean", "var")
-
-# pdf(file = "fraction_sedentary.pdf", width = 10, height=7)
-x.axis = (fraction.df$current.hour-14)%%24
-plot(x.axis, fraction.df$mean, pch = 16,
-     cex.lab=1.3, xlab = "Hour Block",
-     ylab = "# of minutes 'Sedentary'", col = "red",
-    ylim = c(0.46, 0.56))
-lines(x.axis, fraction.df$mean, lty = 1,
-     col = "red")
-# dev.off()
 
 ## Setup
-denom = 2
-init.N = c(0.0,1.74/denom)
-eta = 0.0
-lambda = 0.0
+init.N = 0.5
 
 ## Extract a person-day
 set.seed("541891")
@@ -57,28 +33,28 @@ all.persondays = data.frame(all.persondays)
 names(all.persondays) = c("user", "study.day", "block")
 
 blockid = 1
-N.one = c(0.0,1.74/denom)
+N.one = 0.645
 # otherblock.assignment.fn(all.persondays, blockid, N.one)
 
 blockid = 2
-N.two = c(0.0,1.77/denom)
+N.two = 0.645
 # otherblock.assignment.fn(all.persondays, blockid, N.two)
 
 blockid = 3
-N.three = c(0.0,1.78/denom)
+N.three = 0.64
 # otherblock.assignment.fn(all.persondays, blockid, N.three)
 
 blockid = 4
-N.four = c(0.0,1.76/denom)
+N.four = 0.64
 # otherblock.assignment.fn(all.persondays, blockid, N.four)
 
 blockid = 5
-N.five = c(0.0,1.77/denom)
+N.five = 0.64
 # otherblock.assignment.fn(all.persondays, blockid, N.five)
 
-all.Ns= c(N.one[2], N.two[2], 
-          N.three[2], N.four[2],
-          N.five[2])
+all.Ns= c(N.one, N.two, 
+          N.three, N.four,
+          N.five)
 
 set.seed("541891")
 total.At = sapply(1:nrow(all.persondays), cv.assignment.fn, all.persondays, all.Ns)
@@ -89,7 +65,7 @@ sd(colSums(total.At[1:136,]), na.rm = TRUE)/sqrt(nrow(all.persondays))
 sim.df = data.frame(colSums(total.At[1:136,]))
 names(sim.df) = c("ints")
 
-# pdf(file = "histogram_numtreatments.pdf", width = 7, height=7)
+# pdf(file = "emablocking_histogram_numtreatments.pdf", width = 7, height=7)
 values = sim.df$ints
 counts <- table(values)
 counts <- counts/sum(counts);
@@ -115,7 +91,7 @@ altered.hour.At = altered.hour.At[order(altered.hour.At)]
 
 temp.df = data.frame(cbind(altered.hour.At, num.At))
 
-# pdf(file = "fraction_actionreceived.pdf", width = 7, height=7)
+# pdf(file = "emablocking_fraction_actionreceived.pdf", width = 7, height=7)
 x.axis = temp.df$altered.hour.At
 y.axis = temp.df$num.At
 plot(x.axis, y.axis, pch = 16,
@@ -134,10 +110,8 @@ for(i in 1:length(set.of.users)) {
   user = set.of.users[i]
   user.mean[i] = mean(colSums(total.At[1:136, all.persondays[,1] == user]), na.rm = TRUE)  
 }
-sd(user.mean)
 
-
-# pdf(file = "user_treatment_histogram.pdf", width = 10, height=7)
+# pdf(file = "emablocking_user_treatment_histogram.pdf", width = 10, height=7)
 hist(user.mean, xlab = "Number of Treatments", cex.lab = 1.3, main = "")
 # dev.off()
 
@@ -147,7 +121,7 @@ hist(user.mean, xlab = "Number of Treatments", cex.lab = 1.3, main = "")
 global.x.axis = temp.df$altered.hour.At
 global.y.axis = temp.df$num.At
 
-# pdf(file = "user_fraction_actionreceived.pdf", width = 10, height=7)
+# pdf(file = "emablocking_user_fraction_actionreceived.pdf", width = 10, height=7)
 plot(global.x.axis, global.y.axis, pch = 16,
      cex.lab=1.3, xlab = "Hour Block",
      ylab = "Average Number of Treatments", col = "gray25",
