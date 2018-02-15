@@ -38,6 +38,28 @@ primary <- analysis.data(days = days)
 ids     <- primary$ids
 primary <- primary$data
 
+#### Summary statistics ####
+# Mean & SD of step count for available decision points in week 1 of study when send == FALSE
+with(primary, mean(jbsteps30.zero[study.day.nogap %in% 0:7 & send == F & avail == T]))
+with(primary, sd(jbsteps30.zero[study.day.nogap %in% 0:7 & send == F & avail == T]))
+
+with(primary, mean(jbsteps30.zero[study.day.nogap %in% 1:7 & send == F & avail == T]))
+with(primary, sd(jbsteps30.zero[study.day.nogap %in% 1:7 & send == F & avail == T]))
+
+# Mean & SD of step count for available decision points in week 1 of study when send == TRUE
+with(primary, mean(jbsteps30.zero[study.day.nogap %in% 0:7 & send == T & avail == T]))
+with(primary, sd(jbsteps30.zero[study.day.nogap %in% 0:7 & send == T & avail == T]))
+
+with(primary, mean(jbsteps30.zero[study.day.nogap %in% 1:7 & send == T & avail == T]))
+with(primary, sd(jbsteps30.zero[study.day.nogap %in% 1:7 & send == T & avail == T]))
+
+# Mean & SD of step count for available decision points in week 1 of study
+with(primary, mean(jbsteps30.zero[study.day.nogap %in% 0:7 & avail == T]))
+with(primary, sd(jbsteps30.zero[study.day.nogap %in% 0:7 & avail == T]))
+
+with(primary, mean(jbsteps30.zero[study.day.nogap %in% 1:7 & avail == T]))
+with(primary, sd(jbsteps30.zero[study.day.nogap %in% 1:7 & avail == T]))
+
 #### Describe missingness of Jawbone data #####
 
 ## Get list of dates for which each user has Jawbone data. Returns a data frame
