@@ -382,8 +382,8 @@ Nbar = probzero.bar/sum(probzero.bar) * 1.5
 
 output = Nbar/kbar
 
-setwd("/Users/walterdempsey/Documents/github/heartstepsdata/Walter")
-saveRDS(object = output, file = "ema_output")
+# setwd("/Users/walterdempsey/Documents/github/heartstepsdata/Walter")
+# saveRDS(object = output, file = "ema_output")
 
 ## ANOVA DECOMPOSITION
 which.bucket <- function(hour) {
@@ -404,61 +404,3 @@ fulldata.anova = aggregate(sedentary.width ~ user + day + bucket, data = window.
 m1 <- aov(sedentary.width ~ as.factor(user) * as.factor(day) * as.factor(bucket), data = fulldata.anova)
 
 summary(m1)
-
-### CHECK LATER
-removeuser.anova = aggregate(sedentary.width ~ day + bucket, data = window.time, mean)
-
-removeday.anova = aggregate(sedentary.width ~ bucket, data = window.time, mean)
-
-removehour.anova = aggregate(sedentary.width ~ 1, data = window.time, mean)
-
-# ANOVA
-num.obs = dim(fulldata.anova)[1]
-total = 0; mean.total = 0
-D = length(unique(window.time$day))
-N = length(unique(window.time$user))
-K = 3
-
-for( i in 1:num.obs) {
-  obs = which((removeuser.anova[,1] == fulldata.anova[i,2]) & (removeuser.anova[,2] == fulldata.anova[i,3]))
-  total = total + (fulldata.anova[i,4] - removeuser.anova[obs,3])^2
-  mean.total = mean.total + (fulldata.anova[i,4] - removehour.anova)^2
-}
-
-total
-mean.total
-
-
-num.obs.1 = dim(removeuser.anova)[1]
-total.1 = 0
-for( i in 1:num.obs.1) {
-  # n.i = sum( (fulldata.anova[,2] == removeuser.anova[i,1]) & (fulldata.anova[,3] == removeuser.anova[i,2]) )
-  n.i = N
-  obs = which((removeday.anova[,1] == removeuser.anova[i,2]))
-  total.1 = total.1 + n.i*(removeuser.anova[i,3] - removeday.anova[obs,2])^2
-}
-
-total.1
-
-num.obs.2 = dim(removeday.anova)[1]
-total.2 = 0
-for( i in 1:num.obs.2) {
-  # n.i = sum( (fulldata.anova[,3] == removeday.anova[i,1]))
-  n.i = N*D
-  total.2 = total.2 + n.i*(removeday.anova[i,2] - removehour.anova)^2
-}
-
-total.2
-
-# D.F.
-df.meantotal  = D*N*3 - 1
-df.total = 3*D*(N-1)
-df.total.1 = 3*D-1
-df.total.2 = 3-1
-
-
-SS = c(total, total.1, total.2, mean.total)
-DF = c( df.total,df.total.1, df.total.2, df.meantotal)
-MS = SS/DF
-
-cbind(DF,SS, MS)

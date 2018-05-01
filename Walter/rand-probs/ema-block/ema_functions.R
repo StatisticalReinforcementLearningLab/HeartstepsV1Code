@@ -73,7 +73,7 @@ random.assignment.fn <- function(all.persondays) {
   
   X.t = sampled.personday$sedentary.width
   
-  A.t <- action.assignment(X.t)
+  A.t <- action.assignment(X.t, prob.buckets)
   
   return( 
     c( A.t[1:min(136,length(A.t))], 
