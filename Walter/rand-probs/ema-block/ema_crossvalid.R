@@ -1,4 +1,5 @@
 ## Required packages and source files
+setwd("/Users/walterdempsey/Documents/github/heartstepsdata/Walter/rand-probs/ema-block")
 source("ema_functions.R");require(mgcv); require(lubridate); require(foreach)
 
 setwd("/Volumes/dav/HeartSteps/Walter/")
@@ -103,7 +104,6 @@ lines(x.axis, y.axis, lty = 1,
 # dev.off()
 
 #  Make curves per person
-
 set.of.users = unique(all.persondays[,1])
 user.mean = vector(length = length(set.of.users))
 for(i in 1:length(set.of.users)) {
@@ -154,3 +154,23 @@ for(user in set.of.users) {
 lines(global.x.axis, global.y.axis, lty = 2, lwd = 2,
       col = "gray20")
 # dev.off()
+
+
+## Uniformity plots
+## Calculate p.hat per person-day
+total.phat = sapply(1:nrow(all.persondays), cv.assignment.multiple.fn, all.persondays, all.Ns, num.iters)
+
+# saveRDS(total.phat, file = "simulation_phat.RDS")
+
+## Compute the squared distance
+results = vector(length = nrow(total.phat))
+
+for (row in 1:nrow(total.phat)) {
+  current.phat = total.phat[row, ]
+  current.phat = current.phat[current.phat !=0]
+  results.phat[row] = (current.phat - mean(current.phat))^2 / length(current.phat)
+}
+
+
+
+# total.phat = readRDS("total_phat.RDS")

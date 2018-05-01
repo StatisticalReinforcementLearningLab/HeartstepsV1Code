@@ -1,10 +1,11 @@
 library(ggplot2)
 
 ## Required packages and source files
-prob.buckets = readRDS("ema_output.rds")
-prob.buckets = prob.buckets*5 # Fix issue for now
+setwd("/Users/walterdempsey/Documents/github/heartstepsdata/Walter/rand-probs/ema-block")
+prob.buckets = readRDS("ema_output.RDS")
+prob.buckets = prob.buckets*1.2
 
-source("ema_functions.R");require(mgcv); require(lubridate); require(foreach)
+source("ema_functions.R"); require(mgcv); require(lubridate); require(foreach)
 setwd("/Volumes/dav/HeartSteps/Walter/")
 window.time = read.csv("window_time.csv")
 

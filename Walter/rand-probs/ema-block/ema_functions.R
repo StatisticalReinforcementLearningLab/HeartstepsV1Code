@@ -63,6 +63,28 @@ action.assignment <- function(X.t, prob.buckets) {
   return(A.t)
 }
 
+action.assignment.avail <- function(X.t, prob.buckets) {
+  ## Application of the randomization probability
+  ## to a particular sequence~$X_t$
+  
+  time.steps = 1:length(X.t)
+  hour = (floor(time.steps/12)+14)%%24
+  A.t = vector(length = length(time.steps))
+  
+  for (t in 1:length(time.steps)) {
+    current.state = X.t[t]
+    current.hour = hour[t]
+    if(any(A.t[(max(1,t-12)):(t-1)] == 1)) {
+      rho.t = 0
+      A.t[t] = -1
+    } else {
+      rho.t = randomization.probability(current.state, current.hour, prob.buckets)
+      A.t[t] = rbinom(n = 1, size = 1, prob = rho.t)
+    }
+  }  
+  return(A.t)
+}
+
 random.assignment.fn <- function(all.persondays) {
   
   sampled.obs = sample(1:nrow(all.persondays),size = 1)
@@ -145,3 +167,33 @@ cv.assignment.fn <- function(sampled.obs, all.persondays, all.Ns) {
   )  
 }
 
+
+cv.assignment.multiple.fn <- function(sampled.obs, all.persondays, all.Ns, num.iters) {
+  
+  userday.combo = as.numeric(all.persondays[sampled.obs,])
+  
+  sampled.personday = window.time[window.time$user==userday.combo[1] & window.time$study.day==userday.combo[2],]
+  
+  X.t = sampled.personday$sedentary.width
+  blockid = all.persondays[sampled.obs,3]
+  
+  N = all.Ns[blockid]
+  prob.buckets = calc.prob.buckets(blockid, all.persondays, window.time, N)
+  A.t = matrix(nrow = num.iters, ncol = length(X.t))
+  A.t[1,] = action.assignment.avail(X.t, prob.buckets)
+  for (i in 2:num.iters) {
+    A.t[i,] = action.assignment.avail(X.t, prob.buckets)
+  }
+  
+  avail_and_act = matrix(A.t==1, nrow = nrow(A.t), ncol = ncol(A.t))
+  
+  p.hat = colMeans(avail_and_act)
+  
+  return( 
+    c( p.hat[1:min(136,length(p.hat))], 
+       rep(0,max(0,136-length(p.hat))), 
+       X.t[1:min(136,length(X.t))], 
+       rep(0,max(0,136-length(X.t))) 
+    )
+  )  
+}

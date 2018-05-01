@@ -382,8 +382,8 @@ Nbar = probzero.bar/sum(probzero.bar) * 1.5
 
 output = Nbar/kbar
 
-# setwd("/Users/walterdempsey/Documents/github/heartstepsdata/Walter")
-# saveRDS(object = output, file = "ema_output")
+setwd("/Users/walterdempsey/Documents/github/heartstepsdata/Walter/rand-probs/ema-block")
+saveRDS(object = output, file = "ema_output.RDS")
 
 ## ANOVA DECOMPOSITION
 which.bucket <- function(hour) {
