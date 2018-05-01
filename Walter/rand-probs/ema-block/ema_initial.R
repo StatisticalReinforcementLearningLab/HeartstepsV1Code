@@ -1,10 +1,12 @@
 library(ggplot2)
-source("functions.R")
+source("ema_functions.R")
 
 gitloc <- switch(Sys.info()["sysname"],
                   "Windows" = list(gitloc = "C:/Users/wdem/Documents/GitHub/heartstepsdata/"),
                   "Darwin" = list(gitloc = "/Users/walterdempsey/Documents/github/heartstepsdata"))
 setwd(gitloc$gitloc)
+
+## Make sure to mount the HeartSteps Box Folder now.
 
 ## load exported csv files into data frames,
 ## tidy up and save as an R workspace (.RData file)
@@ -324,7 +326,6 @@ window.time <- merge(window.time,
                all.x = TRUE)
 
 # Sedentary = 40 minutes of < 150 steps
-
 temp = window.time$steps
 temp[is.na(temp)] = 0.0
 
@@ -358,18 +359,31 @@ obs.bucket1 = (hour(window.time$window.utime) >= bucket1[1]) & (hour(window.time
 obs.bucket2 = (hour(window.time$window.utime) >= bucket2[1]) & (hour(window.time$window.utime) <= bucket2[2])
 obs.bucket3 = (hour(window.time$window.utime) >= bucket3[1]) | (hour(window.time$window.utime) <= bucket3[2])
 
-fracsed.bucket1 = mean(window.time$sedentary.width[obs.bucket1])
-fracsed.bucket2 = mean(window.time$sedentary.width[obs.bucket2])
-fracsed.bucket3 = mean(window.time$sedentary.width[obs.bucket3])
+# Compute the number of risk times within each user-day in each bucket
+k1 = aggregate(sedentary.width~user + study.day, data = window.time[obs.bucket1,], sum)
+k2 = aggregate(sedentary.width~user + study.day, data = window.time[obs.bucket2,], sum)
+k3 = aggregate(sedentary.width~user + study.day, data = window.time[obs.bucket3,], sum)
 
-prob.bucket1 = (1.5/3)/(12*4*fracsed.bucket1)
-prob.bucket2 = (1.5/3)/(12*4*fracsed.bucket2)
-prob.bucket3 = (1.5/3)/(12*4*fracsed.bucket3)
+kbar = c( mean(k1$sedentary.width), mean(k2$sedentary.width), mean(k3$sedentary.width))
 
-output = c(prob.bucket1,prob.bucket2,prob.bucket3)
+probzero.bar = c(mean(k1$sedentary.width>0), mean(k2$sedentary.width>0),mean(k3$sedentary.width>0))
 
-# setwd("/Users/walterdempsey/Documents/github/heartstepsdata/Walter")
-# saveRDS(object = output, file = "ema_output")
+Nbar = probzero.bar/sum(probzero.bar) * 1.5
+
+# fracsed.bucket1 = mean(window.time$sedentary.width[obs.bucket1])
+# fracsed.bucket2 = mean(window.time$sedentary.width[obs.bucket2])
+# fracsed.bucket3 = mean(window.time$sedentary.width[obs.bucket3])
+
+# prob.bucket1 = (1.5/3)/(12*4*fracsed.bucket1)
+# prob.bucket2 = (1.5/3)/(12*4*fracsed.bucket2)
+# prob.bucket3 = (1.5/3)/(12*4*fracsed.bucket3)
+# 
+# output = c(prob.bucket1,prob.bucket2,prob.bucket3)
+
+output = Nbar/kbar
+
+setwd("/Users/walterdempsey/Documents/github/heartstepsdata/Walter")
+saveRDS(object = output, file = "ema_output")
 
 ## ANOVA DECOMPOSITION
 which.bucket <- function(hour) {
