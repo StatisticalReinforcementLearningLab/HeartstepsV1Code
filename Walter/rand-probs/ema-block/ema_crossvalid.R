@@ -59,6 +59,7 @@ all.Ns= c(N.one, N.two,
 
 set.seed("541891")
 total.At = sapply(1:nrow(all.persondays), cv.assignment.fn, all.persondays, all.Ns)
+# saveRDS(total.At, file = "/Users/walterdempsey/Documents/github/heartstepsdata/Walter/rand-probs/ema-block/simulation_At.RDS")
 
 mean(colSums(total.At[1:136,]), na.rm = TRUE)
 sd(colSums(total.At[1:136,]), na.rm = TRUE)/sqrt(nrow(all.persondays))
@@ -160,17 +161,28 @@ lines(global.x.axis, global.y.axis, lty = 2, lwd = 2,
 ## Calculate p.hat per person-day
 total.phat = sapply(1:nrow(all.persondays), cv.assignment.multiple.fn, all.persondays, all.Ns, num.iters)
 
-# saveRDS(total.phat, file = "simulation_phat.RDS")
+# saveRDS(total.phat, file = "/Users/walterdempsey/Documents/github/heartstepsdata/Walter/rand-probs/ema-block/simulation_phat.RDS")
 
 ## Compute the squared distance
-results = vector(length = nrow(total.phat))
+results.phat = vector(length = ncol(total.phat))
 
-for (row in 1:nrow(total.phat)) {
-  current.phat = total.phat[row, ]
-  current.phat = current.phat[current.phat !=0]
-  results.phat[row] = (current.phat - mean(current.phat))^2 / length(current.phat)
+for (col in 1:ncol(total.phat)) {
+  current.values = total.phat[,col]
+  current.Xt = current.values[137:length(current.values)]
+  current.phat = current.values[1:136]
+  current.phat = current.phat[current.Xt == 1]
+  results.phat[col] = sd(current.phat)
 }
 
+library(ggplot2)
+sim.df = data.frame(results.phat)
+names(sim.df) = c("metric")
+
+p1 <- ggplot(data=sim.df, aes(metric)) + geom_histogram() + xlab("Squared Distance Metric")
+
+## Plot of the average number of 
+## interventions across person-days
+p1 
 
 
 # total.phat = readRDS("total_phat.RDS")
