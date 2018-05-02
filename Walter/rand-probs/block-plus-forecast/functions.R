@@ -1,6 +1,7 @@
 exp.time.rem.in.state <- function(remaining.time, current.state, current.run.length, max.val = 100) {
   ## Computes the expected remaining time in Sedendatry 
   ## or Not Sedentary state
+  ## Within each bucket
   
   temp = Sedentary.length[Sedentary.values == current.state 
                           & Sedentary.length > current.run.length
@@ -238,6 +239,35 @@ cv.assignment.fn <- function(sampled.obs, all.persondays, all.Ns) {
   return( 
     c( A.t[1:min(136,length(A.t))], 
        rep(0,max(0,136-length(A.t))), 
+       X.t[1:min(136,length(X.t))], 
+       rep(0,max(0,136-length(X.t))) 
+    )
+  )  
+}
+
+cv.assignment.multiple.fn <- function(sampled.obs, all.persondays, all.Ns) {
+  
+  userday.combo = as.numeric(all.persondays[sampled.obs,])
+  
+  sampled.personday = window.time[window.time$user==userday.combo[1] & window.time$study.day==userday.combo[2],]
+  
+  X.t = sampled.personday$sedentary.width
+  
+  N = c(0,all.Ns[all.persondays[sampled.obs,3]])
+  
+  A.t = matrix(nrow = num.iters, ncol = length(X.t))
+  A.t[1,] = action.assignment.avail(X.t, prob.buckets)
+  for (i in 2:num.iters) {
+    A.t[i,] = action.assignment.avail(X.t, prob.buckets)
+  }
+  
+  avail_and_act = matrix(A.t==1, nrow = nrow(A.t), ncol = ncol(A.t))
+  
+  p.hat = colMeans(avail_and_act)
+  
+  return( 
+    c( p.hat[1:min(136,length(p.hat))], 
+       rep(0,max(0,136-length(p.hat))), 
        X.t[1:min(136,length(X.t))], 
        rep(0,max(0,136-length(X.t))) 
     )

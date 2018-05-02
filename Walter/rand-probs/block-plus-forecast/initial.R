@@ -1,3 +1,6 @@
+## File only needs to be run once to create 
+## the necessary CSV files in the HeartSteps database
+
 library(ggplot2)
 source("functions.R")
 
