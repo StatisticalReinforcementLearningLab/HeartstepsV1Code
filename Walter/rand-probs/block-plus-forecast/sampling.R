@@ -1,28 +1,23 @@
 library(ggplot2)
-# require(doParallel)
-
-# # reads the list of nodes which have been allocated
-# # by the cluster queue manager
-# nodefile <- Sys.getenv("PBS_NODEFILE")
-# hostlist <- read.table(nodefile, skip=1, header=FALSE)
-# 
-# # builds a socket cluster using these nodes
-# cl <- makeCluster(c(as.character(hostlist$V1)), type='SOCK')
-# 
-# registerDoParallel(cl)
 
 ## Required packages and source files
+setwd("~//Documents/github/heartstepsdata/Walter/rand-probs/block-plus-forecast")
 source("functions.R");require(mgcv); require(lubridate); require(foreach)
 setwd("/Volumes/dav/HeartSteps/Walter/")
 window.time = read.csv("window_time.csv")
 Sedentary.values = read.csv("sed_values.csv")
 Sedentary.length = read.csv("sed_length.csv")
 
+## Blocks for the forecast to work within
+## These were pre-determined to be of equal
+## size and have roughly equal risk #s within
+bucket1 = c(14,17); bucket2 = c(18,21); bucket3 = c(22,1)
+buckets = list(bucket1,bucket2, bucket3)
+
 window.time$window.utime = as.POSIXct(window.time$window.utime, tz = "GMT") + minutes(40)
 
 ## Create a data.frame for Expected time Remaining
 ## Range of current hour = c(14:23,0:1)
-
 seq.hour = c(14:23,0:1)
 fraction.data = matrix(nrow = length(seq.hour), ncol = 3)
 
@@ -35,23 +30,22 @@ for (i in 1:length(seq.hour)) {
 fraction.df = data.frame(fraction.data)
 names(fraction.df) = c("current.hour", "mean", "var")
 
-png("/figs/fraction_sed.png", width = 6.5,height = 3, units = "in", res = 300)
+# png("/figs/fraction_sed.png", width = 6.5,height = 3, units = "in", res = 300)
 ggplot(data=fraction.df, aes(x=(current.hour-14)%%24, y=mean)) +
   geom_line()+
   geom_point()+ scale_y_continuous(limits = c(0.45, 0.55)) +
   xlab("Hour (0 = 9AM)") + ylab("Fraction of time 'Sedentary'")
-dev.off()
+# dev.off()
 
 ## Setup
-N = c(0.0,1.74)
+N = c(0.0,0.875)
 eta = 0.0
 lambda = 0.0
 
 ## Extract a person-day
 set.seed("541891")
 all.persondays = unique(window.time[,c(1,3)])
-num.iters = 2000
-
+num.iters = 1000 #10000
 total.At = foreach(i=1:num.iters,  .combine='cbind') %do% random.assignment.fn(all.persondays)
 
 mean(colSums(total.At[1:136,]), na.rm = TRUE)
@@ -93,5 +87,3 @@ p2 <- ggplot(data=temp.df, aes(x=altered.hour.At, y=num.At)) +
 ## receive a treatment within each 1 
 ## hour bucket.
 p2 
-
-# stopCluster(cl)
