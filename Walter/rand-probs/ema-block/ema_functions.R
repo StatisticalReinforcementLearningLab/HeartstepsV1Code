@@ -1,6 +1,6 @@
 calc.prob.buckets <- function(blockid, all.persondays, window.time, N) {
   
-  block.persondays = all.persondays[all.persondays$block==blockid, 1:2]
+  block.persondays = all.persondays[all.persondays$block!=blockid, 1:2]
   
   obs = is.element(window.time$user, block.persondays$user) & is.element(window.time$study.day, block.persondays$study.day) 
   

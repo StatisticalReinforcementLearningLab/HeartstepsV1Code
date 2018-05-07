@@ -1,3 +1,10 @@
+## Pre-clear the global memory
+rm(list =  ls())
+
+library(doParallel)
+cl <- makeCluster(2)
+registerDoParallel(cl)
+
 ## Required packages and source files
 setwd("/Users/walterdempsey/Documents/github/heartstepsdata/Walter/rand-probs/ema-block")
 source("ema_functions.R");require(mgcv); require(lubridate); require(foreach)
@@ -34,23 +41,23 @@ all.persondays = data.frame(all.persondays)
 names(all.persondays) = c("user", "study.day", "block")
 
 blockid = 1
-N.one = 0.645
+N.one = 0.5
 # otherblock.assignment.fn(all.persondays, blockid, N.one)
 
 blockid = 2
-N.two = 0.645
+N.two = 0.5
 # otherblock.assignment.fn(all.persondays, blockid, N.two)
 
 blockid = 3
-N.three = 0.64
+N.three = 0.5
 # otherblock.assignment.fn(all.persondays, blockid, N.three)
 
 blockid = 4
-N.four = 0.64
+N.four = 0.5
 # otherblock.assignment.fn(all.persondays, blockid, N.four)
 
 blockid = 5
-N.five = 0.64
+N.five = 0.5
 # otherblock.assignment.fn(all.persondays, blockid, N.five)
 
 all.Ns= c(N.one, N.two, 
@@ -58,22 +65,26 @@ all.Ns= c(N.one, N.two,
           N.five)
 
 set.seed("541891")
-total.At = sapply(1:nrow(all.persondays), cv.assignment.fn, all.persondays, all.Ns)
-# saveRDS(total.At, file = "/Users/walterdempsey/Documents/github/heartstepsdata/Walter/rand-probs/ema-block/simulation_At.RDS")
-
+if (!file.exists("simulation_At.RDS")) {
+  # total.At = sapply(1:nrow(all.persondays), cv.assignment.fn, all.persondays, all.Ns)
+  total.At = foreach(i=1:nrow(all.persondays), .packages = c("mgcv", "lubridate"), .combine = cbind) %dopar% cv.assignment.fn(i,all.persondays, all.Ns)
+  saveRDS(total.At, file = "/Users/walterdempsey/Documents/github/heartstepsdata/Walter/rand-probs/ema-block/simulation_At.RDS")
+} else {
+  total.At = readRDS("/Users/walterdempsey/Documents/github/heartstepsdata/Walter/rand-probs/ema-block/simulation_At.RDS")
+}
 mean(colSums(total.At[1:136,]), na.rm = TRUE)
 sd(colSums(total.At[1:136,]), na.rm = TRUE)/sqrt(nrow(all.persondays))
 
 sim.df = data.frame(colSums(total.At[1:136,]))
 names(sim.df) = c("ints")
 
-# pdf(file = "emablocking_histogram_numtreatments.pdf", width = 7, height=7)
+pdf(file = "emablocking_histogram_numtreatments.pdf", width = 7, height=7)
 values = sim.df$ints
 counts <- table(values)
 counts <- counts/sum(counts);
 names(counts) <- 0:(length(counts)-1);
 barplot(counts, ylim = c(0, 0.35), ylab = "Percent", xlab = "Number of Treatments", cex.lab = 1.3)
-# dev.off()
+dev.off()
 
 time.steps = 1:nrow(total.At[1:136,])
 hour = floor(time.steps/12 + 14 + 35/60)%%24
@@ -93,7 +104,7 @@ altered.hour.At = altered.hour.At[order(altered.hour.At)]
 
 temp.df = data.frame(cbind(altered.hour.At, num.At))
 
-# pdf(file = "emablocking_fraction_actionreceived.pdf", width = 7, height=7)
+pdf(file = "emablocking_fraction_actionreceived.pdf", width = 7, height=7)
 x.axis = temp.df$altered.hour.At
 y.axis = temp.df$num.At
 plot(x.axis, y.axis, pch = 16,
@@ -102,7 +113,7 @@ plot(x.axis, y.axis, pch = 16,
      ylim = c(0.00, 0.02))
 lines(x.axis, y.axis, lty = 1,
       col = "red")
-# dev.off()
+dev.off()
 
 #  Make curves per person
 set.of.users = unique(all.persondays[,1])
@@ -159,10 +170,12 @@ lines(global.x.axis, global.y.axis, lty = 2, lwd = 2,
 
 ## Uniformity plots
 ## Calculate p.hat per person-day
-total.phat = sapply(1:nrow(all.persondays), cv.assignment.multiple.fn, all.persondays, all.Ns, num.iters)
-
-# saveRDS(total.phat, file = "/Users/walterdempsey/Documents/github/heartstepsdata/Walter/rand-probs/ema-block/simulation_phat.RDS")
-
+if (!file.exists("simulation_phat.RDS")) {
+  total.phat = sapply(1:nrow(all.persondays), cv.assignment.multiple.fn, all.persondays, all.Ns, num.iters)
+  saveRDS(total.phat, file = "/Users/walterdempsey/Documents/github/heartstepsdata/Walter/rand-probs/ema-block/simulation_phat.RDS")
+} else {
+  total.phat = readRDS("/Users/walterdempsey/Documents/github/heartstepsdata/Walter/rand-probs/ema-block/simulation_phat.RDS")
+}
 ## Compute the squared distance
 results.phat = vector(length = ncol(total.phat))
 
