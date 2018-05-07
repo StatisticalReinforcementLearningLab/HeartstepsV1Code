@@ -44,23 +44,23 @@ all.persondays = data.frame(all.persondays)
 names(all.persondays) = c("user", "study.day", "block")
 
 blockid = 1
-N.one = c(0.0,0.35)
+N.one = c(0.0,1.56)
 # otherblock.assignment.fn(all.persondays, blockid, N.one)
 
 blockid = 2
-N.two = c(0.0,0.88)
+N.two = c(0.0,1.6)
 # otherblock.assignment.fn(all.persondays, blockid, N.two)
 
 blockid = 3
-N.three = c(0.0,0.88)
+N.three = c(0.0,1.565)
 # otherblock.assignment.fn(all.persondays, blockid, N.three)
 
 blockid = 4
-N.four = c(0.0,0.85)
+N.four = c(0.0,1.565)
 # otherblock.assignment.fn(all.persondays, blockid, N.four)
 
 blockid = 5
-N.five = c(0.0,0.875)
+N.five = c(0.0,1.56)
 # otherblock.assignment.fn(all.persondays, blockid, N.five)
 
 all.Ns= c(N.one[2], N.two[2], 

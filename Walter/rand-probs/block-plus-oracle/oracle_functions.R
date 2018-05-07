@@ -1,13 +1,9 @@
 oracle.remainder.fn <- function(current.time, X.t) {
   ## Returns number of X.t == 1 left
-  block.current = block.steps[current.time]
-  start.block.time = min(which(block.steps == block.current))
-  time.in.block = current.time - start.block.time + 1
-  blockX.t = X.t[block.steps == block.current]
-  if(time.in.block == length(blockX.t)) { 
+  if(current.time == length(X.t)) { 
     return(0)
   } else {
-    return( sum(blockX.t[(time.in.block+1):length(blockX.t)] == 1) )
+    return( sum(X.t[(current.time+1):length(X.t)] == 1) )
   }
 }
 
@@ -22,12 +18,12 @@ weighted.history <- function(current.state, time.diff, old.states, lambda, old.A
 randomization.probability <- function(N, current.time, H.t, X.t, lambda, eta, block.steps, max.prob = 0.995, min.prob = 0.005) {
   ## Randomization probabilifty function 
   ## depending on weighted history and full.remainder.fn.
-  
+  current.state = X.t[current.time]
   if (current.state == FALSE) {
     return(0) 
   } else {
     temp = (N[current.state+1] - weighted.history(current.state, H.t$time.diff, H.t$old.states, lambda, H.t$old.A, H.t$old.rho))/
-             (1 + oracle.remainder.fn(current.time, X.t, block.steps))
+             (1 + oracle.remainder.fn(current.time, X.t))
     return(min(max(temp,min.prob),max.prob))
   }
   
@@ -45,7 +41,7 @@ which.block <- function(current.hour) {
   }
 }
 
-action.assignment <- function(N, lambda, eta, X.t, buckets) {
+action.assignment <- function(N, lambda, eta, X.t) {
   ## Application of the randomization probability
   ## to a particular sequence~$X_t$
   
@@ -62,12 +58,12 @@ action.assignment <- function(N, lambda, eta, X.t, buckets) {
   for (t in 1:length(time.steps)) {
     current.state = X.t[t]
     current.hour = hour[t]
-    current.block = block.steps[t]
-    which.blocks = which(block.steps == current.block)
-    start.block = min(which.blocks); stop.block = max(which.blocks)
-    current.run.length = t+1 - max(which(X.t == current.state & 1:length(X.t) <= t))
-    # remaining.time = length(time.steps) - (t-1)
-    remaining.time.in.block = stop.block - (t - 1)
+    # current.block = block.steps[t]
+    # which.blocks = which(block.steps == current.block)
+    # start.block = min(which.blocks); stop.block = max(which.blocks)
+    # current.run.length = t+1 - max(which(X.t == current.state & 1:length(X.t) <= t))
+    # # remaining.time = length(time.steps) - (t-1)
+    # remaining.time.in.block = stop.block - (t - 1)
     if(any(A.t[(max(1,t-12)):(t-1)] == 1)) {
       rho.t = 0
       A.t[t] = 0
@@ -75,20 +71,20 @@ action.assignment <- function(N, lambda, eta, X.t, buckets) {
       rho.t = randomization.probability(N, t, H.t, X.t, lambda, eta, block.steps)
       A.t[t] = rbinom(n = 1, size = 1, prob = rho.t)
     }    
-    if (t == stop.block) {
-      H.t = data.frame(
-        old.states = rep(0,0),
-        old.A = rep(0,0),
-        old.rho = rep(0,0),
-        time.diff = rep(0,0))
-    }  else {
-      H.t = data.frame(
-        old.states = c(H.t$old.states, X.t[t]),
-        old.A = c(H.t$old.A, A.t[t]),
-        old.rho = c(H.t$old.rho, rho.t),
-        time.diff = c(t+1 - 1:t)
-      )
-    }  
+    # if (t == stop.block) {
+    #   H.t = data.frame(
+    #     old.states = rep(0,0),
+    #     old.A = rep(0,0),
+    #     old.rho = rep(0,0),
+    #     time.diff = rep(0,0))
+    # }  else {
+    H.t = data.frame(
+      old.states = c(H.t$old.states, X.t[t]),
+      old.A = c(H.t$old.A, A.t[t]),
+      old.rho = c(H.t$old.rho, rho.t),
+      time.diff = c(t+1 - 1:t)
+    )
+    # }  
   }
   return(A.t)
 }
@@ -110,12 +106,12 @@ action.assignment.avail <- function(N, lambda, eta, X.t, buckets) {
   for (t in 1:length(time.steps)) {
     current.state = X.t[t]
     current.hour = hour[t]
-    current.block = block.steps[t]
-    which.blocks = which(block.steps == current.block)
-    start.block = min(which.blocks); stop.block = max(which.blocks)
-    current.run.length = t+1 - max(which(X.t == current.state & 1:length(X.t) <= t))
-    # remaining.time = length(time.steps) - (t-1)
-    remaining.time.in.block = stop.block - (t - 1)
+    # current.block = block.steps[t]
+    # which.blocks = which(block.steps == current.block)
+    # start.block = min(which.blocks); stop.block = max(which.blocks)
+    # current.run.length = t+1 - max(which(X.t == current.state & 1:length(X.t) <= t))
+    # # remaining.time = length(time.steps) - (t-1)
+    # remaining.time.in.block = stop.block - (t - 1)
     if(any(A.t[(max(1,t-12)):(t-1)] == 1)) {
       rho.t = 0
       A.t[t] = -1
@@ -123,20 +119,20 @@ action.assignment.avail <- function(N, lambda, eta, X.t, buckets) {
       rho.t = randomization.probability(N, t, X.t, lambda, eta, block.steps)
       A.t[t] = rbinom(n = 1, size = 1, prob = rho.t)
     }    
-    if (t == stop.block) {
-      H.t = data.frame(
-        old.states = rep(0,0),
-        old.A = rep(0,0),
-        old.rho = rep(0,0),
-        time.diff = rep(0,0))
-    }  else {
-      H.t = data.frame(
-        old.states = c(H.t$old.states, X.t[t]),
-        old.A = c(H.t$old.A, A.t[t]),
-        old.rho = c(H.t$old.rho, rho.t),
-        time.diff = c(t+1 - 1:t)
-      )
-    }  
+    # if (t == stop.block) {
+    #   H.t = data.frame(
+    #     old.states = rep(0,0),
+    #     old.A = rep(0,0),
+    #     old.rho = rep(0,0),
+    #     time.diff = rep(0,0))
+    # }  else {
+    H.t = data.frame(
+      old.states = c(H.t$old.states, X.t[t]),
+      old.A = c(H.t$old.A, A.t[t]),
+      old.rho = c(H.t$old.rho, rho.t),
+      time.diff = c(t+1 - 1:t)
+    )
+    # }  
   }
   return(A.t)
 }
