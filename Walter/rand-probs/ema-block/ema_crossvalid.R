@@ -171,7 +171,9 @@ lines(global.x.axis, global.y.axis, lty = 2, lwd = 2,
 ## Uniformity plots
 ## Calculate p.hat per person-day
 if (!file.exists("simulation_phat.RDS")) {
-  total.phat = sapply(1:nrow(all.persondays), cv.assignment.multiple.fn, all.persondays, all.Ns, num.iters)
+  num.iters = 1000
+  total.phat = foreach(i=1:nrow(all.persondays), .packages = c("mgcv", "chron"), .combine = cbind) %dopar% cv.assignment.multiple.fn(i,all.persondays, all.Ns, num.iters)  
+  # total.phat = sapply(1:nrow(all.persondays), cv.assignment.multiple.fn, all.persondays, all.Ns, num.iters)
   saveRDS(total.phat, file = "/Users/walterdempsey/Documents/github/heartstepsdata/Walter/rand-probs/ema-block/simulation_phat.RDS")
 } else {
   total.phat = readRDS("/Users/walterdempsey/Documents/github/heartstepsdata/Walter/rand-probs/ema-block/simulation_phat.RDS")
