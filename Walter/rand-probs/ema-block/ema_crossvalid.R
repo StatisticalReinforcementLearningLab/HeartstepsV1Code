@@ -7,7 +7,7 @@ registerDoParallel(cl)
 
 ## Required packages and source files
 setwd("/Users/walterdempsey/Documents/github/heartstepsdata/Walter/rand-probs/ema-block")
-source("ema_functions.R");require(mgcv); require(lubridate); require(foreach); require(doRNG)
+source("ema_functions.R");require(mgcv); require(chron); require(foreach); require(doRNG)
 
 setwd("/Volumes/dav/HeartSteps/Walter/")
 window.time = read.csv("window_time.csv")
@@ -67,7 +67,7 @@ all.Ns= c(N.one, N.two,
 set.seed("541891")
 if (!file.exists("simulation_At.RDS")) {
   # total.At = sapply(1:nrow(all.persondays), cv.assignment.fn, all.persondays, all.Ns)
-  total.At = foreach(i=1:nrow(all.persondays), .packages = c("mgcv", "lubridate"), .combine = cbind, .options.RNG =541891) %dorng% cv.assignment.fn(i,all.persondays, all.Ns)
+  total.At = foreach(i=1:nrow(all.persondays), .packages = c("mgcv", "chron"), .combine = cbind, .options.RNG =541891) %dorng% cv.assignment.fn(i,all.persondays, all.Ns)
   saveRDS(total.At, file = "/Users/walterdempsey/Documents/github/heartstepsdata/Walter/rand-probs/ema-block/simulation_At.RDS")
 } else {
   total.At = readRDS("/Users/walterdempsey/Documents/github/heartstepsdata/Walter/rand-probs/ema-block/simulation_At.RDS")
