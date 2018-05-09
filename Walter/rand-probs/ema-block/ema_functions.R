@@ -179,21 +179,27 @@ cv.assignment.multiple.fn <- function(sampled.obs, all.persondays, all.Ns, num.i
   
   N = all.Ns[blockid]
   prob.buckets = calc.prob.buckets(blockid, all.persondays, window.time, N)
-  A.t = matrix(nrow = num.iters, ncol = length(X.t))
-  A.t[1,] = action.assignment.avail(X.t, prob.buckets)
-  for (i in 2:num.iters) {
-    A.t[i,] = action.assignment.avail(X.t, prob.buckets)
-  }
+  A.t = replicate(n=num.iters, action.assignment(X.t, prob.buckets))
+  ## Rewrite to be a replicate function!
+  # system.time(
+  # for (i in 2:num.iters) {
+  #   A.t[i,] = action.assignment.avail(N, lambda, eta, X.t, buckets)
+  # }
+  # )
   
   avail_and_act = matrix(A.t==1, nrow = nrow(A.t), ncol = ncol(A.t))
   
-  p.hat = colMeans(avail_and_act)
+  p.hat = rowMeans(A.t)
+  mat.Xt = matrix(rep(X.t, num.iters), nrow = length(X.t))
+  mse.hat = rowMeans((A.t - 1.5*(mat.Xt==1))^2)
   
   return( 
     c( p.hat[1:min(136,length(p.hat))], 
        rep(0,max(0,136-length(p.hat))), 
        X.t[1:min(136,length(X.t))], 
+       rep(0,max(0,136-length(X.t))),
+       mse.hat[1:min(136,length(X.t))], 
        rep(0,max(0,136-length(X.t))) 
     )
-  )  
+  ) 
 }
