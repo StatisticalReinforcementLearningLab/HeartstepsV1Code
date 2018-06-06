@@ -1,22 +1,22 @@
 calc.prob.buckets <- function(blockid, all.persondays, window.time, N, offset) {
   
+  obs.bucket1 = (hours(window.time$window.utime) >= bucket1[1]) & (hours(window.time$window.utime) <= bucket1[2])
+  obs.bucket2 = (hours(window.time$window.utime) >= bucket2[1]) & (hours(window.time$window.utime) <= bucket2[2])
+  obs.bucket3 = (hours(window.time$window.utime) >= bucket3[1]) | (hours(window.time$window.utime) <= bucket3[2])
+  
+  data.bucket1 = aggregate(sedentary.width ~ user + study.day, subset(window.time, obs.bucket1), FUN = mean)
+  data.bucket2 = aggregate(sedentary.width ~ user + study.day, subset(window.time, obs.bucket2), FUN = mean)
+  data.bucket3 = aggregate(sedentary.width ~ user + study.day, subset(window.time, obs.bucket3), FUN = mean)
+  
+  lmer.obs.bucket1 = is.element(data.bucket1$user, block.persondays$user) & is.element(data.bucket1$study.day, block.persondays$study.day) 
+  lmer.obs.bucket2 = is.element(data.bucket2$user, block.persondays$user) & is.element(data.bucket2$study.day, block.persondays$study.day) 
+  lmer.obs.bucket3 = is.element(data.bucket3$user, block.persondays$user) & is.element(data.bucket3$study.day, block.persondays$study.day) 
+  
   block.persondays = all.persondays[all.persondays$block!=blockid, 1:2]
   
-  obs.bucket1 = (hours(window.time$window.utime) >= bucket1[1]) & (hours(window.time.block$window.utime) <= bucket1[2])
-  obs.bucket2 = (hours(window.time$window.utime) >= bucket2[1]) & (hours(window.time.block$window.utime) <= bucket2[2])
-  obs.bucket3 = (hours(window.time$window.utime) >= bucket3[1]) | (hours(window.time.block$window.utime) <= bucket3[2])
-  
-  data.bucket1 = aggregate(sedentary.width ~ user + study.day, subset(window.time.block, obs.bucket1), FUN = mean)
-  data.bucket2 = aggregate(sedentary.width ~ user + study.day, subset(window.time.block, obs.bucket2), FUN = mean)
-  data.bucket3 = aggregate(sedentary.width ~ user + study.day, subset(window.time.block, obs.bucket3), FUN = mean)
-  
-  obs = is.element(data.bucket1$user, block.persondays$user) & is.element(data.bucket1$study.day, block.persondays$study.day) 
-  
-  window.time.block = window.time[obs,]
-  
-  model.bucket1 = lmer(sedentary.width ~ 1 + (1 | user), data.bucket1)
-  model.bucket2 = lmer(sedentary.width ~ 1 + (1 | user), data.bucket2)
-  model.bucket3 = lmer(sedentary.width ~ 1 + (1 | user), data.bucket3)
+  model.bucket1 = lmer(sedentary.width ~ 1 + (1 | user), subset(data.bucket1, lmer.obs.bucket1))
+  model.bucket2 = lmer(sedentary.width ~ 1 + (1 | user), subset(data.bucket2, lmer.obs.bucket2))
+  model.bucket3 = lmer(sedentary.width ~ 1 + (1 | user), subset(data.bucket3, lmer.obs.bucket3))
   
   ### Extract each user-block fitted value
   personalized.prob <- function(user, day, agg.data1, agg.data2, agg.data3) {

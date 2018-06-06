@@ -7,8 +7,8 @@ cl <- makeCluster(30)
 registerDoParallel(cl)
 
 ## Required packages and source files
-## setwd("/Users/walterdempsey/Documents/github/heartstepsdata/Walter/rand-probs/ema-block/baseline")
-source("ema_functions.R");require(mgcv); require(chron); require(foreach); require(doRNG)
+## setwd("/Users/walterdempsey/Documents/github/heartstepsdata/Walter/rand-probs/ema-block/person-specific")
+source("ema_ps_functions.R"); require(mgcv); require(chron); require(foreach); require(doRNG)
 
 setwd("/n/murphy_lab/users/wdempsey/ubicomp/data/")
 # setwd("/Volumes/dav/HeartSteps/Walter")
@@ -16,7 +16,7 @@ window.time = read.csv("window_time.csv")
 # Sedentary.values = read.csv("sed_values.csv")
 # Sedentary.length = read.csv("sed_length.csv")
 setwd("/n/murphy_lab/users/wdempsey/ubicomp/ema-block/")
-# setwd("~/Documents/github/heartstepsdata/Walter/rand-probs/ema-block/baseline")
+# setwd("~/Documents/github/heartstepsdata/Walter/rand-probs/ema-block/person-specific")
 bucket1 = c(14,17); bucket2 = c(18,21); bucket3 = c(22,1)
 buckets = list(bucket1,bucket2, bucket3)
 
@@ -30,14 +30,15 @@ seq.hour = c(14:23,0:1)
 init.N = 0.5
 
 ## Extract a person-day
-set.seed("541891")
+set.seed("139137")
 all.persondays = unique(window.time[,c(1,3)])
 
-## Generate the 5 random partitions
-partitions = sample(1:nrow(all.persondays), nrow(all.persondays), replace = FALSE)
-block.size = ceiling(nrow(all.persondays)/5)
+## Generate the 5 random partitions of the people
+unique.users = unique(all.persondays$user)
+partitions = sample(unique.users, length(unique.users), replace = FALSE)
+block.size = ceiling(length(unique.users)/5)
 
-all.persondays[,3] = unlist(lapply(1:nrow(all.persondays), which.partition))
+all.persondays[,3] = unlist(lapply(all.persondays$user, which.partition))
 
 all.persondays = data.frame(all.persondays)
 names(all.persondays) = c("user", "study.day", "block")
