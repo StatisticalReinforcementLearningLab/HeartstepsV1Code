@@ -80,7 +80,7 @@ all.Ns= c(N.one, N.two,
           N.five)
 
 ## Recompute with offsets
-## Offset for availability issue
+## Subtracting offset to account for availability 
 for(i in 1:5) {
   prob.buckets.list[[i]] = calc.prob.buckets(i, all.persondays, window.time, N.one, offset[[i]])
 }
