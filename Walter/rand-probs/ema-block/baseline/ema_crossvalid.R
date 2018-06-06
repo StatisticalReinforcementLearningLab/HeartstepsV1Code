@@ -1,6 +1,7 @@
 ## Pre-clear the global memory
 rm(list =  ls())
 
+## Parallel compute setup 
 library(doParallel)
 cl <- makeCluster(30)
 registerDoParallel(cl)
