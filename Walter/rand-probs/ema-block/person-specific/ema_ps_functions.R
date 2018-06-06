@@ -8,52 +8,59 @@ calc.prob.buckets <- function(blockid, all.persondays, window.time, N, offset) {
   data.bucket2 = aggregate(sedentary.width ~ user + study.day, subset(window.time, obs.bucket2), FUN = mean)
   data.bucket3 = aggregate(sedentary.width ~ user + study.day, subset(window.time, obs.bucket3), FUN = mean)
   
+  block.persondays = all.persondays[all.persondays$block!=blockid, 1:2] 
+  
   lmer.obs.bucket1 = is.element(data.bucket1$user, block.persondays$user) & is.element(data.bucket1$study.day, block.persondays$study.day) 
   lmer.obs.bucket2 = is.element(data.bucket2$user, block.persondays$user) & is.element(data.bucket2$study.day, block.persondays$study.day) 
   lmer.obs.bucket3 = is.element(data.bucket3$user, block.persondays$user) & is.element(data.bucket3$study.day, block.persondays$study.day) 
-  
-  block.persondays = all.persondays[all.persondays$block!=blockid, 1:2]
   
   model.bucket1 = lmer(sedentary.width ~ 1 + (1 | user), subset(data.bucket1, lmer.obs.bucket1))
   model.bucket2 = lmer(sedentary.width ~ 1 + (1 | user), subset(data.bucket2, lmer.obs.bucket2))
   model.bucket3 = lmer(sedentary.width ~ 1 + (1 | user), subset(data.bucket3, lmer.obs.bucket3))
   
-  ### Extract each user-block fitted value
-  personalized.prob <- function(user, day, agg.data1, agg.data2, agg.data3) {
-    ## Perform Prediction per bucket
-    temp = data.bucket1$sedentary.width[data.bucket1$user == user & data.bucket1$study.day < day]
-    varcor.temp = as.data.frame(VarCorr(model.bucket1))
-    sum.mb = summary(model.bucket1)
-    Sigma.temp = varcor.temp$vcov[1]*matrix(1, nrow = length(temp), ncol = length(temp)) + 
-      varcor.temp$vcov[2]*diag(1, length(temp) )
+}
+
+personalized.prob <- function(user, day, data.buckets, model.buckets) {
+  ## Perform Prediction per bucket
+  temp = data.bucket1$sedentary.width[data.bucket1$user == user & data.bucket1$study.day < day]
+  varcor.temp = as.data.frame(VarCorr(model.bucket1))
+  sum.mb = summary(model.bucket1)
+  Sigma.temp = varcor.temp$vcov[1]*matrix(1, nrow = length(temp), ncol = length(temp)) + 
+    varcor.temp$vcov[2]*diag(1, length(temp) )
+  if (is.null(dim(temp))) {
+    fracsed.bucket1 = sum.mb$coefficients[1]
+  } else {
     fracsed.bucket1 = sum(solve(Sigma.temp, temp - sum.mb$coefficients[1]))*varcor.temp$vcov[1]+sum.mb$coefficients[1]
-    
-    temp = data.bucket2$sedentary.width[data.bucket2$user == user & data.bucket2$study.day < day ]
-    varcor.temp = as.data.frame(VarCorr(model.bucket2))
-    sum.mb = summary(model.bucket2)
-    Sigma.temp = varcor.temp$vcov[1]*matrix(1, nrow = length(temp), ncol = length(temp)) + 
-      varcor.temp$vcov[2]*diag(1, length(temp) )
-    fracsed.bucket2 = sum(solve(Sigma.temp, temp - sum.mb$coefficients[1]))*varcor.temp$vcov[1]+sum.mb$coefficients[1]
-    
-    temp = data.bucket2$sedentary.width[data.bucket3$user == user & data.bucket3$study.day < day ]
-    varcor.temp = as.data.frame(VarCorr(model.bucket3))
-    sum.mb = summary(model.bucket3)
-    Sigma.temp = varcor.temp$vcov[1]*matrix(1, nrow = length(temp), ncol = length(temp)) + 
-      varcor.temp$vcov[2]*diag(1, length(temp) )
-    fracsed.bucket3 = sum(solve(Sigma.temp, temp - sum.mb$coefficients[1]))*varcor.temp$vcov[1]+sum.mb$coefficients[1]
-    
-    prob.bucket1 = N/(12*4*fracsed.bucket1 - offset)
-    prob.bucket2 = N/(12*4*fracsed.bucket2 - offset)
-    prob.bucket3 = N/(12*4*fracsed.bucket3 - offset)
-    
-    return( 
-      c(prob.bucket1, prob.bucket2, prob.bucket3)
-    )
-    
   }
   
+  temp = data.bucket2$sedentary.width[data.bucket2$user == user & data.bucket2$study.day < day ]
+  varcor.temp = as.data.frame(VarCorr(model.bucket2))
+  sum.mb = summary(model.bucket2)
+  Sigma.temp = varcor.temp$vcov[1]*matrix(1, nrow = length(temp), ncol = length(temp)) + 
+    varcor.temp$vcov[2]*diag(1, length(temp) )
+  if (is.null(dim(temp))) {
+    fracsed.bucket2 = sum.mb$coefficients[1]
+  } else {
+    fracsed.bucket2 = sum(solve(Sigma.temp, temp - sum.mb$coefficients[1]))*varcor.temp$vcov[1]+sum.mb$coefficients[1]
+  }
+  
+  temp = data.bucket2$sedentary.width[data.bucket3$user == user & data.bucket3$study.day < day ]
+  varcor.temp = as.data.frame(VarCorr(model.bucket3))
+  sum.mb = summary(model.bucket3)
+  Sigma.temp = varcor.temp$vcov[1]*matrix(1, nrow = length(temp), ncol = length(temp)) + 
+    varcor.temp$vcov[2]*diag(1, length(temp) )
+  if (is.null(dim(temp))) {
+    fracsed.bucket3 = sum.mb$coefficients[1]
+  } else {
+    fracsed.bucket3 = sum(solve(Sigma.temp, temp - sum.mb$coefficients[1]))*varcor.temp$vcov[1]+sum.mb$coefficients[1]
+  }
+  
+  prob.bucket1 = N/(12*4*fracsed.bucket1 - offset)
+  prob.bucket2 = N/(12*4*fracsed.bucket2 - offset)
+  prob.bucket3 = N/(12*4*fracsed.bucket3 - offset)
+  
   return( 
-    personalized.prob
+    c(prob.bucket1, prob.bucket2, prob.bucket3)
   )
 }
 
@@ -149,18 +156,18 @@ which.partition <- function(x) {
   ceiling(which(partitions == x)/block.size)
 }
 
-otherblock.assignment.fn <- function(all.persondays, blockid, N, prob.buckets) {
+otherblock.assignment.fn <- function(all.persondays, blockid, N, prob.buckets.fn) {
   ## Give this the full data and the hold out block id
   ## AND the N choice.
   ## Returns mean number of actions
-  set.seed("541891")
+  set.seed("91847")
   
   subset.persondays = subset(all.persondays, block != blockid)
   
   # prob.buckets =prob.bucket calc.prob.buckets(blockid, all.persondays, window.time, N)
   
   return(
-    mean(sapply(1:nrow(subset.persondays), mean.avail.fn, subset.persondays, prob.buckets))
+    mean(sapply(1:nrow(subset.persondays), mean.avail.fn, subset.persondays, prob.buckets.fn))
   )  
 }
 
@@ -178,9 +185,10 @@ mean.assignment.fn <- function(obs, subset.persondays, prob.buckets) {
   )  
 }
 
-mean.avail.fn <- function(obs, subset.persondays, prob.buckets) {
+mean.avail.fn <- function(obs, subset.persondays, prob.buckets.fn) {
   userday.combo = as.numeric(subset.persondays[obs,])
   sampled.personday = window.time[window.time$user==userday.combo[1] & window.time$study.day==userday.combo[2],]
+  prob.buckets = prob.buckets.fn(userday.combo[1], userday.combo[2])
   
   X.t = sampled.personday$sedentary.width
   
