@@ -10,16 +10,55 @@ calc.prob.buckets <- function(blockid, all.persondays, window.time, N, offset) {
   obs.bucket2 = (hours(window.time.block$window.utime) >= bucket2[1]) & (hours(window.time.block$window.utime) <= bucket2[2])
   obs.bucket3 = (hours(window.time.block$window.utime) >= bucket3[1]) | (hours(window.time.block$window.utime) <= bucket3[2])
   
-  fracsed.bucket1 = mean(window.time.block$sedentary.width[obs.bucket1])
-  fracsed.bucket2 = mean(window.time.block$sedentary.width[obs.bucket2])
-  fracsed.bucket3 = mean(window.time.block$sedentary.width[obs.bucket3])
+  data.bucket1 = aggregate(sedentary.width ~ user + study.day, subset(window.time.block, obs.bucket1), FUN = mean)
+  data.bucket2 = aggregate(sedentary.width ~ user + study.day, subset(window.time.block, obs.bucket1), FUN = mean)
+  data.bucket3 = aggregate(sedentary.width ~ user + study.day, subset(window.time.block, obs.bucket1), FUN = mean)
   
-  prob.bucket1 = N/(12*4*fracsed.bucket1 - offset)
-  prob.bucket2 = N/(12*4*fracsed.bucket2 - offset)
-  prob.bucket3 = N/(12*4*fracsed.bucket3 - offset)
+  model.bucket1 = lmer(sedentary.width~ 1 + (1 | user), data.bucket1)
+  model.bucket2 = lmer(sedentary.width~ 1 + (1 | user), subset(window.time.block, obs.bucket2))
+  model.bucket3 = lmer(sedentary.width~ 1 + (1 | user), subset(window.time.block, obs.bucket3))
+  
+  ### Extract each user-block fitted value
+  personalized.prob <- function(user, day) {
+    ## Perform Prediction per bucket
+    ## Use same variable names to avoid 
+    ## Exploding memory.
+    temp = window.time.block$sedentary.width[obs.bucket1][window.time.block$user[obs.bucket1] == user & 
+                                                             window.time.block$study.day[obs.bucket1] < day ]
+    varcor.temp = as.data.frame(VarCorr(model.bucket1))
+    sum.mb = summary(model.bucket1)
+    Sigma.temp = varcor.temp$vcov[1]*matrix(1, nrow = length(temp), ncol = length(temp)) + 
+      varcor.temp$vcov[2]*diag(1, length(temp) )
+    fracsed.bucket1 = sum(solve(Sigma.temp, temp - sum.mb$coefficients[1]))*varcor.temp$vcov[1]+sum.mb$coefficients[1]
+    
+    temp = window.time.block$sedentary.width[obs.bucket2][window.time.block$user[obs.bucket2] == user & 
+                                                            window.time.block$study.day[obs.bucket2] < day ]
+    varcor.temp = as.data.frame(VarCorr(model.bucket2))
+    sum.mb = summary(model.bucket2)
+    Sigma.temp = varcor.temp$vcov[1]*matrix(1, nrow = length(temp), ncol = length(temp)) + 
+      varcor.temp$vcov[2]*diag(1, length(temp) )
+    fracsed.bucket2 = sum(solve(Sigma.temp, temp - sum.mb$coefficients[1]))*varcor.temp$vcov[1]+sum.mb$coefficients[1]
+    
+    temp = window.time.block$sedentary.width[obs.bucket3][window.time.block$user[obs.bucket3] == user & 
+                                                            window.time.block$study.day[obs.bucket3] < day ]
+    varcor.temp = as.data.frame(VarCorr(model.bucket3))
+    sum.mb = summary(model.bucket3)
+    Sigma.temp = varcor.temp$vcov[1]*matrix(1, nrow = length(temp), ncol = length(temp)) + 
+      varcor.temp$vcov[2]*diag(1, length(temp) )
+    fracsed.bucket3 = sum(solve(Sigma.temp, temp - sum.mb$coefficients[1]))*varcor.temp$vcov[1]+sum.mb$coefficients[1]
+    
+    prob.bucket1 = N/(12*4*fracsed.bucket1 - offset)
+    prob.bucket2 = N/(12*4*fracsed.bucket2 - offset)
+    prob.bucket3 = N/(12*4*fracsed.bucket3 - offset)
+    
+    return( 
+      c(prob.bucket1, prob.bucket2, prob.bucket3)
+    )
+    
+  }
   
   return( 
-    c(prob.bucket1, prob.bucket2, prob.bucket3)
+    personalized.prob
   )
 }
 
