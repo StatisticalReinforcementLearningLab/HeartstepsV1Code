@@ -1,21 +1,21 @@
 ## Pre-clear the global memory
 rm(list =  ls())
 
-## Parallel compute setup 
+## Parallel compute setup
 library(doParallel)
 cl <- makeCluster(30)
 registerDoParallel(cl)
 
 ## Required packages and source files
 ## setwd("/Users/walterdempsey/Documents/github/heartstepsdata/Walter/rand-probs/ema-block/person-specific")
-source("ema_ps_functions.R"); require(mgcv); require(chron); require(foreach); require(doRNG)
+source("ema_ps_functions.R"); require(mgcv); require(chron); require(foreach); require(doRNG); require(lme4)
 
 setwd("/n/murphy_lab/users/wdempsey/ubicomp/data/")
 # setwd("/Volumes/dav/HeartSteps/Walter")
 window.time = read.csv("window_time.csv")
 # Sedentary.values = read.csv("sed_values.csv")
 # Sedentary.length = read.csv("sed_length.csv")
-setwd("/n/murphy_lab/users/wdempsey/ubicomp/ema-block/")
+setwd("/n/murphy_lab/users/wdempsey/ubicomp/ema-block/person-specific")
 # setwd("~/Documents/github/heartstepsdata/Walter/rand-probs/ema-block/person-specific")
 bucket1 = c(14,17); bucket2 = c(18,21); bucket3 = c(22,1)
 buckets = list(bucket1,bucket2, bucket3)
@@ -28,7 +28,7 @@ seq.hour = c(14:23,0:1)
 
 ## Build data aggregations per bucket
 ## For all user-day pairs
-data.buckets = construct.data.buckets(window.time, buckets) 
+data.buckets = construct.data.buckets(window.time, buckets)
 
 ## Setup
 init.N = 0.5
@@ -51,9 +51,9 @@ names(all.persondays) = c("user", "study.day", "block")
 ## Model is bucket specific
 model.buckets = construct.model.buckets(data.buckets, all.persondays)
 
-## Compute offsets 
+## Compute offsets
 offset.list = list()
-N = 0.51
+N = 0.53
 
 for (blockid in 1:5) {
   offset.list[[blockid]] = otherblock.assignment.fn(all.persondays, blockid, N.one, data.buckets, model.buckets, 0)/3
@@ -73,7 +73,7 @@ sd(colSums(total.At[1:144,]), na.rm = TRUE)/sqrt(nrow(all.persondays))
 ## Only compute if file doesn't exist
 if (!file.exists("simulation_phat.RDS")) {
   num.iters = 1000
-  total.phat = foreach(i=1:nrow(all.persondays), .packages = c("mgcv", "chron"), .combine = cbind, .options.RNG =541891) %dorng% cv.assignment.multiple.fn(i,all.persondays, all.Ns, num.iters, data.buckets, model.buckets, offset.list)  
+  total.phat = foreach(i=1:nrow(all.persondays), .packages = c("mgcv", "chron"), .combine = cbind, .options.RNG =541891) %dorng% cv.assignment.multiple.fn(i,all.persondays, N, num.iters, data.buckets, model.buckets, offset.list)
   saveRDS(total.phat, file = "simulation_phat.RDS")
 } else {
   total.phat = readRDS("simulation_phat.RDS")
