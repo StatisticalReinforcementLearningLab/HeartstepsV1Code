@@ -96,11 +96,10 @@ all.Ns= c(N.one[2], N.two[2],
 
 set.seed("541891")
 if (!file.exists("simulation_At.RDS")) {
-  # total.At = sapply(1:nrow(all.persondays), cv.assignment.fn, all.persondays, all.Ns)
   total.At = foreach(i=1:nrow(all.persondays), .packages = c("mgcv", "chron"), .combine = cbind) %dopar% cv.assignment.fn(i,all.persondays, all.Ns)
-  saveRDS(total.At, file = "/Users/walterdempsey/Documents/github/heartstepsdata/Walter/rand-probs/block-plus-forecast/simulation_At.RDS")
+  saveRDS(total.At, file = "simulation_At.RDS")
 } else {
-  total.At = readRDS("/Users/walterdempsey/Documents/github/heartstepsdata/Walter/rand-probs/block-plus-forecast/simulation_At.RDS")
+  total.At = readRDS("simulation_At.RDS")
 }
 mean(colSums(total.At[1:136,]), na.rm = TRUE)
 sd(colSums(total.At[1:136,]), na.rm = TRUE)/sqrt(nrow(all.persondays))
@@ -108,12 +107,11 @@ sd(colSums(total.At[1:136,]), na.rm = TRUE)/sqrt(nrow(all.persondays))
 ## Uniformity plots
 ## Calculate p.hat per person-day
 if (!file.exists("simulation_phat.RDS")) {
-  # total.phat = sapply(1:nrow(all.persondays), cv.assignment.multiple.fn, all.persondays, all.Ns, num.iters)
   num.iters = 1000
   total.phat = foreach(i=1:nrow(all.persondays), .packages = c("mgcv", "chron"), .combine = cbind, .options.RNG =541891) %dorng% cv.assignment.multiple.fn(i,all.persondays, all.Ns, num.iters)
-  saveRDS(total.phat, file = "/Users/walterdempsey/Documents/github/heartstepsdata/Walter/rand-probs/block-plus-forecast/simulation_phat.RDS")
+  saveRDS(total.phat, file = "simulation_phat.RDS")
 } else {
-  total.phat = readRDS("/Users/walterdempsey/Documents/github/heartstepsdata/Walter/rand-probs/block-plus-forecast/simulation_phat.RDS")
+  total.phat = readRDS("simulation_phat.RDS")
 }
 
 # ## Compute the squared distance
