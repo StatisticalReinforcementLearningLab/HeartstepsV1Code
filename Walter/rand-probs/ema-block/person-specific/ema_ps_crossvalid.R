@@ -28,7 +28,6 @@ seq.hour = c(14:23,0:1)
 
 ## Build data aggregations per bucket
 ## For all user-day pairs
-
 data.buckets = construct.data.buckets(window.time, buckets) 
 
 ## Setup
@@ -48,42 +47,17 @@ all.persondays[,3] = unlist(lapply(all.persondays$user, which.partition))
 all.persondays = data.frame(all.persondays)
 names(all.persondays) = c("user", "study.day", "block")
 
+## Build the models for each partition
+## Model is bucket specific
+model.buckets = construct.model.buckets(data.buckets, all.persondays)
+
 ## Pre-compute prob.buckets
-prob.buckets.list = list()
 offset = list()
+N = 0.5
 
-for(i in 1:5) {
-  prob.buckets.list[[i]] = calc.prob.buckets(i, all.persondays, window.time, init.N, 0)
+for (blockid in 1:5) {
+  offset[[blockid]] = otherblock.assignment.fn(all.persondays, blockid, N.one, data.buckets, model.buckets)/3
 }
-
-blockid = 1
-N.one = 0.5
-prob.buckets.fn = prob.buckets.list[[blockid]]
-offset[[1]] = otherblock.assignment.fn(all.persondays, blockid, N.one, prob.buckets.fn)/3
-
-blockid = 2
-N.two = 0.5
-prob.buckets = prob.buckets.list[[blockid]]
-offset[[blockid]] = otherblock.assignment.fn(all.persondays, blockid, N.two, prob.buckets)/3
-
-blockid = 3
-N.three = 0.5
-prob.buckets = prob.buckets.list[[blockid]]
-offset[[blockid]] = otherblock.assignment.fn(all.persondays, blockid, N.three, prob.buckets)/3
-
-blockid = 4
-N.four = 0.5
-prob.buckets = prob.buckets.list[[blockid]]
-offset[[blockid]] = otherblock.assignment.fn(all.persondays, blockid, N.four, prob.buckets)/3
-
-blockid = 5
-N.five = 0.5
-prob.buckets = prob.buckets.list[[blockid]]
-offset[[blockid]] = otherblock.assignment.fn(all.persondays, blockid, N.five, prob.buckets)/3
-
-all.Ns= c(N.one, N.two, 
-          N.three, N.four,
-          N.five)
 
 ## Recompute with offsets
 ## Subtracting offset to account for availability 

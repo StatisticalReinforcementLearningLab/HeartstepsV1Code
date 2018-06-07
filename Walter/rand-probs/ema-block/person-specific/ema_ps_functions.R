@@ -14,64 +14,43 @@ construct.data.buckets <- function(window.time, buckets) {
 
 construct.model.buckets <- function(data.buckets, all.persondays) {
   max.blockid = max(all.persondays[,3])
-  model.buckets = vector('list', max.blockid) 
+  model.buckets = list()
   for (blockid in 1:max.blockid) {
     block.persondays = all.persondays[all.persondays$block!=blockid, 1:2] 
     
     for (j in 1:3) {
-      lmer.obs.buckets[[1]] = is.element(data.buckets[[1]]$user, block.persondays$user) & is.element(data.buckets[[1]]$study.day, block.persondays$study.day) 
-
-      model.buckets[[(blockid-1)*3 + 1]] = lmer(sedentary.width ~ 1 + (1 | user), subset(data.buckets[[1]], lmer.obs.buckets[[1]]))
-
+      lmer.obs.buckets = is.element(data.buckets[[j]]$user, block.persondays$user) & is.element(data.buckets[[j]]$study.day, block.persondays$study.day) 
+      model.buckets[[(blockid-1)*3 + j]] = lmer(sedentary.width ~ 1 + (1 | user), subset(data.buckets[[j]], lmer.obs.buckets))
+    }
+    
   }    
 
   return(model.buckets)
   
 }
 
-personalized.prob <- function(obs, all.persondays, data.buckets, model.buckets) {
+personalized.prob <- function(obs, all.persondays, data.buckets, model.buckets, offset) {
   userday.combo = all.persondays[obs,]
   user = as.numeric(userday.combo[1]); day = as.numeric(userday.combo[2]); blockid = as.numeric(userday.combo[3])
   ## Perform Prediction per bucket
-  temp = data.buckets[[1]]$sedentary.width[data.buckets[[1]]$user == user & data.buckets[[1]]$study.day < day]
-  varcor.temp = as.data.frame(VarCorr(model.buckets[[blockid]][[1]]))
-  sum.mb = summary(model.bucket1)
-  Sigma.temp = varcor.temp$vcov[1]*matrix(1, nrow = length(temp), ncol = length(temp)) + 
-    varcor.temp$vcov[2]*diag(1, length(temp) )
-  if (is.null(dim(temp))) {
-    fracsed.bucket1 = sum.mb$coefficients[1]
-  } else {
-    fracsed.bucket1 = sum(solve(Sigma.temp, temp - sum.mb$coefficients[1]))*varcor.temp$vcov[1]+sum.mb$coefficients[1]
+  fracsed.bucket = prob.bucket = vector(length = 3)
+  for (j in 1:3) {
+    temp = data.buckets[[j]]$sedentary.width[data.buckets[[j]]$user == user & data.buckets[[j]]$study.day < day]
+    varcor.temp = as.data.frame(VarCorr(model.buckets[[(blockid-1)*3 + j]]))
+    sum.mb = summary(model.buckets[[(blockid-1)*3 + j]])
+    Sigma.temp = varcor.temp$vcov[1]*matrix(1, nrow = length(temp), ncol = length(temp)) + 
+      varcor.temp$vcov[2]*diag(1, length(temp) )
+    if (length(temp) == 0) {
+      fracsed.bucket[j] = sum.mb$coefficients[1]
+    } else {
+      fracsed.bucket[j] = sum(solve(Sigma.temp, temp - sum.mb$coefficients[1]))*varcor.temp$vcov[1]+sum.mb$coefficients[1]
+    }
+    prob.bucket[j] = N/(12*4*fracsed.bucket[j] - offset)
+    
   }
-  
-  temp = data.bucket2$sedentary.width[data.bucket2$user == user & data.bucket2$study.day < day ]
-  varcor.temp = as.data.frame(VarCorr(model.bucket2))
-  sum.mb = summary(model.bucket2)
-  Sigma.temp = varcor.temp$vcov[1]*matrix(1, nrow = length(temp), ncol = length(temp)) + 
-    varcor.temp$vcov[2]*diag(1, length(temp) )
-  if (is.null(dim(temp))) {
-    fracsed.bucket2 = sum.mb$coefficients[1]
-  } else {
-    fracsed.bucket2 = sum(solve(Sigma.temp, temp - sum.mb$coefficients[1]))*varcor.temp$vcov[1]+sum.mb$coefficients[1]
-  }
-  
-  temp = data.bucket2$sedentary.width[data.bucket3$user == user & data.bucket3$study.day < day ]
-  varcor.temp = as.data.frame(VarCorr(model.bucket3))
-  sum.mb = summary(model.bucket3)
-  Sigma.temp = varcor.temp$vcov[1]*matrix(1, nrow = length(temp), ncol = length(temp)) + 
-    varcor.temp$vcov[2]*diag(1, length(temp) )
-  if (is.null(dim(temp))) {
-    fracsed.bucket3 = sum.mb$coefficients[1]
-  } else {
-    fracsed.bucket3 = sum(solve(Sigma.temp, temp - sum.mb$coefficients[1]))*varcor.temp$vcov[1]+sum.mb$coefficients[1]
-  }
-  
-  prob.bucket1 = N/(12*4*fracsed.bucket1 - offset)
-  prob.bucket2 = N/(12*4*fracsed.bucket2 - offset)
-  prob.bucket3 = N/(12*4*fracsed.bucket3 - offset)
   
   return( 
-    c(prob.bucket1, prob.bucket2, prob.bucket3)
+    prob.bucket
   )
 }
 
@@ -167,7 +146,7 @@ which.partition <- function(x) {
   ceiling(which(partitions == x)/block.size)
 }
 
-otherblock.assignment.fn <- function(all.persondays, blockid, N, prob.buckets.fn) {
+otherblock.assignment.fn <- function(all.persondays, blockid, N, data.buckets, model.buckets, offset) {
   ## Give this the full data and the hold out block id
   ## AND the N choice.
   ## Returns mean number of actions
@@ -178,7 +157,7 @@ otherblock.assignment.fn <- function(all.persondays, blockid, N, prob.buckets.fn
   # prob.buckets =prob.bucket calc.prob.buckets(blockid, all.persondays, window.time, N)
   
   return(
-    mean(sapply(1:nrow(subset.persondays), mean.avail.fn, subset.persondays, prob.buckets.fn))
+    mean(sapply(1:nrow(subset.persondays), mean.avail.fn, subset.persondays, data.buckets, model.buckets, offset))
   )  
 }
 
@@ -196,10 +175,10 @@ mean.assignment.fn <- function(obs, subset.persondays, prob.buckets) {
   )  
 }
 
-mean.avail.fn <- function(obs, subset.persondays, prob.buckets.fn) {
+mean.avail.fn <- function(obs, subset.persondays, data.buckets, model.buckets, offset) {
   userday.combo = as.numeric(subset.persondays[obs,])
   sampled.personday = window.time[window.time$user==userday.combo[1] & window.time$study.day==userday.combo[2],]
-  prob.buckets = prob.buckets.fn(userday.combo[1], userday.combo[2])
+  prob.buckets = personalized.prob(obs, subset.persondays, data.buckets, model.buckets, offset)
   
   X.t = sampled.personday$sedentary.width
   
