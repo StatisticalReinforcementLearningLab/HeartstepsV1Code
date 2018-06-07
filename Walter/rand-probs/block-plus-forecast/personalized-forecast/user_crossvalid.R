@@ -1,4 +1,12 @@
+## Pre-clear the global memory
+rm(list =  ls())
+
+library(doParallel)
+cl <- makeCluster(2)
+registerDoParallel(cl)
+
 ## Required packages and source files
+setwd("~//Documents/github/heartstepsdata/Walter/rand-probs/block-plus-forecast/personalized-forecast/")
 source("user_functions.R");require(mgcv); require(lubridate); 
 require(foreach); require(lme4)
 
@@ -16,6 +24,22 @@ window.time$window.utime = as.POSIXct(window.time$window.utime, tz = "GMT") + mi
 ## Range of current hour = c(14:23,0:1)
 
 seq.hour = c(14:23,0:1)
+
+## Extract a person-day
+set.seed("139137")
+all.persondays = unique(window.time[,c(1,3)])
+
+## Generate the 5 random partitions of the people
+unique.users = unique(all.persondays$user)
+partitions = sample(unique.users, length(unique.users), replace = FALSE)
+block.size = ceiling(length(unique.users)/5)
+
+all.persondays[,3] = unlist(lapply(all.persondays$user, which.partition))
+
+all.persondays = data.frame(all.persondays)
+names(all.persondays) = c("user", "block")
+
+## Generate better predictions
 param.list = allmodel.params(seq.hour, all.persons) # Compute all necessary model parameters
 sedwidthdf.list = list.of.sedwidthdfs(seq.hour, window.time) # Compute all necessary dfs
 
@@ -25,39 +49,30 @@ init.N = c(0.0,1.65)
 eta = 0.0
 lambda = 0.0
 
-## Extract a person-day
 set.seed("541891")
-all.persons = as.matrix(unique(window.time[,1]), ncol = 1)
-all.persondays = unique(window.time[,c(1,3)])
-
-## Generate the 5 random partitions
-partitions = sample(1:nrow(all.persons), nrow(all.persons), replace = FALSE)
-block.size = ceiling(nrow(all.persons)/5)
-
-all.persons = cbind(all.persons, unlist(lapply(1:nrow(all.persons), which.partition)))
-
-all.persondays = data.frame(all.persondays)
-names(all.persondays) = c("user", "block")
-
 blockid = 1
-N.one = c(0.0,1.63)
+N.one = c(0.0,0.805)
 # otherblock.assignment.fn(all.persondays, blockid, N.one, all.persons, param.list, sedwidth.df)
 
+set.seed("541891")
 blockid = 2
-N.two = c(0.0,1.63)
+N.two = c(0.0,0.805)
 # otherblock.assignment.fn(all.persondays, blockid, N.two, all.persons, param.list, sedwidth.df)
 
+set.seed("541891")
 blockid = 3
-N.three = c(0.0,1.62)
-otherblock.assignment.fn(all.persondays, blockid, N.three, all.persons, param.list, sedwidth.df)
+N.three = c(0.0,0.805)
+# otherblock.assignment.fn(all.persondays, blockid, N.three, all.persons, param.list, sedwidth.df)
 
+set.seed("541891")
 blockid = 4
-N.four = c(0.0,1.63)
-otherblock.assignment.fn(all.persondays, blockid, N.four, all.persons, param.list, sedwidth.df)
+N.four = c(0.0,0.81)
+# otherblock.assignment.fn(all.persondays, blockid, N.four, all.persons, param.list, sedwidth.df)
 
+set.seed("541891")
 blockid = 5
-N.five = c(0.0,1.63)
-otherblock.assignment.fn(all.persondays, blockid, N.five, all.persons, param.list, sedwidth.df)
+N.five = c(0.0,0.80)
+# otherblock.assignment.fn(all.persondays, blockid, N.five, all.persons, param.list, sedwidth.df)
 
 all.Ns= c(N.one[2], N.two[2], 
           N.three[2], N.four[2],
@@ -162,3 +177,36 @@ for(user in set.of.users) {
 lines(global.x.axis, global.y.axis, lty = 2, lwd = 2,
       col = "gray20")
 dev.off()
+
+## Uniformity plots
+## Calculate p.hat per person-day
+if (!file.exists("simulation_phat.RDS")) {
+  # total.phat = sapply(1:nrow(all.persondays), cv.assignment.multiple.fn, all.persondays, all.Ns, num.iters)
+  num.iters = 1000
+  total.phat = foreach(i=1:nrow(all.persondays), .packages = c("mgcv", "chron"), .combine = cbind) %dopar% cv.assignment.multiple.fn(i,all.persondays, all.Ns, num.iters)
+  saveRDS(total.phat, file = "/Users/walterdempsey/Documents/github/heartstepsdata/Walter/rand-probs/block-plus-forecast/simulation_phat.RDS")
+} else {
+  total.phat = readRDS("/Users/walterdempsey/Documents/github/heartstepsdata/Walter/rand-probs/block-plus-forecast/simulation_phat.RDS")
+}
+
+
+## Compute the squared distance
+results.phat = vector(length = ncol(total.phat))
+
+for (col in 1:ncol(total.phat)) {
+  current.values = total.phat[,col]
+  current.Xt = current.values[137:length(current.values)]
+  current.phat = current.values[1:136]
+  current.phat = current.phat[current.Xt == 1]
+  results.phat[col] = sd(current.phat)
+}
+
+library(ggplot2)
+sim.df = data.frame(results.phat)
+names(sim.df) = c("metric")
+
+p1 <- ggplot(data=sim.df, aes(metric)) + geom_histogram() + xlab("Squared Distance Metric")
+
+## Plot of the average number of 
+## interventions across person-days
+p1 
