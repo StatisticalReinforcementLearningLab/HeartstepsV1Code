@@ -51,25 +51,17 @@ names(all.persondays) = c("user", "study.day", "block")
 ## Model is bucket specific
 model.buckets = construct.model.buckets(data.buckets, all.persondays)
 
-## Pre-compute prob.buckets
-offset = list()
-N = 0.5
+## Compute offsets 
+offset.list = list()
+N = 0.51
 
 for (blockid in 1:5) {
-  offset[[blockid]] = otherblock.assignment.fn(all.persondays, blockid, N.one, data.buckets, model.buckets)/3
+  offset.list[[blockid]] = otherblock.assignment.fn(all.persondays, blockid, N.one, data.buckets, model.buckets, 0)/3
 }
 
-## Recompute with offsets
-## Subtracting offset to account for availability 
-for(i in 1:5) {
-  prob.buckets.list[[i]] = calc.prob.buckets(i, all.persondays, window.time, N.one, offset[[i]])
-}
-
-
-set.seed("541891")
 if (!file.exists("simulation_At.RDS")) {
   # total.At = sapply(1:nrow(all.persondays), cv.assignment.fn, all.persondays, all.Ns)
-  total.At = foreach(i=1:nrow(all.persondays), .packages = c("mgcv", "chron"), .combine = cbind, .options.RNG =541891) %dorng% cv.assignment.fn(i,all.persondays, all.Ns, prob.buckets.list)
+  total.At = foreach(i=1:nrow(all.persondays), .packages = c("mgcv", "chron"), .combine = cbind, .options.RNG =541891) %dorng% cv.assignment.fn(i,all.persondays, N, data.buckets, model.buckets, offset.list)
   saveRDS(total.At, file = "simulation_At.RDS")
 } else {
   total.At = readRDS("simulation_At.RDS")

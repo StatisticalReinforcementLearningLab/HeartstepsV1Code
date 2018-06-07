@@ -189,7 +189,7 @@ mean.avail.fn <- function(obs, subset.persondays, data.buckets, model.buckets, o
   )  
 }
 
-cv.assignment.fn <- function(sampled.obs, all.persondays, all.Ns, prob.buckets.list) {
+cv.assignment.fn <- function(sampled.obs, all.persondays, N, data.buckets, model.buckets, offset.list) {
   
   userday.combo = as.numeric(all.persondays[sampled.obs,])
   
@@ -198,8 +198,7 @@ cv.assignment.fn <- function(sampled.obs, all.persondays, all.Ns, prob.buckets.l
   X.t = sampled.personday$sedentary.width
   blockid = all.persondays[sampled.obs,3]
   
-  N = all.Ns[blockid]
-  prob.buckets = prob.buckets.list[[blockid]] # calc.prob.buckets(blockid, all.persondays, window.time, N)
+  prob.buckets = personalized.prob(sampled.obs, all.persondays, data.buckets, model.buckets, offset.list[[blockid]])
   
   A.t <- action.assignment(X.t, prob.buckets)
   
@@ -213,7 +212,7 @@ cv.assignment.fn <- function(sampled.obs, all.persondays, all.Ns, prob.buckets.l
 }
 
 
-cv.assignment.multiple.fn <- function(sampled.obs, all.persondays, all.Ns, num.iters, prob.buckets.list) {
+cv.assignment.multiple.fn <- function(sampled.obs, all.persondays, N, num.iters, prob.buckets.list) {
   
   userday.combo = as.numeric(all.persondays[sampled.obs,])
   
@@ -222,8 +221,7 @@ cv.assignment.multiple.fn <- function(sampled.obs, all.persondays, all.Ns, num.i
   X.t = sampled.personday$sedentary.width
   blockid = all.persondays[sampled.obs,3]
   
-  N = all.Ns[blockid]
-  prob.buckets = prob.buckets.list[[userday.combo[3]]]
+  prob.buckets = personalized.prob(sampled.obs, all.persondays, data.buckets, model.buckets, offset.list[[blockid]])
   A.t = replicate(n=num.iters, action.assignment(X.t, prob.buckets))
   ## Rewrite to be a replicate function!
   # system.time(
