@@ -13,27 +13,28 @@ construct.data.buckets <- function(window.time, buckets) {
 }
 
 construct.model.buckets <- function(data.buckets, all.persondays) {
+  max.blockid = max(all.persondays[,3])
+  model.buckets = vector('list', max.blockid) 
+  for (blockid in 1:max.blockid) {
+    block.persondays = all.persondays[all.persondays$block!=blockid, 1:2] 
+    
+    for (j in 1:3) {
+      lmer.obs.buckets[[1]] = is.element(data.buckets[[1]]$user, block.persondays$user) & is.element(data.buckets[[1]]$study.day, block.persondays$study.day) 
 
-  block.persondays = all.persondays[all.persondays$block!=blockid, 1:2] 
-  
-  lmer.obs.buckets = list()
-  lmer.obs.buckets[[1]] = is.element(data.buckets[[1]]$user, block.persondays$user) & is.element(data.buckets[[1]]$study.day, block.persondays$study.day) 
-  lmer.obs.buckets[[2]] = is.element(data.buckets[[2]]$user, block.persondays$user) & is.element(data.buckets[[2]]$study.day, block.persondays$study.day) 
-  lmer.obs.buckets[[3]] = is.element(data.buckets[[3]]$user, block.persondays$user) & is.element(data.buckets[[3]]$study.day, block.persondays$study.day) 
-  
-  model.buckets = vector('list', 3) 
-  model.buckets[[blockid]][[1]] = list(lmer(sedentary.width ~ 1 + (1 | user), subset(data.buckets[[1]], lmer.obs.buckets[[1]])))
-  model.buckets[[blockid]][[2]] = list(lmer(sedentary.width ~ 1 + (1 | user), subset(data.buckets[[2]], lmer.obs.buckets[[2]])))
-  model.buckets[[blockid]][[3]] = list(lmer(sedentary.width ~ 1 + (1 | user), subset(data.buckets[[3]], lmer.obs.buckets[[3]])))
-  
+      model.buckets[[(blockid-1)*3 + 1]] = lmer(sedentary.width ~ 1 + (1 | user), subset(data.buckets[[1]], lmer.obs.buckets[[1]]))
+
+  }    
+
   return(model.buckets)
   
 }
 
-personalized.prob <- function(user, day, data.buckets, model.buckets) {
+personalized.prob <- function(obs, all.persondays, data.buckets, model.buckets) {
+  userday.combo = all.persondays[obs,]
+  user = as.numeric(userday.combo[1]); day = as.numeric(userday.combo[2]); blockid = as.numeric(userday.combo[3])
   ## Perform Prediction per bucket
-  temp = data.bucket1$sedentary.width[data.bucket1$user == user & data.bucket1$study.day < day]
-  varcor.temp = as.data.frame(VarCorr(model.bucket1))
+  temp = data.buckets[[1]]$sedentary.width[data.buckets[[1]]$user == user & data.buckets[[1]]$study.day < day]
+  varcor.temp = as.data.frame(VarCorr(model.buckets[[blockid]][[1]]))
   sum.mb = summary(model.bucket1)
   Sigma.temp = varcor.temp$vcov[1]*matrix(1, nrow = length(temp), ncol = length(temp)) + 
     varcor.temp$vcov[2]*diag(1, length(temp) )
