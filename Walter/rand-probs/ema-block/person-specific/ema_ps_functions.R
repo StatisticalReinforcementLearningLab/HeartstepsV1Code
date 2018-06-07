@@ -1,22 +1,32 @@
-calc.prob.buckets <- function(blockid, all.persondays, window.time, N, offset) {
+construct.data.buckets <- function(window.time, buckets) {
   
-  obs.bucket1 = (hours(window.time$window.utime) >= bucket1[1]) & (hours(window.time$window.utime) <= bucket1[2])
-  obs.bucket2 = (hours(window.time$window.utime) >= bucket2[1]) & (hours(window.time$window.utime) <= bucket2[2])
-  obs.bucket3 = (hours(window.time$window.utime) >= bucket3[1]) | (hours(window.time$window.utime) <= bucket3[2])
+  obs.bucket1 = (hours(window.time$window.utime) >= buckets[[1]][1]) & (hours(window.time$window.utime) <= buckets[[1]][2])
+  obs.bucket2 = (hours(window.time$window.utime) >= buckets[[2]][1]) & (hours(window.time$window.utime) <= buckets[[2]][2])
+  obs.bucket3 = (hours(window.time$window.utime) >= buckets[[3]][1]) | (hours(window.time$window.utime) <= buckets[[3]][2])
   
-  data.bucket1 = aggregate(sedentary.width ~ user + study.day, subset(window.time, obs.bucket1), FUN = mean)
-  data.bucket2 = aggregate(sedentary.width ~ user + study.day, subset(window.time, obs.bucket2), FUN = mean)
-  data.bucket3 = aggregate(sedentary.width ~ user + study.day, subset(window.time, obs.bucket3), FUN = mean)
-  
+  result = list()
+  result[[1]] = aggregate(sedentary.width ~ user + study.day, subset(window.time, obs.bucket1), FUN = mean)
+  result[[2]] = aggregate(sedentary.width ~ user + study.day, subset(window.time, obs.bucket2), FUN = mean)
+  result[[3]] = aggregate(sedentary.width ~ user + study.day, subset(window.time, obs.bucket3), FUN = mean)
+
+  return(result)  
+}
+
+construct.model.buckets <- function(data.buckets, all.persondays) {
+
   block.persondays = all.persondays[all.persondays$block!=blockid, 1:2] 
   
-  lmer.obs.bucket1 = is.element(data.bucket1$user, block.persondays$user) & is.element(data.bucket1$study.day, block.persondays$study.day) 
-  lmer.obs.bucket2 = is.element(data.bucket2$user, block.persondays$user) & is.element(data.bucket2$study.day, block.persondays$study.day) 
-  lmer.obs.bucket3 = is.element(data.bucket3$user, block.persondays$user) & is.element(data.bucket3$study.day, block.persondays$study.day) 
+  lmer.obs.buckets = list()
+  lmer.obs.buckets[[1]] = is.element(data.buckets[[1]]$user, block.persondays$user) & is.element(data.buckets[[1]]$study.day, block.persondays$study.day) 
+  lmer.obs.buckets[[2]] = is.element(data.buckets[[2]]$user, block.persondays$user) & is.element(data.buckets[[2]]$study.day, block.persondays$study.day) 
+  lmer.obs.buckets[[3]] = is.element(data.buckets[[3]]$user, block.persondays$user) & is.element(data.buckets[[3]]$study.day, block.persondays$study.day) 
   
-  model.bucket1 = lmer(sedentary.width ~ 1 + (1 | user), subset(data.bucket1, lmer.obs.bucket1))
-  model.bucket2 = lmer(sedentary.width ~ 1 + (1 | user), subset(data.bucket2, lmer.obs.bucket2))
-  model.bucket3 = lmer(sedentary.width ~ 1 + (1 | user), subset(data.bucket3, lmer.obs.bucket3))
+  model.buckets = vector('list', 3) 
+  model.buckets[[blockid]][[1]] = list(lmer(sedentary.width ~ 1 + (1 | user), subset(data.buckets[[1]], lmer.obs.buckets[[1]])))
+  model.buckets[[blockid]][[2]] = list(lmer(sedentary.width ~ 1 + (1 | user), subset(data.buckets[[2]], lmer.obs.buckets[[2]])))
+  model.buckets[[blockid]][[3]] = list(lmer(sedentary.width ~ 1 + (1 | user), subset(data.buckets[[3]], lmer.obs.buckets[[3]])))
+  
+  return(model.buckets)
   
 }
 

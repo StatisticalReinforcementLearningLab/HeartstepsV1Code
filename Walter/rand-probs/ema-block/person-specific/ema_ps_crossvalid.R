@@ -26,6 +26,11 @@ window.time$window.utime = as.POSIXct(window.time$window.utime, tz = "GMT")
 ## Range of current hour = c(14:23,0:1)
 seq.hour = c(14:23,0:1)
 
+## Build data aggregations per bucket
+## For all user-day pairs
+
+data.buckets = construct.data.buckets(window.time, buckets) 
+
 ## Setup
 init.N = 0.5
 
@@ -53,8 +58,8 @@ for(i in 1:5) {
 
 blockid = 1
 N.one = 0.5
-prob.buckets = prob.buckets.list[[blockid]]
-offset[[1]] = otherblock.assignment.fn(all.persondays, blockid, N.one, prob.buckets)/3
+prob.buckets.fn = prob.buckets.list[[blockid]]
+offset[[1]] = otherblock.assignment.fn(all.persondays, blockid, N.one, prob.buckets.fn)/3
 
 blockid = 2
 N.two = 0.5
