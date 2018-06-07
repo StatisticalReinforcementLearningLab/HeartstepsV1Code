@@ -16,19 +16,22 @@ exp.time.rem.in.state <- function(remaining.time, current.state, current.run.len
   ))
 }
 
-fraction.time.in.state <- function(current.hour) {
+fraction.time.in.state <- function(current.hour, buckets) {
   ## Computes fraction of time in Sedentary 
   ## or Not Sedentary for remainder of study at the 
   ## hour level
   
+  current.block = which.block(current.hour)
+
   if(current.hour > 24) {stop("Hour outside normal range")}
-  if(current.hour < 3) {
-    remaining.data = window.time[hour(window.time$window.utime) >= current.hour
-                                 & hour(window.time$window.utime) < 3, ] 
+  if(current.block != 3) {
+    remaining.data = window.time[hours(window.time$window.utime) >= current.hour
+                                 & hours(window.time$window.utime) <= buckets[[current.block]][2], ] 
   } else {
-    remaining.data = window.time[hour(window.time$window.utime) >= current.hour
-                                 | hour(window.time$window.utime) < 3, ] 
+    remaining.data = window.time[hours(window.time$window.utime) >= current.hour
+                                 | hours(window.time$window.utime) <= buckets[[current.block]][2], ] 
   }
+  
   
   temp = aggregate(sedentary.width ~ user + study.day, 
                    data = remaining.data,
@@ -44,11 +47,11 @@ fraction.time.in.state.user.re <- function(current.hour) {
   
   if(current.hour > 24) {stop("Hour outside normal range")}
   if(current.hour < 3) {
-    remaining.data = window.time[hour(window.time$window.utime) >= current.hour
-                                 & hour(window.time$window.utime) < 3, ] 
+    remaining.data = window.time[hours(window.time$window.utime) >= current.hour
+                                 & hours(window.time$window.utime) < 3, ] 
   } else {
-    remaining.data = window.time[hour(window.time$window.utime) >= current.hour
-                                 | hour(window.time$window.utime) < 3, ] 
+    remaining.data = window.time[hours(window.time$window.utime) >= current.hour
+                                 | hours(window.time$window.utime) < 3, ] 
   }
   
   temp = aggregate(sedentary.width ~ user + study.day, 
@@ -73,15 +76,15 @@ full.remainder.fn <- function(remaining.time, current.state, current.run.length,
   
   remaining.temp = exp.time.rem.in.state(remaining.time, current.state, current.run.length)
   fraction.temp = fraction.df[fraction.df$current.hour == current.hour,]
-  
   complete.mean = (current.state==TRUE)*remaining.temp$r_min_x.mean +
-    remaining.temp$r_minus_x_plus.mean * fraction.temp$mean     
+    remaining.temp$r_minus_x_plus.mean * fraction.temp$mean
   complete.variance = (current.state==TRUE)*(remaining.temp$r_min_x.var +
                                                fraction.temp$mean * remaining.temp$r_min_x.r_minus_x_plus.cov) +
     fraction.temp$var * remaining.temp$r_minus_x_plus.var +
     fraction.temp$mean^2 * remaining.temp$r_minus_x_plus.var +
     fraction.temp$var * remaining.temp$r_minus_x_plus.mean^2
   return(complete.mean - eta*sqrt(complete.variance))
+  # return(complete.mean)
 }
 
 
@@ -93,7 +96,7 @@ weighted.history <- function(current.state, time.diff, old.states, lambda, old.A
   
 }
 
-randomization.probability <- function(N, current.state, remaining.time, current.run.length, current.hour, H.t, lambda, eta, max.prob = 0.995, min.prob = 0.005) {
+randomization.probability <- function(N, current.state, remaining.time, current.run.length, current.hour, H.t, lambda, eta, max.prob = 0.2, min.prob = 0.005) {
   ## Randomization probabilifty function 
   ## depending on weighted history and full.remainder.fn.
   
@@ -141,13 +144,14 @@ action.assignment <- function(N, lambda, eta, X.t, buckets) {
     start.block = min(which.blocks); stop.block = max(which.blocks)
     current.run.length = t+1 - max(which(X.t == current.state & 1:length(X.t) <= t))
     # remaining.time = length(time.steps) - (t-1)
-    remaining.time.in.block = stop.block - (t - 1)
+    remaining.time.in.block = stop.block - (t-1)
     if(any(A.t[(max(1,t-12)):(t-1)] == 1)) {
       rho.t = 0
       A.t[t] = 0
     } else {
       rho.t = randomization.probability(N, current.state, remaining.time.in.block, current.run.length, current.hour, H.t, lambda, eta)
       A.t[t] = rbinom(n = 1, size = 1, prob = rho.t)
+      # print(rho.t)
     }    
     if (t == stop.block) {
       H.t = data.frame(
@@ -171,19 +175,21 @@ random.assignment.fn <- function(all.persondays) {
   
   sampled.obs = sample(1:nrow(all.persondays),size = 1)
   
+  print(sampled.obs)
+  
   userday.combo = as.numeric(all.persondays[sampled.obs,])
   
   sampled.personday = window.time[window.time$user==userday.combo[1] & window.time$study.day==userday.combo[2],]
   
   X.t = sampled.personday$sedentary.width
   
-  A.t <- action.assignment(N, lambda, eta, X.t)
+  A.t <- action.assignment(N, lambda, eta, X.t, buckets)
   
   return( 
-    c( A.t[1:min(136,length(A.t))], 
-       rep(0,max(0,136-length(A.t))), 
-       X.t[1:min(136,length(X.t))], 
-       rep(0,max(0,136-length(X.t))) 
+    c( A.t[1:min(144,length(A.t))], 
+       rep(0,max(0,144-length(A.t))), 
+       X.t[1:min(144,length(X.t))], 
+       rep(0,max(0,144-length(X.t))) 
        )
   )  
 }
@@ -206,21 +212,21 @@ otherblock.assignment.fn <- function(all.persondays, blockid, N) {
   subset.persondays = subset(all.persondays, block != blockid)
   
   return(
-    mean(sapply(1:nrow(subset.persondays), mean.assignment.fn, subset.persondays, N))
+    mean(sapply(1:nrow(subset.persondays), mean.assignment.fn, subset.persondays, N,buckets))
   )  
 }
 
-mean.assignment.fn <- function(obs, subset.persondays, N) {
+mean.assignment.fn <- function(obs, subset.persondays, N, buckets) {
   userday.combo = as.numeric(subset.persondays[obs,])
   sampled.personday = window.time[window.time$user==userday.combo[1] & window.time$study.day==userday.combo[2],]
 
   X.t = sampled.personday$sedentary.width
   
-  A.t <- action.assignment(N, lambda, eta, X.t)
+  A.t <- action.assignment(N, lambda, eta, X.t, buckets)
 
   return( 
-    sum(c( A.t[1:min(136,length(A.t))], 
-            rep(0,max(0,136-length(A.t)))))
+    sum(c( A.t[1:min(144,length(A.t))], 
+            rep(0,max(0,144-length(A.t)))))
   )  
 }
 
@@ -237,15 +243,15 @@ cv.assignment.fn <- function(sampled.obs, all.persondays, all.Ns) {
   A.t <- action.assignment(N, lambda, eta, X.t)
   
   return( 
-    c( A.t[1:min(136,length(A.t))], 
-       rep(0,max(0,136-length(A.t))), 
-       X.t[1:min(136,length(X.t))], 
-       rep(0,max(0,136-length(X.t))) 
+    c( A.t[1:min(144,length(A.t))], 
+       rep(0,max(0,144-length(A.t))), 
+       X.t[1:min(144,length(X.t))], 
+       rep(0,max(0,144-length(X.t))) 
     )
   )  
 }
 
-cv.assignment.multiple.fn <- function(sampled.obs, all.persondays, all.Ns) {
+cv.assignment.multiple.fn <- function(sampled.obs, all.persondays, all.Ns, num.iters) {
   
   userday.combo = as.numeric(all.persondays[sampled.obs,])
   
@@ -255,22 +261,24 @@ cv.assignment.multiple.fn <- function(sampled.obs, all.persondays, all.Ns) {
   
   N = c(0,all.Ns[all.persondays[sampled.obs,3]])
   
-  A.t = matrix(nrow = num.iters, ncol = length(X.t))
-  A.t[1,] = action.assignment.avail(X.t, prob.buckets)
-  for (i in 2:num.iters) {
-    A.t[i,] = action.assignment.avail(X.t, prob.buckets)
-  }
+  A.t = replicate(n=num.iters, action.assignment(N, lambda, eta, X.t, buckets))
+  ## Rewrite to be a replicate function!
+  # system.time(
+  # for (i in 2:num.iters) {
+  #   A.t[i,] = action.assignment.avail(N, lambda, eta, X.t, buckets)
+  # }
+  # )
   
-  avail_and_act = matrix(A.t==1, nrow = nrow(A.t), ncol = ncol(A.t))
-  
-  p.hat = colMeans(avail_and_act)
+  p.hat = rowMeans(A.t)
+  mean.sum.At = mean(colSums(A.t))
   
   return( 
-    c( p.hat[1:min(136,length(p.hat))], 
-       rep(0,max(0,136-length(p.hat))), 
-       X.t[1:min(136,length(X.t))], 
-       rep(0,max(0,136-length(X.t))) 
+    c( mean.sum.At,
+       p.hat[1:min(144,length(p.hat))], 
+       rep(0,max(0,144-length(p.hat))), 
+       X.t[1:min(144,length(X.t))], 
+       rep(0,max(0,144-length(X.t)))
     )
-  )  
+  ) 
 }
 
