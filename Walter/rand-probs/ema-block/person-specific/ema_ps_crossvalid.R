@@ -73,7 +73,7 @@ sd(colSums(total.At[1:144,]), na.rm = TRUE)/sqrt(nrow(all.persondays))
 ## Only compute if file doesn't exist
 if (!file.exists("simulation_phat.RDS")) {
   num.iters = 1000
-  total.phat = foreach(i=1:nrow(all.persondays), .packages = c("mgcv", "chron"), .combine = cbind, .options.RNG =541891) %dorng% cv.assignment.multiple.fn(i,all.persondays, all.Ns, num.iters, prob.buckets.list)  
+  total.phat = foreach(i=1:nrow(all.persondays), .packages = c("mgcv", "chron"), .combine = cbind, .options.RNG =541891) %dorng% cv.assignment.multiple.fn(i,all.persondays, all.Ns, num.iters, data.buckets, model.buckets, offset.list)  
   saveRDS(total.phat, file = "simulation_phat.RDS")
 } else {
   total.phat = readRDS("simulation_phat.RDS")

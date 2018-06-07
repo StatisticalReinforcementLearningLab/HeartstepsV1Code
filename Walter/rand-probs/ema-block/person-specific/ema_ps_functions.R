@@ -212,7 +212,7 @@ cv.assignment.fn <- function(sampled.obs, all.persondays, N, data.buckets, model
 }
 
 
-cv.assignment.multiple.fn <- function(sampled.obs, all.persondays, N, num.iters, prob.buckets.list) {
+cv.assignment.multiple.fn <- function(sampled.obs, all.persondays, N, num.iters, data.buckets, model.buckets, offset.list) {
   
   userday.combo = as.numeric(all.persondays[sampled.obs,])
   
