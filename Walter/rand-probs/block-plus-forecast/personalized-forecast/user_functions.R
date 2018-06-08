@@ -15,11 +15,11 @@ exp.time.rem.in.state <- function(remaining.time, current.state, current.run.len
   ))
 }
 
-fraction.time.in.state.user.re <- function(current.hour, all.persons, blockid) {
+fraction.time.in.state.user.re <- function(current.hour, all.persondays, blockid) {
   ## Computes fraction of time in Sedentary 
   ## or Not Sedentary for remainder of study at the 
   ## hour level
-  training.persons = all.persons[all.persons[,2] != blockid,1]
+  training.persons = all.persondays[all.persondays[,3] != blockid,1]
   obs= is.element(window.time$user, training.persons)
   block.window.time = window.time[obs,]
   
@@ -55,7 +55,7 @@ Bayes.fraction.time <- function(current.hour, current.person, current.day, block
   var.cov = c( param.list[[2]][blockid, is.element(seq.hour,current.hour)], 
                param.list[[3]][blockid, is.element(seq.hour,current.hour)] )
   ones = rep(1,length(y))
-  var.cov = as.numeric(c(summary.lmer$varcor$user, summary.lmer$sigma^2)) 
+  # var.cov = as.numeric(c(summary.lmer$varcor$user, summary.lmer$sigma^2)) 
   Sigma = var.cov[1] * outer(ones,ones)  + var.cov[2] * diag(ones)
   
   return( 
@@ -69,13 +69,14 @@ full.remainder.fn <- function(remaining.time, current.state, current.run.length,
   ## deviation e(i,r) and sd(i,r).  Use these with
   ## eta to compute remainder function.
   
-  remaining.temp = exp.time.rem.in.state(remaining.time, current.state, 
-                                         current.run.length)
+  # remaining.temp = exp.time.rem.in.state(remaining.time, current.state, 
+  #                                        current.run.length)
   fraction.temp = Bayes.fraction.time(current.hour, current.person, current.day, 
                                       blockid, param.list, sedwidth.df)
 
-  complete.mean = (current.state==TRUE)*remaining.temp$r_min_x.mean +
-    remaining.temp$r_minus_x_plus.mean * fraction.temp     
+  # complete.mean = (current.state==TRUE)*remaining.temp$r_min_x.mean +
+  #   remaining.temp$r_minus_x_plus.mean * fraction.temp
+  complete.mean = remaining.time * fraction.temp
   return(complete.mean)
 }
 
@@ -98,9 +99,9 @@ randomization.probability <- function(N, current.state, remaining.time, current.
     return(0) 
   } else {
     temp = (N[current.state+1] - weighted.history(current.state, H.t$time.diff, H.t$old.states, lambda, H.t$old.A, H.t$old.rho))/
-      full.remainder.fn(remaining.time, current.state, current.run.length, 
+      (1+ full.remainder.fn(remaining.time, current.state, current.run.length, 
                         current.hour, eta, current.person, current.day, 
-                        blockid, param.list, sedwidth.df)
+                        blockid, param.list, sedwidth.df))
   
     return(min(max(temp,min.prob),max.prob))
   }
@@ -132,6 +133,7 @@ action.assignment <- function(N, lambda, eta, X.t, buckets,
     time.diff = rep(0,0))
   time.steps = 1:length(X.t)
   hour = (floor(time.steps/12)+14)%%24
+  hour[hour==2] = 1
   block.steps = unlist(lapply(hour, FUN = which.block))
   A.t = vector(length = length(time.steps))
   
@@ -144,12 +146,12 @@ action.assignment <- function(N, lambda, eta, X.t, buckets,
     start.block = min(which.blocks); stop.block = max(which.blocks)
     current.run.length = t+1 - max(which(X.t == current.state & 1:length(X.t) <= t))
     # remaining.time = length(time.steps) - (t-1)
-    remaining.time.in.block = stop.block - (t - 1)
+    remaining.time.in.block = stop.block - t
     if(any(A.t[(max(1,t-12)):(t-1)] == 1)) {
       rho.t = 0
       A.t[t] = 0
     } else {
-      rho.t = randomization.probability(N, current.state, remaining.time, current.run.length, 
+      rho.t = randomization.probability(N, current.state, remaining.time.in.block, current.run.length, 
                                         current.hour, H.t, lambda, eta, current.person, 
                                         current.day, blockid, param.list, sedwidth.df)
       A.t[t] = rbinom(n = 1, size = 1, prob = rho.t)
@@ -207,7 +209,7 @@ which.partition <- function(x) {
   ceiling(which(partitions == x)/block.size)
 }
 
-otherblock.assignment.fn <- function(all.persondays, blockid, N, all.persons, param.list, sedwidth.df) {
+otherblock.assignment.fn <- function(all.persondays, blockid, N, param.list, sedwidth.df) {
   ## Give this the full data and the hold out block id
   ## AND the N choice.
   ## Returns mean number of actions
@@ -217,18 +219,18 @@ otherblock.assignment.fn <- function(all.persondays, blockid, N, all.persons, pa
   
   return(
     mean(sapply(1:nrow(subset.persondays), mean.assignment.fn, 
-                subset.persondays, N, all.persons, param.list, sedwidthdf.list))
+                subset.persondays, N, all.persondays, param.list, sedwidthdf.list))
   )  
 }
 
-mean.assignment.fn <- function(obs, subset.persondays, N, all.persons, param.list, sedwidthdf.list) {
+mean.assignment.fn <- function(obs, subset.persondays, N, all.persondays, param.list, sedwidthdf.list) {
   userday.combo = as.numeric(subset.persondays[obs,])
   sampled.personday = window.time[window.time$user==userday.combo[1] & window.time$study.day==userday.combo[2],]
   
   current.person = userday.combo[1]
   current.day = userday.combo[2]
-  blockid = all.persons[all.persons[,1] == current.person,2]
-
+  blockid = all.persondays$block[all.persondays$user == current.person][1]
+  
   X.t = sampled.personday$sedentary.width
   
   A.t <- action.assignment(N, lambda, eta, X.t, buckets, 
@@ -267,16 +269,56 @@ cv.assignment.fn <- function(sampled.obs, all.persondays, all.Ns, param.list, se
   )  
 }
 
-allmodel.params <- function(seq.hour, all.persons) {
+cv.assignment.multiple.fn <- function(sampled.obs, all.persondays, all.Ns, num.iters) {
+  
+  userday.combo = as.numeric(all.persondays[sampled.obs,])
+  
+  sampled.personday = window.time[window.time$user==userday.combo[1] & window.time$study.day==userday.combo[2],]
+  
+  X.t = sampled.personday$sedentary.width
+  current.person = userday.combo[1]
+  current.day = userday.combo[2]
+  blockid = all.persons[all.persons[,1] == current.person,2]
+  
+  N = c(0,all.Ns[blockid])
+  
+  A.t = replicate(n=num.iters, 
+                  action.assignment(N, lambda, eta, X.t, buckets, 
+                                    current.person, current.day, 
+                                    blockid, param.list, sedwidthdf.list)
+  )
+  ## Rewrite to be a replicate function!
+  # system.time(
+  # for (i in 2:num.iters) {
+  #   A.t[i,] = action.assignment.avail(N, lambda, eta, X.t, buckets)
+  # }
+  # )
+  
+  p.hat = rowMeans(A.t)
+  mat.Xt = matrix(rep(X.t, num.iters), nrow = length(X.t))
+  mse.hat = rowMeans((A.t - 1.5*(mat.Xt==1))^2)
+  
+  return( 
+    c( p.hat[1:min(136,length(p.hat))], 
+       rep(0,max(0,136-length(p.hat))), 
+       X.t[1:min(136,length(X.t))], 
+       rep(0,max(0,136-length(X.t))),
+       mse.hat[1:min(136,length(X.t))], 
+       rep(0,max(0,136-length(X.t))) 
+    )
+  )  
+}
+
+allmodel.params <- function(seq.hour, all.persondays) {
   # Fit models for each block 
   # and for each Hour
-  num.blocks = max(all.persons[,2])
+  num.blocks = max(all.persondays[,3])
   param.list = list();
   param.list[[1]] = param.list[[2]] = param.list[[3]] = matrix(0, nrow = num.blocks, ncol = length(seq.hour))
   for (i in 1:num.blocks) {
     for (j in 1:length(seq.hour)) {
       current.hour = seq.hour[j]
-      model.fit = fraction.time.in.state.user.re(current.hour, all.persons, i)  
+      model.fit = fraction.time.in.state.user.re(current.hour, all.persondays, i)  
       param.list[[1]][i,j] = model.fit$mean
       param.list[[2]][i,j] = model.fit$varcov[1]
       param.list[[3]][i,j] = model.fit$varcov[2]

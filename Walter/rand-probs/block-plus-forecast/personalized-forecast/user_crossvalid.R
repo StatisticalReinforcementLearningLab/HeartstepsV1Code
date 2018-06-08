@@ -2,19 +2,20 @@
 rm(list =  ls())
 
 library(doParallel)
-cl <- makeCluster(2)
+cl <- makeCluster(30)
 registerDoParallel(cl)
 
 ## Required packages and source files
-setwd("~//Documents/github/heartstepsdata/Walter/rand-probs/block-plus-forecast/personalized-forecast/")
 source("user_functions.R");require(mgcv); require(lubridate); 
 require(foreach); require(lme4)
 
-setwd("/Volumes/dav/HeartSteps/Walter/")
+setwd("/n/murphy_lab/users/wdempsey/ubicomp/data/")
+# setwd("/Volumes/dav/HeartSteps/Walter/")
 window.time = read.csv("window_time.csv")
 Sedentary.values = read.csv("sed_values.csv")
 Sedentary.length = read.csv("sed_length.csv")
-setwd("~//Documents/github/heartstepsdata/Walter/figs/")
+setwd("/n/murphy_lab/users/wdempsey/ubicomp/block-and-forecast/baseline")
+# setwd("~//Documents/github/heartstepsdata/Walter/rand-probs/block-plus-forecast/personalized-forecast")
 bucket1 = c(14,17); bucket2 = c(18,21); bucket3 = c(22,1)
 buckets = list(bucket1,bucket2, bucket3)
 
@@ -22,7 +23,6 @@ window.time$window.utime = as.POSIXct(window.time$window.utime, tz = "GMT") + mi
 
 ## Create a data.frame for Expected time Remaining
 ## Range of current hour = c(14:23,0:1)
-
 seq.hour = c(14:23,0:1)
 
 ## Extract a person-day
@@ -37,10 +37,10 @@ block.size = ceiling(length(unique.users)/5)
 all.persondays[,3] = unlist(lapply(all.persondays$user, which.partition))
 
 all.persondays = data.frame(all.persondays)
-names(all.persondays) = c("user", "block")
+names(all.persondays) = c("user", "day", "block")
 
 ## Generate better predictions
-param.list = allmodel.params(seq.hour, all.persons) # Compute all necessary model parameters
+param.list = allmodel.params(seq.hour, all.persondays) # Compute all necessary model parameters
 sedwidthdf.list = list.of.sedwidthdfs(seq.hour, window.time) # Compute all necessary dfs
 
 ## Setup
@@ -51,8 +51,8 @@ lambda = 0.0
 
 set.seed("541891")
 blockid = 1
-N.one = c(0.0,0.805)
-# otherblock.assignment.fn(all.persondays, blockid, N.one, all.persons, param.list, sedwidth.df)
+N.one = c(0.0,0.85)
+# otherblock.assignment.fn(all.persondays, blockid, N.one, param.list, sedwidth.df)
 
 set.seed("541891")
 blockid = 2
