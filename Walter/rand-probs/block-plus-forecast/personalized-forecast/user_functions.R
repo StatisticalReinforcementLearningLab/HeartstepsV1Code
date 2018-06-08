@@ -25,11 +25,11 @@ fraction.time.in.state.user.re <- function(current.hour, all.persondays, blockid
   
   if(current.hour > 24) {stop("Hour outside normal range")}
   if(current.hour < 3) {
-    remaining.data = block.window.time[hour(block.window.time$window.utime) >= current.hour
-                                 & hour(block.window.time$window.utime) < 3, ] 
+    remaining.data = block.window.time[hours(block.window.time$window.utime) >= current.hour
+                                 & hours(block.window.time$window.utime) < 3, ] 
   } else {
-    remaining.data = block.window.time[hour(block.window.time$window.utime) >= current.hour
-                                 | hour(block.window.time$window.utime) < 3, ] 
+    remaining.data = block.window.time[hours(block.window.time$window.utime) >= current.hour
+                                 | hours(block.window.time$window.utime) < 3, ] 
   }
   
   temp = aggregate(sedentary.width ~ user + study.day, 
@@ -331,11 +331,11 @@ sedentarywidth.df <- function(current.hour, window.time) {
   
   if(current.hour > 24) {stop("Hour outside normal range")}
   if(current.hour < 3) {
-    remaining.data = window.time[ (hour(window.time$window.utime) >= current.hour
-                                    & hour(window.time$window.utime) < 3), ] 
+    remaining.data = window.time[ (hours(window.time$window.utime) >= current.hour
+                                    & hours(window.time$window.utime) < 3), ] 
   } else {
-    remaining.data = window.time[ ( hour(window.time$window.utime) >= current.hour
-                                      | hour(window.time$window.utime) < 3) , ] 
+    remaining.data = window.time[ ( hours(window.time$window.utime) >= current.hour
+                                      | hours(window.time$window.utime) < 3) , ] 
   }
   
   temp = aggregate(sedentary.width ~ user + study.day, 

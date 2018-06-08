@@ -6,7 +6,7 @@ cl <- makeCluster(30)
 registerDoParallel(cl)
 
 ## Required packages and source files
-source("user_functions.R");require(mgcv); require(lubridate); 
+source("user_functions.R");require(mgcv); require(chron); 
 require(foreach); require(lme4)
 
 setwd("/n/murphy_lab/users/wdempsey/ubicomp/data/")
@@ -51,12 +51,12 @@ lambda = 0.0
 
 set.seed("541891")
 blockid = 1
-N.one = c(0.0,0.865)
+N.one = c(0.0,0.86)
 # otherblock.assignment.fn(all.persondays, blockid, N.one, param.list, sedwidth.df)
 
 set.seed("541891")
 blockid = 2
-N.two = c(0.0,0.865)
+N.two = c(0.0,0.86)
 # otherblock.assignment.fn(all.persondays, blockid, N.two, param.list, sedwidth.df)
 
 set.seed("541891")
@@ -66,12 +66,12 @@ N.three = c(0.0,0.825)
 
 set.seed("541891")
 blockid = 4
-N.four = c(0.0,0.865)
+N.four = c(0.0,0.86)
 # otherblock.assignment.fn(all.persondays, blockid, N.four, param.list, sedwidth.df)
 
 set.seed("541891")
 blockid = 5
-N.five = c(0.0,0.85)
+N.five = c(0.0,0.845)
 # otherblock.assignment.fn(all.persondays, blockid, N.five, param.list, sedwidth.df)
 
 all.Ns= c(N.one[2], N.two[2], 
