@@ -252,7 +252,7 @@ cv.assignment.fn <- function(sampled.obs, all.persondays, all.Ns, param.list, se
   X.t = sampled.personday$sedentary.width
   current.person = userday.combo[1]
   current.day = userday.combo[2]
-  blockid = all.persons[all.persons[,1] == current.person,2]
+  blockid = all.persondays$block[all.persondays$user == current.person][1]
 
   N = c(0,all.Ns[blockid])
   
@@ -261,10 +261,10 @@ cv.assignment.fn <- function(sampled.obs, all.persondays, all.Ns, param.list, se
                            blockid, param.list, sedwidthdf.list)
   
   return( 
-    c( A.t[1:min(136,length(A.t))], 
-       rep(0,max(0,136-length(A.t))), 
-       X.t[1:min(136,length(X.t))], 
-       rep(0,max(0,136-length(X.t))) 
+    c( A.t[1:min(144,length(A.t))], 
+       rep(0,max(0,144-length(A.t))), 
+       X.t[1:min(144,length(X.t))], 
+       rep(0,max(0,144-length(X.t))) 
     )
   )  
 }
@@ -278,7 +278,7 @@ cv.assignment.multiple.fn <- function(sampled.obs, all.persondays, all.Ns, num.i
   X.t = sampled.personday$sedentary.width
   current.person = userday.combo[1]
   current.day = userday.combo[2]
-  blockid = all.persons[all.persons[,1] == current.person,2]
+  blockid = all.persondays$block[all.persondays$user == current.person][1]
   
   N = c(0,all.Ns[blockid])
   
@@ -299,12 +299,12 @@ cv.assignment.multiple.fn <- function(sampled.obs, all.persondays, all.Ns, num.i
   mse.hat = rowMeans((A.t - 1.5*(mat.Xt==1))^2)
   
   return( 
-    c( p.hat[1:min(136,length(p.hat))], 
-       rep(0,max(0,136-length(p.hat))), 
-       X.t[1:min(136,length(X.t))], 
-       rep(0,max(0,136-length(X.t))),
-       mse.hat[1:min(136,length(X.t))], 
-       rep(0,max(0,136-length(X.t))) 
+    c( p.hat[1:min(144,length(p.hat))], 
+       rep(0,max(0,144-length(p.hat))), 
+       X.t[1:min(144,length(X.t))], 
+       rep(0,max(0,144-length(X.t))),
+       mse.hat[1:min(144,length(X.t))], 
+       rep(0,max(0,144-length(X.t))) 
     )
   )  
 }
