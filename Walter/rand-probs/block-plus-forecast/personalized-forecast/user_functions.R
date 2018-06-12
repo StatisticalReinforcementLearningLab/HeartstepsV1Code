@@ -269,7 +269,7 @@ cv.assignment.fn <- function(sampled.obs, all.persondays, all.Ns, param.list, se
   )  
 }
 
-cv.assignment.multiple.fn <- function(sampled.obs, all.persondays, all.Ns, num.iters) {
+cv.assignment.multiple.fn <- function(sampled.obs, all.persondays, all.Ns, param.list, sedwidthdf.list, num.iters) {
   
   userday.combo = as.numeric(all.persondays[sampled.obs,])
   
@@ -295,18 +295,16 @@ cv.assignment.multiple.fn <- function(sampled.obs, all.persondays, all.Ns, num.i
   # )
   
   p.hat = rowMeans(A.t)
-  mat.Xt = matrix(rep(X.t, num.iters), nrow = length(X.t))
-  mse.hat = rowMeans((A.t - 1.5*(mat.Xt==1))^2)
+  mean.sum.At = mean(colSums(A.t))
   
   return( 
-    c( p.hat[1:min(144,length(p.hat))], 
+    c( mean.sum.At,
+       p.hat[1:min(144,length(p.hat))], 
        rep(0,max(0,144-length(p.hat))), 
        X.t[1:min(144,length(X.t))], 
-       rep(0,max(0,144-length(X.t))),
-       mse.hat[1:min(144,length(X.t))], 
-       rep(0,max(0,144-length(X.t))) 
+       rep(0,max(0,144-length(X.t)))
     )
-  )  
+  ) 
 }
 
 allmodel.params <- function(seq.hour, all.persondays) {

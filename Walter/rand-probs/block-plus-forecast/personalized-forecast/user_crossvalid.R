@@ -93,7 +93,7 @@ sd(colSums(total.At[1:144,]), na.rm = TRUE)/sqrt(nrow(all.persondays))
 if (!file.exists("simulation_phat.RDS")) {
   # total.phat = sapply(1:nrow(all.persondays), cv.assignment.multiple.fn, all.persondays, all.Ns, num.iters)
   num.iters = 1000
-  total.phat = foreach(i=1:nrow(all.persondays), .packages = c("mgcv", "chron"), .combine = cbind) %dopar% cv.assignment.multiple.fn(i,all.persondays, all.Ns, num.iters)
+  total.phat = foreach(i=1:nrow(all.persondays), .packages = c("mgcv", "chron"), .combine = cbind) %dopar% cv.assignment.multiple.fn(i,all.persondays, all.Ns, param.list, sedwidthdf.list, num.iters)
   saveRDS(total.phat, file = "simulation_phat.RDS")
 } else {
   total.phat = readRDS("simulation_phat.RDS")
