@@ -13,26 +13,25 @@ This should point you towards all the models code.
 	* Run-length based forecast population 
 		* Description: Run-length based forecast population, nonparametric
 		* Author: Walter
-		* HeartstepsV1Code/Walter/rand-probs/block-plus-forecast/baseline/functions.R
+		* [functions](/Walter/rand-probs/block-plus-forecast/baseline/functions.R)
 
 	* Run-length based forecast personalization
 		* Description: Run-length based forecast population, nonparametric
 		* Author: Walter
-		* HeartstepsV1Code/Walter/rand-probs/block-plus-forecast/personalized-forecast/functions.R
+		* [functions](/Walter/rand-probs/block-plus-forecast/personalized-forecast/functions.R)
 
 * Randomization Probability
 
 	* SeqRTS:
 		* Description: SeqRTS
 		* Author: Walter
-		* file: HeartstepsV1Code/Walter/rand-probs/block-plus-forecast/baseline/functions.R
+		* file: [functions](/Walter/rand-probs/block-plus-forecast/baseline/functions.R)
 
 
 * Daily Engagement
 	* Description: daily Engagement. Latent variable
 	* Author: Walter
-	* files: ../Walter/daily/armodel.R,  
-	../Walter/daily/hmm_model.
+	* files: [armodel](/Walter/daily/armodel.R),[hmm](/Walter/daily/hmm_model.R)
 
 
 
