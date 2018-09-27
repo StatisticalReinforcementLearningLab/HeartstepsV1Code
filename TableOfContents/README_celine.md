@@ -1,8 +1,8 @@
-# Data Processing
+# Initializer of common variables
 
 This should point you towards all the data processing code.
 
-* Daily data
-   * Description: This file constructs daily step count, and engagement levels.
-   * Author: Walter
-   * [Daily data file](/init.R)
+* Initializer of common variables
+   * Description: Initialize common variables. You should run this at the beginning of every R session.
+   * Author: Audrey
+   * [Initializer of common variables](../init.R)
