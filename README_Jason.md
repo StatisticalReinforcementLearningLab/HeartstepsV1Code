@@ -4,8 +4,8 @@
 This should point you towards all the data processing code.
 
 * Daily data
-   * Description: Read named files into a list of data frames
+   * Description: Reader and cleaner of CSV
    * Author: Audrey
-   * [Daily data file](/Walter/daily/read.data.R)
+   * [Daily data file](../read.data.R)
 
 
