@@ -14,6 +14,10 @@ This should point you towards all the data processing code.
    * [workspace.csv.R](workspace.csv.R)
 
 
+   * Processes data for forecasting
+   * Description: Constructs five-minute interval step counts and sedentary runs and sedentary lengths for forecasting.
+   * Author: Walter
+   * [initial.R](/Walter/rand-probs/block-plus-forecast/baseline/initial.R)
 
 
 
