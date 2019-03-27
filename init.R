@@ -34,7 +34,7 @@ sys.var <- switch(Sys.info()["sysname"],
                   "Linux" = list(locale = "en_US.UTF-8",
                                  mbox = "~/mbox/HeartSteps/"))
 sys.var$repo <- getwd()
-sys.var$mbox.data <- paste(sys.var$mbox, "Data/", sep = "")
+sys.var$mbox.data <- paste(sys.var$mbox, "HeartSteps Data/", sep = "")
 
 ## time zone identifiers are localized, so set the locale
 Sys.setlocale("LC_ALL", sys.var$locale)
