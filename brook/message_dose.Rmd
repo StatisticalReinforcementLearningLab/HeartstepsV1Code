@@ -1,0 +1,749 @@
+---
+title: "Message dose analysis"
+author: "Brook Luers"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE,echo=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      fig.pos = 'htpb')
+library(ggplot2)
+library(RColorBrewer)
+library(dplyr)
+library(gridExtra)
+library(knitr)
+library(grid)
+library(reshape2)
+library(geepack)
+library(Matrix)
+
+source('../init.R', chdir=TRUE)
+load(paste(sys.var$mbox.data,'csv.RData',sep=''))
+load(paste(sys.var$mbox.data,"analysis-small.RData",sep=''))
+
+gridline <- element_line(color='lightgrey',linetype='dashed')
+ptheme <-
+  theme_bw(base_size = 11) +
+  theme(panel.grid.major.x=gridline,
+        panel.grid.minor.x=element_blank(),
+        panel.grid.major.y=gridline,
+        panel.grid.minor.y=element_blank(),
+        strip.background=element_rect(fill=NA,color='white'),
+        legend.position='right',
+        legend.direction='vertical',
+        text=element_text(color='black'))
+
+source('make_new_moderators_Jan.R')
+source('estimation_functions_brook.R')
+printmod <- function(fit, alpha_ix, beta_ix, alpha=0.05){
+  vc <- vcov.heartsteps.bgl(fit, small=T)
+  se <- diag(vc)
+  cc <- coef(fit)
+  test <- pointwise.table.small(cc, vc,
+                                n=length(fit$geese$clusz),
+                                alpha=alpha)
+  ret <- 
+    cbind('Estimate' = cc,
+            "SE" = sqrt(se),
+            test)
+  rownames(ret) <- c(paste('$\\alpha_',alpha_ix,'$',sep=''),
+                     paste('$\\beta_',beta_ix,'$',sep=''))
+  colnames(ret)[3:6] <- c('Hotelling','p-value','95% LCL','95% UCL')
+  return(ret)
+}
+```
+
+## Notation
+
+* $Y_{t+1}$ is log(stepcount + 0.5) in the 30 minutes following the $t$th decision point.
+* $Z_t$ is log(stepcount + 0.5) in the 30 minutes prior to the $t$th decision point.
+* $A_t$ indicator of suggestion message (either type) at decision point $t$.
+* $d(t) \in \left\{0,1,\ldots,41\right\}$ index of the day of the $t$th decision point.
+
+## Message dose as a proxy for $d(t)$
+
+Compute the number of messages sent in the previous 5, 10, 25, 100 decision points.
+
+Note that if availability is about 0.8 and messages are sent with probability 0.6, then we expect about 0.48 messages per decision point. So for the number of messages sent in the last 25 decision points, we expect this value to increase by about 2 per study day until about study day 5, when it will vary around 12.5 for the remainder of the study. This is illustrated in the following plot.
+
+```{r, fig.width=5.5,fig.height=5.25,out.width='0.75\\textwidth',fig.align='center',fig.cap='Number of messages sent in the past 10, 25, and 100 decision points for a few users.'}
+suggest.analysis %>%
+  filter(user %in% c(1,10,11,14,25,30,33)) %>%
+  select(user,
+         decision.index.nogap,
+         dose_sent_10points,
+         dose_sent_25points,
+         dose_sent_100points,
+         study.day.nogap
+         ) %>%
+  melt(id=c('user','decision.index.nogap'))%>%
+  mutate(user = factor(user,levels=unique(user),
+                       labels=paste(c("User",rep('',length(unique(user))-1)),unique(user))))%>%
+  ggplot(aes(x=decision.index.nogap,y=value)) +
+  geom_line(aes(color=variable)) +
+  facet_wrap(~user) +
+  scale_color_brewer(palette='Set1',name='',
+                     breaks=c('dose_sent_10points',
+                              'dose_sent_25points',
+                              'dose_sent_100points',
+                              'study.day.nogap'),
+                     labels=c('Num. messages last 10 points',
+                              'Num. messages last 25 points',
+                              'Num. messages last 100 points',
+                              'Study day index')) +
+  ptheme +
+  scale_y_continuous(breaks=c(5,12.5,50)) + 
+  theme(legend.position=c(1,0),legend.justification=c(1,0),
+        panel.grid.major.x=element_blank())+
+  xlab('Decision point') + ylab('')
+```
+
+
+```{r, echo=FALSE}
+mod6.day <-
+  geeglm(
+     jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
+      I(send.active - 0.3) + I(send.sedentary - 0.3) +
+      I(send.active - 0.3):study.day.nogap + 
+      I(send.sedentary - 0.3):study.day.nogap,
+     id=user, weights = as.numeric(suggest.analysis$avail),
+     corstr='independence', scale.fix=TRUE,
+     data=suggest.analysis)
+
+mod6.dose5 <- 
+  geeglm(
+     jbsteps30.log ~ jbsteps30pre.log + dose_sent_5points +
+      I(send.active - 0.3) + I(send.sedentary - 0.3) +
+      I(send.active - 0.3):dose_sent_5points + 
+      I(send.sedentary - 0.3):dose_sent_5points,
+     id=user, weights = as.numeric(suggest.analysis$avail),
+     corstr='independence', scale.fix=TRUE,
+     data=suggest.analysis)
+mod6.dose10 <- 
+  geeglm(
+     jbsteps30.log ~ jbsteps30pre.log + dose_sent_10points +
+      I(send.active - 0.3) + I(send.sedentary - 0.3) +
+      I(send.active - 0.3):dose_sent_10points + 
+      I(send.sedentary - 0.3):dose_sent_10points,
+     id=user, weights = as.numeric(suggest.analysis$avail),
+     corstr='independence', scale.fix=TRUE,
+     data=suggest.analysis)
+mod6.dose15 <- 
+  geeglm(
+     jbsteps30.log ~ jbsteps30pre.log + dose_sent_15points +
+      I(send.active - 0.3) + I(send.sedentary - 0.3) +
+      I(send.active - 0.3):dose_sent_15points + 
+      I(send.sedentary - 0.3):dose_sent_15points,
+     id=user, weights = as.numeric(suggest.analysis$avail),
+     corstr='independence', scale.fix=TRUE,
+     data=suggest.analysis)
+mod6.dose20 <- 
+  geeglm(
+     jbsteps30.log ~ jbsteps30pre.log + dose_sent_20points +
+      I(send.active - 0.3) + I(send.sedentary - 0.3) +
+      I(send.active - 0.3):dose_sent_20points + 
+      I(send.sedentary - 0.3):dose_sent_20points,
+     id=user, weights = as.numeric(suggest.analysis$avail),
+     corstr='independence', scale.fix=TRUE,
+     data=suggest.analysis)
+mod6.dose25 <- 
+  geeglm(
+     jbsteps30.log ~ jbsteps30pre.log + dose_sent_25points +
+      I(send.active - 0.3) + I(send.sedentary - 0.3) +
+      I(send.active - 0.3):dose_sent_25points + 
+      I(send.sedentary - 0.3):dose_sent_25points,
+     id=user, weights = as.numeric(suggest.analysis$avail),
+     corstr='independence', scale.fix=TRUE,
+     data=suggest.analysis)
+mod6.dose30 <- 
+  geeglm(
+     jbsteps30.log ~ jbsteps30pre.log + dose_sent_30points +
+      I(send.active - 0.3) + I(send.sedentary - 0.3) +
+      I(send.active - 0.3):dose_sent_30points + 
+      I(send.sedentary - 0.3):dose_sent_30points,
+     id=user, weights = as.numeric(suggest.analysis$avail),
+     corstr='independence', scale.fix=TRUE,
+     data=suggest.analysis)
+mod6.dose35 <- 
+  geeglm(
+     jbsteps30.log ~ jbsteps30pre.log + dose_sent_35points +
+      I(send.active - 0.3) + I(send.sedentary - 0.3) +
+      I(send.active - 0.3):dose_sent_35points + 
+      I(send.sedentary - 0.3):dose_sent_35points,
+     id=user, weights = as.numeric(suggest.analysis$avail),
+     corstr='independence', scale.fix=TRUE,
+     data=suggest.analysis)
+mod6.dose40 <- 
+  geeglm(
+     jbsteps30.log ~ jbsteps30pre.log + dose_sent_40points +
+      I(send.active - 0.3) + I(send.sedentary - 0.3) +
+      I(send.active - 0.3):dose_sent_40points + 
+      I(send.sedentary - 0.3):dose_sent_40points,
+     id=user, weights = as.numeric(suggest.analysis$avail),
+     corstr='independence', scale.fix=TRUE,
+     data=suggest.analysis)
+mod6.dose45 <- 
+  geeglm(
+     jbsteps30.log ~ jbsteps30pre.log + dose_sent_45points +
+      I(send.active - 0.3) + I(send.sedentary - 0.3) +
+      I(send.active - 0.3):dose_sent_45points + 
+      I(send.sedentary - 0.3):dose_sent_45points,
+     id=user, weights = as.numeric(suggest.analysis$avail),
+     corstr='independence', scale.fix=TRUE,
+     data=suggest.analysis)
+mod6.dose50 <- 
+  geeglm(
+     jbsteps30.log ~ jbsteps30pre.log + dose_sent_50points +
+      I(send.active - 0.3) + I(send.sedentary - 0.3) +
+      I(send.active - 0.3):dose_sent_50points + 
+      I(send.sedentary - 0.3):dose_sent_50points,
+     id=user, weights = as.numeric(suggest.analysis$avail),
+     corstr='independence', scale.fix=TRUE,
+     data=suggest.analysis)
+mod6.dose100 <- 
+  geeglm(
+     jbsteps30.log ~ jbsteps30pre.log + dose_sent_100points +
+      I(send.active - 0.3) + I(send.sedentary - 0.3) +
+      I(send.active - 0.3):dose_sent_100points + 
+      I(send.sedentary - 0.3):dose_sent_100points,
+     id=user, weights = as.numeric(suggest.analysis$avail),
+     corstr='independence', scale.fix=TRUE,
+     data=suggest.analysis)
+mod2.dose5 <-
+   geeglm(
+     jbsteps30.log ~ jbsteps30pre.log + dose_sent_5points + 
+       I(send - 0.6) +
+      I(send - 0.6):dose_sent_5points,
+     id=user, weights = as.numeric(suggest.analysis$avail),
+     corstr='independence', scale.fix=TRUE,
+     data=suggest.analysis)
+mod2.dose10 <-
+   geeglm(
+     jbsteps30.log ~ jbsteps30pre.log + dose_sent_10points + 
+       I(send - 0.6) +
+      I(send - 0.6):dose_sent_10points,
+     id=user, weights = as.numeric(suggest.analysis$avail),
+     corstr='independence', scale.fix=TRUE,
+     data=suggest.analysis)
+mod2.dose25 <-
+   geeglm(
+     jbsteps30.log ~ jbsteps30pre.log + dose_sent_25points + 
+       I(send - 0.6) +
+      I(send - 0.6):dose_sent_25points,
+     id=user, weights = as.numeric(suggest.analysis$avail),
+     corstr='independence', scale.fix=TRUE,
+     data=suggest.analysis)
+mod2.dose35 <-
+   geeglm(
+     jbsteps30.log ~ jbsteps30pre.log + dose_sent_35points + 
+       I(send - 0.6) +
+      I(send - 0.6):dose_sent_35points,
+     id=user, weights = as.numeric(suggest.analysis$avail),
+     corstr='independence', scale.fix=TRUE,
+     data=suggest.analysis)
+mod2.dose100 <-
+   geeglm(
+     jbsteps30.log ~ jbsteps30pre.log + dose_sent_100points + 
+       I(send - 0.6) +
+      I(send - 0.6):dose_sent_100points,
+     id=user, weights = as.numeric(suggest.analysis$avail),
+     corstr='independence', scale.fix=TRUE,
+     data=suggest.analysis)
+mod2.day <-
+  geeglm(
+     jbsteps30.log ~ jbsteps30pre.log + study.day.nogap + 
+       I(send - 0.6) +
+      I(send - 0.6):study.day.nogap,
+     id=user, weights = as.numeric(suggest.analysis$avail),
+     corstr='independence', scale.fix=TRUE,
+     data=suggest.analysis)
+
+```
+
+\newpage
+
+## Message of either type (active or sedentary)
+
+**Model 2 from primary analysis**
+$$ 
+Y_{t+1} \sim \alpha_0+\alpha_1Z_t + \alpha_2 d(t) + \beta_1(A_t -0.6) +\beta_2(A_t-0.6)d(t)
+$$
+```{r, results='asis'}
+print(xtable(printmod(mod2.day, alpha_ix = 0:2, beta_ix =1:2),
+             digits=4,
+             caption='Estimates for effect of a message of either type moderated by study day index.'),
+      comment=F,table.placement='h!',,
+      include.rownames=TRUE,sanitize.rownames.function=identity,
+      hline.after=0)
+
+```
+
+
+**Model 2 using dose instead of $d(t)$**
+
+```{r, results='asis'}
+print(xtable(printmod(mod2.dose5, alpha_ix = 0:2, beta_ix =1:2),
+             digits=4,
+             caption='Estimates for effect of a message of either type moderated by number of messages sent in the past 5 decision points.'),
+      comment=F,table.placement='h!',
+      include.rownames=TRUE,sanitize.rownames.function=identity,
+      hline.after=0)
+print(xtable(printmod(mod2.dose10, alpha_ix = 0:2, beta_ix =1:2),
+             digits=4,
+             caption='Estimates for effect of a message of either type moderated by number of messages sent in the past 10 decision points.'),
+      comment=F,table.placement='h!',
+      include.rownames=TRUE,sanitize.rownames.function=identity,
+      hline.after=0)
+print(xtable(printmod(mod2.dose25, alpha_ix = 0:2, beta_ix =1:2),
+             digits=4,
+             caption='Estimates for effect of a message of either type moderated by number of messages sent in the past 25 decision points.'),
+      comment=F,table.placement='h!',
+      include.rownames=TRUE,sanitize.rownames.function=identity,
+      hline.after=0)
+print(xtable(printmod(mod2.dose35, alpha_ix = 0:2, beta_ix =1:2),
+             digits=4,
+             caption='Estimates for effect of a message of either type moderated by number of messages sent in the past 35 decision points.'),
+      comment=F,table.placement='h!',
+      include.rownames=TRUE,sanitize.rownames.function=identity,
+      hline.after=0)
+cat('\\phantom{abc}')
+print(xtable(printmod(mod2.dose100, alpha_ix = 0:2, beta_ix =1:2),
+             digits=4,
+             caption='Estimates for effect of a message of either type moderated by number of messages sent in the past 100 decision points.'),
+      comment=F,table.placement='h!',
+      include.rownames=TRUE,sanitize.rownames.function=identity,
+      hline.after=0)
+```
+
+
+\newpage
+
+## Split by active and sedentary
+
+**Model 6 in primary analysis document**
+$$ 
+Y_{t+1} \sim \alpha_0+\alpha_1Z_t + \alpha_2 d(t) + \beta_1(A_{1,t}-0.3) + \beta_2(A_{2,t}-0.3)+\beta_3(A_{1,t}-0.3)d(t) + \beta_4(A_{2,t}-0.3)d(t)
+$$
+
+```{r, results='asis'}
+print(xtable(printmod(mod6.day, alpha_ix = 0:2, beta_ix =1:4),
+             digits=4,
+             caption='Estimates for effect of active $A_{1,t}$ and sedentary $A_{2,t}$ messages moderated by  study day index. $\\beta_3$ corresponds to active messages and $\\beta_4$ corresponds to sedentary.'),
+      comment=F,table.placement='h!',,
+      include.rownames=TRUE,sanitize.rownames.function=identity,
+      hline.after=0)
+cat('\\hspace{12pt}')
+cat('\n')
+```
+
+\newpage
+
+**Model 6 with dose instead of $d(t)$**
+
+
+```{r print-models-dose-only-noday, results='asis'}
+print(xtable(printmod(mod6.dose5, alpha_ix = 0:2, beta_ix =1:4),
+             digits=4,
+             caption='Estimates for effect of active $A_{1,t}$ and sedentary $A_{2,t}$ messages moderated by number of messages sent in the past 5 decision points. $\\beta_3$ corresponds to active messages and $\\beta_4$ corresponds to sedentary.'),
+      comment=F,table.placement='h!',
+      include.rownames=TRUE,sanitize.rownames.function=identity,
+      hline.after=0)
+print(xtable(printmod(mod6.dose10, alpha_ix = 0:2, beta_ix =1:4),
+             digits=4,
+             caption='Estimates for effect of active $A_{1,t}$ and sedentary $A_{2,t}$ messages moderated by number of messages sent in the past 10 decision points. $\\beta_3$ corresponds to active messages and $\\beta_4$ corresponds to sedentary.'),
+      comment=F,table.placement='h!',
+      include.rownames=TRUE,sanitize.rownames.function=identity,
+      hline.after=0)
+print(xtable(printmod(mod6.dose15, alpha_ix = 0:2, beta_ix =1:4),
+             digits=4,
+             caption='Estimates for effect of active $A_{1,t}$ and sedentary $A_{2,t}$ messages moderated by number of messages sent in the past 15 decision points. $\\beta_3$ corresponds to active messages and $\\beta_4$ corresponds to sedentary.'),
+      comment=F,table.placement='h!',
+      include.rownames=TRUE,sanitize.rownames.function=identity,
+      hline.after=0)
+cat('\\phantom{sldkfjd}\\hspace{12pt}')
+print(xtable(printmod(mod6.dose20, alpha_ix = 0:2, beta_ix =1:4),
+             digits=4,
+             caption='Estimates for effect of active $A_{1,t}$ and sedentary $A_{2,t}$ messages moderated by number of messages sent in the past 20 decision points. $\\beta_3$ corresponds to active messages and $\\beta_4$ corresponds to sedentary.'),
+      comment=F,table.placement='h!',
+      include.rownames=TRUE,sanitize.rownames.function=identity,
+      hline.after=0)
+print(xtable(printmod(mod6.dose25, alpha_ix = 0:2, beta_ix =1:4),
+             digits=4,
+             caption='Estimates for effect of active $A_{1,t}$ and sedentary $A_{2,t}$ messages moderated by number of messages sent in the past 25 decision points. $\\beta_3$ corresponds to active messages and $\\beta_4$ corresponds to sedentary.'),
+      comment=F,table.placement='h!',
+      include.rownames=TRUE,sanitize.rownames.function=identity,
+      hline.after=0)
+cat('\\hspace{12pt}')
+print(xtable(printmod(mod6.dose30, alpha_ix = 0:2, beta_ix =1:4),
+             digits=4,
+             caption='Estimates for effect of active $A_{1,t}$ and sedentary $A_{2,t}$ messages moderated by number of messages sent in the past 30 decision points. $\\beta_3$ corresponds to active messages and $\\beta_4$ corresponds to sedentary.'),
+      comment=F,table.placement='h!',
+      include.rownames=TRUE,sanitize.rownames.function=identity,
+      hline.after=0)
+print(xtable(printmod(mod6.dose35, alpha_ix = 0:2, beta_ix =1:4),
+             digits=4,
+             caption='Estimates for effect of active $A_{1,t}$ and sedentary $A_{2,t}$ messages moderated by number of messages sent in the past 35 decision points. $\\beta_3$ corresponds to active messages and $\\beta_4$ corresponds to sedentary.'),
+      comment=F,table.placement='h!',
+      include.rownames=TRUE,sanitize.rownames.function=identity,
+      hline.after=0)
+print(xtable(printmod(mod6.dose40, alpha_ix = 0:2, beta_ix =1:4),
+             digits=4,
+             caption='Estimates for effect of active $A_{1,t}$ and sedentary $A_{2,t}$ messages moderated by number of messages sent in the past 40 decision points. $\\beta_3$ corresponds to active messages and $\\beta_4$ corresponds to sedentary.'),
+      comment=F,table.placement='h!',
+      include.rownames=TRUE,sanitize.rownames.function=identity,
+      hline.after=0)
+print(xtable(printmod(mod6.dose45, alpha_ix = 0:2, beta_ix =1:4),
+             digits=4,
+             caption='Estimates for effect of active $A_{1,t}$ and sedentary $A_{2,t}$ messages moderated by number of messages sent in the past 45 decision points. $\\beta_3$ corresponds to active messages and $\\beta_4$ corresponds to sedentary.'),
+      comment=F,table.placement='h!',
+      include.rownames=TRUE,sanitize.rownames.function=identity,
+      hline.after=0)
+cat('\\hspace{6pt}')
+print(xtable(printmod(mod6.dose50, alpha_ix = 0:2, beta_ix =1:4),
+             digits=4,
+             caption='Estimates for effect of active $A_{1,t}$ and sedentary $A_{2,t}$ messages moderated by number of messages sent in the past 50 decision points. $\\beta_3$ corresponds to active messages and $\\beta_4$ corresponds to sedentary.'),
+      comment=F,table.placement='h!',
+      include.rownames=TRUE,sanitize.rownames.function=identity,
+      hline.after=0)
+cat('\\phantom{abc}')
+print(xtable(printmod(mod6.dose100, alpha_ix = 0:2, beta_ix =1:4),
+             digits=4,
+             caption='Estimates for effect of active $A_{1,t}$ and sedentary $A_{2,t}$ messages moderated by number of messages sent in the past 100 decision points. $\\beta_3$ corresponds to active messages and $\\beta_4$ corresponds to sedentary.'),
+      comment=F,table.placement='h!',
+      include.rownames=TRUE,sanitize.rownames.function=identity,
+      hline.after=0)
+cat('\\newpage')
+```
+
+
+**Model 6 with dose and $d(t)$ (study day)**
+
+```{r fit-models-with-dose-and-day}
+mod6.dose_and_day.day <-
+  geeglm(
+    jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
+      I(send.active - 0.3) + I(send.sedentary - 0.3) +
+      I(send.active - 0.3):study.day.nogap + 
+      I(send.sedentary - 0.3):study.day.nogap,
+    id=user, weights = as.numeric(suggest.analysis$avail),
+    corstr='independence', scale.fix=TRUE,
+    data=suggest.analysis)
+
+mod6.dose_and_day.dose5 <- 
+  geeglm(
+    jbsteps30.log ~ jbsteps30pre.log + dose_sent_5points +
+      study.day.nogap + 
+      I(send.active - 0.3) + I(send.sedentary - 0.3) +
+      I(send.active - 0.3):dose_sent_5points + 
+      I(send.sedentary - 0.3):dose_sent_5points + 
+      I(send.active - 0.3):study.day.nogap + 
+      I(send.sedentary - 0.3):study.day.nogap,
+    id=user, weights = as.numeric(suggest.analysis$avail),
+    corstr='independence', scale.fix=TRUE,
+    data=suggest.analysis)
+mod6.dose_and_day.dose10 <- 
+  geeglm(
+    jbsteps30.log ~ jbsteps30pre.log + dose_sent_10points +
+      study.day.nogap + 
+      I(send.active - 0.3) + I(send.sedentary - 0.3) +
+      I(send.active - 0.3):dose_sent_10points + 
+      I(send.sedentary - 0.3):dose_sent_10points + 
+      I(send.active - 0.3):study.day.nogap + 
+      I(send.sedentary - 0.3):study.day.nogap,
+    id=user, weights = as.numeric(suggest.analysis$avail),
+    corstr='independence', scale.fix=TRUE,
+    data=suggest.analysis)
+mod6.dose_and_day.dose15 <- 
+  geeglm(
+    jbsteps30.log ~ jbsteps30pre.log + dose_sent_15points +
+      study.day.nogap + 
+      I(send.active - 0.3) + I(send.sedentary - 0.3) +
+      I(send.active - 0.3):dose_sent_15points + 
+      I(send.sedentary - 0.3):dose_sent_15points + 
+      I(send.active - 0.3):study.day.nogap + 
+      I(send.sedentary - 0.3):study.day.nogap,
+    id=user, weights = as.numeric(suggest.analysis$avail),
+    corstr='independence', scale.fix=TRUE,
+    data=suggest.analysis)
+mod6.dose_and_day.dose20 <- 
+  geeglm(
+    jbsteps30.log ~ jbsteps30pre.log + dose_sent_20points +
+      study.day.nogap + 
+      I(send.active - 0.3) + I(send.sedentary - 0.3) +
+      I(send.active - 0.3):dose_sent_20points + 
+      I(send.sedentary - 0.3):dose_sent_20points + 
+      I(send.active - 0.3):study.day.nogap + 
+      I(send.sedentary - 0.3):study.day.nogap,
+    id=user, weights = as.numeric(suggest.analysis$avail),
+    corstr='independence', scale.fix=TRUE,
+    data=suggest.analysis)
+mod6.dose_and_day.dose25 <- 
+  geeglm(
+    jbsteps30.log ~ jbsteps30pre.log + dose_sent_25points +
+      study.day.nogap + 
+      I(send.active - 0.3) + I(send.sedentary - 0.3) +
+      I(send.active - 0.3):dose_sent_25points + 
+      I(send.sedentary - 0.3):dose_sent_25points + 
+      I(send.active - 0.3):study.day.nogap + 
+      I(send.sedentary - 0.3):study.day.nogap,
+    id=user, weights = as.numeric(suggest.analysis$avail),
+    corstr='independence', scale.fix=TRUE,
+    data=suggest.analysis)
+mod6.dose_and_day.dose30 <- 
+  geeglm(
+    jbsteps30.log ~ jbsteps30pre.log + dose_sent_30points +
+      study.day.nogap +
+      I(send.active - 0.3) + I(send.sedentary - 0.3) +
+      I(send.active - 0.3):dose_sent_30points + 
+      I(send.sedentary - 0.3):dose_sent_30points + 
+      I(send.active - 0.3):study.day.nogap + 
+      I(send.sedentary - 0.3):study.day.nogap,
+    id=user, weights = as.numeric(suggest.analysis$avail),
+    corstr='independence', scale.fix=TRUE,
+    data=suggest.analysis)
+mod6.dose_and_day.dose35 <- 
+  geeglm(
+    jbsteps30.log ~ jbsteps30pre.log + dose_sent_35points +
+      study.day.nogap + 
+      I(send.active - 0.3) + I(send.sedentary - 0.3) +
+      I(send.active - 0.3):dose_sent_35points + 
+      I(send.sedentary - 0.3):dose_sent_35points + 
+      I(send.active - 0.3):study.day.nogap + 
+      I(send.sedentary - 0.3):study.day.nogap,
+    id=user, weights = as.numeric(suggest.analysis$avail),
+    corstr='independence', scale.fix=TRUE,
+    data=suggest.analysis)
+mod6.dose_and_day.dose40 <- 
+  geeglm(
+    jbsteps30.log ~ jbsteps30pre.log + dose_sent_40points +
+      study.day.nogap + 
+      I(send.active - 0.3) + I(send.sedentary - 0.3) +
+      I(send.active - 0.3):dose_sent_40points + 
+      I(send.sedentary - 0.3):dose_sent_40points + 
+      I(send.active - 0.3):study.day.nogap + 
+      I(send.sedentary - 0.3):study.day.nogap,
+    id=user, weights = as.numeric(suggest.analysis$avail),
+    corstr='independence', scale.fix=TRUE,
+    data=suggest.analysis)
+mod6.dose_and_day.dose45 <- 
+  geeglm(
+    jbsteps30.log ~ jbsteps30pre.log + dose_sent_45points +
+      study.day.nogap+ 
+      I(send.active - 0.3) + I(send.sedentary - 0.3) +
+      I(send.active - 0.3):dose_sent_45points + 
+      I(send.sedentary - 0.3):dose_sent_45points + 
+      I(send.active - 0.3):study.day.nogap + 
+      I(send.sedentary - 0.3):study.day.nogap,
+    id=user, weights = as.numeric(suggest.analysis$avail),
+    corstr='independence', scale.fix=TRUE,
+    data=suggest.analysis)
+mod6.dose_and_day.dose50 <- 
+  geeglm(
+    jbsteps30.log ~ jbsteps30pre.log + dose_sent_50points +
+      study.day.nogap + 
+      I(send.active - 0.3) + I(send.sedentary - 0.3) +
+      I(send.active - 0.3):dose_sent_50points + 
+      I(send.sedentary - 0.3):dose_sent_50points + 
+      I(send.active - 0.3):study.day.nogap + 
+      I(send.sedentary - 0.3):study.day.nogap,
+    id=user, weights = as.numeric(suggest.analysis$avail),
+    corstr='independence', scale.fix=TRUE,
+    data=suggest.analysis)
+mod6.dose_and_day.dose100 <- 
+  geeglm(
+    jbsteps30.log ~ jbsteps30pre.log + dose_sent_100points +
+      study.day.nogap + 
+      I(send.active - 0.3) + I(send.sedentary - 0.3) +
+      I(send.active - 0.3):dose_sent_100points + 
+      I(send.sedentary - 0.3):dose_sent_100points +
+      I(send.active - 0.3):study.day.nogap + 
+      I(send.sedentary - 0.3):study.day.nogap,
+    id=user, weights = as.numeric(suggest.analysis$avail),
+    corstr='independence', scale.fix=TRUE,
+    data=suggest.analysis)
+
+mod2.dose_and_day.dose5 <-
+  geeglm(
+    jbsteps30.log ~ jbsteps30pre.log + dose_sent_5points + 
+      study.day.nogap + 
+      I(send - 0.6) +
+      I(send - 0.6):dose_sent_5points +
+      I(send - 0.6):study.day.nogap,
+    id=user, weights = as.numeric(suggest.analysis$avail),
+    corstr='independence', scale.fix=TRUE,
+    data=suggest.analysis)
+
+
+mod2.dose_and_day.dose10 <-
+  geeglm(
+    jbsteps30.log ~ jbsteps30pre.log + dose_sent_10points + 
+      study.day.nogap +
+    I(send - 0.6) +
+      I(send - 0.6):dose_sent_10points +
+      I(send - 0.6):study.day.nogap,
+    id=user, weights = as.numeric(suggest.analysis$avail),
+    corstr='independence', scale.fix=TRUE,
+    data=suggest.analysis)
+mod2.dose_and_day.dose25 <-
+  geeglm(
+    jbsteps30.log ~ jbsteps30pre.log + dose_sent_25points + 
+      study.day.nogap + 
+      I(send - 0.6) +
+      I(send - 0.6):dose_sent_25points+
+      I(send - 0.6):study.day.nogap,
+    id=user, weights = as.numeric(suggest.analysis$avail),
+    corstr='independence', scale.fix=TRUE,
+    data=suggest.analysis)
+mod2.dose_and_day.dose35 <-
+  geeglm(
+    jbsteps30.log ~ jbsteps30pre.log + dose_sent_35points + 
+      study.day.nogap + 
+      I(send - 0.6) +
+      I(send - 0.6):dose_sent_35points+
+      I(send - 0.6):study.day.nogap,
+    id=user, weights = as.numeric(suggest.analysis$avail),
+    corstr='independence', scale.fix=TRUE,
+    data=suggest.analysis)
+mod2.dose_and_day.dose100 <-
+  geeglm(
+    jbsteps30.log ~ jbsteps30pre.log + dose_sent_100points + 
+      study.day.nogap + 
+      I(send - 0.6) +
+      I(send - 0.6):dose_sent_100points+
+      I(send - 0.6):study.day.nogap,
+    id=user, weights = as.numeric(suggest.analysis$avail),
+    corstr='independence', scale.fix=TRUE,
+    data=suggest.analysis)
+
+```
+
+$\text{dose}_k(t)$ is the number of messages sent in the last $k$ decision points prior to decision point $t$.
+$$ 
+Y_{t+1} \sim \alpha_0+\alpha_1Z_t + \alpha_2 \text{dose}_k(t) + \alpha_3d(t) + 
+\beta_1(A_{1,t}-0.3) + 
+\beta_2(A_{2,t}-0.3)+
+\beta_3(A_{1,t}-0.3)\text{dose}_k(t) + 
+\beta_4(A_{2,t}-0.3)\text{dose}_k(t) +
+\beta_5(A_{1,t} - 0.3)d(t) +
+\beta_6(A_{2,t} - 0.3)d(t)
+$$
+
+$\beta_3$: interaction between $\text{dose}_k(t)$ and active messages\\
+$\beta_4$: interaction between $\text{dose}_k(t)$ and sedentary messages\\
+$\beta_5$: interaction between study day $d(t)$ and active messages\\
+$\beta_6$: interaction between study day $d(t)$ and sedentary messages
+ 
+```{r print-models-day-and-dose, results='asis'}
+print(xtable(printmod(mod6.dose_and_day.dose5, 
+                      alpha_ix = 0:3, beta_ix =1:6),
+             digits=4,
+             caption='Estimates for effect of active $A_{1,t}$ and sedentary $A_{2,t}$ messages moderated by number of messages sent in the past 5 decision points as well as study day.'),
+      comment=F,table.placement='h!',
+      include.rownames=TRUE,sanitize.rownames.function=identity,
+      hline.after=0)
+print(xtable(printmod(mod6.dose_and_day.dose10, alpha_ix = 0:3, beta_ix =1:6),
+             digits=4,
+             caption = 'Estimates for effect of active $A_{1,t}$ and sedentary $A_{2,t}$ messages moderated by number of messages sent in the past 10 decision points as well as study day.'),
+      comment=F,table.placement='h!',
+      include.rownames=TRUE,sanitize.rownames.function=identity,
+      hline.after=0)
+print(xtable(printmod(mod6.dose_and_day.dose15, alpha_ix = 0:3, beta_ix =1:6),
+             digits=4,
+             caption = 'Estimates for effect of active $A_{1,t}$ and sedentary $A_{2,t}$ messages moderated by number of messages sent in the past 15 decision points as well as study day.'),
+      comment=F,table.placement='h!',
+      include.rownames=TRUE,sanitize.rownames.function=identity,
+      hline.after=0)
+cat('\\phantom{sldkfjd}\\hspace{12pt}')
+print(xtable(printmod(mod6.dose_and_day.dose20, alpha_ix = 0:3, beta_ix =1:6),
+             digits=4,
+             caption = 'Estimates for effect of active $A_{1,t}$ and sedentary $A_{2,t}$ messages moderated by number of messages sent in the past 20 decision points as well as study day.'),
+      comment=F,table.placement='h!',
+      include.rownames=TRUE,sanitize.rownames.function=identity,
+      hline.after=0)
+print(xtable(printmod(mod6.dose_and_day.dose25, alpha_ix = 0:3, beta_ix =1:6),
+             digits=4,
+             caption = 'Estimates for effect of active $A_{1,t}$ and sedentary $A_{2,t}$ messages moderated by number of messages sent in the past 25 decision points as well as study day.'),
+      comment=F,table.placement='h!',
+      include.rownames=TRUE,sanitize.rownames.function=identity,
+      hline.after=0)
+cat('\\hspace{12pt}')
+print(xtable(printmod(mod6.dose_and_day.dose30, alpha_ix = 0:3, beta_ix =1:6),
+             digits=4,
+             caption = 'Estimates for effect of active $A_{1,t}$ and sedentary $A_{2,t}$ messages moderated by number of messages sent in the past 30 decision points as well as study day.'),
+      comment=F,table.placement='h!',
+      include.rownames=TRUE,sanitize.rownames.function=identity,
+      hline.after=0)
+print(xtable(printmod(mod6.dose_and_day.dose35, alpha_ix = 0:3, beta_ix =1:6),
+             digits=4,
+             caption = 'Estimates for effect of active $A_{1,t}$ and sedentary $A_{2,t}$ messages moderated by number of messages sent in the past 35 decision points as well as study day.'),
+      comment=F,table.placement='h!',
+      include.rownames=TRUE,sanitize.rownames.function=identity,
+      hline.after=0)
+print(xtable(printmod(mod6.dose_and_day.dose40, alpha_ix = 0:3, beta_ix =1:6),
+             digits=4,
+             caption = 'Estimates for effect of active $A_{1,t}$ and sedentary $A_{2,t}$ messages moderated by number of messages sent in the past 40 decision points as well as study day.'),
+      comment=F,table.placement='h!',
+      include.rownames=TRUE,sanitize.rownames.function=identity,
+      hline.after=0)
+print(xtable(printmod(mod6.dose_and_day.dose45, alpha_ix = 0:3, beta_ix =1:6),
+             digits=4,
+             caption = 'Estimates for effect of active $A_{1,t}$ and sedentary $A_{2,t}$ messages moderated by number of messages sent in the past 45 decision points as well as study day.'),
+      comment=F,table.placement='h!',
+      include.rownames=TRUE,sanitize.rownames.function=identity,
+      hline.after=0)
+print(xtable(printmod(mod6.dose_and_day.dose50, alpha_ix = 0:3, beta_ix =1:6),
+             digits=4,
+             caption = 'Estimates for effect of active $A_{1,t}$ and sedentary $A_{2,t}$ messages moderated by number of messages sent in the past 50 decision points as well as study day.'),
+      comment=F,table.placement='h!',
+      include.rownames=TRUE,sanitize.rownames.function=identity,
+      hline.after=0)
+print(xtable(printmod(mod6.dose_and_day.dose100, alpha_ix = 0:3, beta_ix =1:6),
+             digits=4,
+             caption = 'Estimates for effect of active $A_{1,t}$ and sedentary $A_{2,t}$ messages moderated by number of messages sent in the past 100 decision points as well as study day.'),
+      comment=F,table.placement='h!',
+      include.rownames=TRUE,sanitize.rownames.function=identity,
+      hline.after=0)
+cat('\\newpage')
+```
+
+\vspace{12pt}\phantom{abcalsdkjfalskdjflskdjf}
+
+# Histograms 
+
+\phantom{abcd}
+```{r, fig.width=6.5,fig.height=5,out.width='0.9\\textwidth'}
+suggest.analysis %>%
+  select(dose_sent_25points,study.day.nogap) %>%
+  melt(id='study.day.nogap') %>%
+  filter(study.day.nogap %in% c(0:5, 10,15,20,25,30,35,40)) %>%
+  mutate(study.day.nogap = factor(study.day.nogap, levels=sort(unique(study.day.nogap)),
+                                  labels=paste('Study day ',sort(unique(study.day.nogap)),sep=''))) %>%
+  ggplot() +
+  geom_histogram(aes(x=value,y=..density..),
+                 fill='white',color='black',
+                 bins=25) + 
+  facet_wrap(~study.day.nogap) + 
+  ptheme + theme(panel.grid.major=element_blank()) +
+  xlab('Num. notifications sent in previous 25 decision points')+
+  scale_y_continuous(breaks=c(0,0.4,0.8,1.2))
+```
+\phantom{abc}\vspace{12pt}\phantom{abc}
+```{r, fig.width=6.5,fig.height=5,out.width='0.9\\textwidth'}
+suggest.analysis %>%
+  select(dose_sent_35points,study.day.nogap) %>%
+  melt(id='study.day.nogap') %>%
+  filter(study.day.nogap %in% c(0:5, 10,15,20,25,30,35,40)) %>%
+  mutate(study.day.nogap = factor(study.day.nogap, levels=sort(unique(study.day.nogap)),
+                                  labels=paste('Study day ',sort(unique(study.day.nogap)),sep=''))) %>%
+  ggplot() +
+  geom_histogram(aes(x=value,y=..density..),
+                 fill='white',color='black',
+                 bins=25) + 
+  facet_wrap(~study.day.nogap) + 
+  ptheme + theme(panel.grid.major=element_blank()) +
+  xlab('Num. notifications sent in previous 35 decision points')+
+  scale_y_continuous(breaks=c(0,0.4,0.8,1.2))
+```
+
+
