@@ -100,7 +100,7 @@ suggest.analysis %>%
 ```
 
 
-```{r, echo=FALSE}
+```{r, cache=TRUE, echo=FALSE}
 mod6.day <-
   geeglm(
      jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
@@ -419,7 +419,7 @@ cat('\\newpage')
 
 **Model 6 with dose and $d(t)$ (study day)**
 
-```{r fit-models-with-dose-and-day}
+```{r fit-models-with-dose-and-day,cache=TRUE}
 mod6.dose_and_day.day <-
   geeglm(
     jbsteps30.log ~ jbsteps30pre.log + study.day.nogap +
@@ -619,19 +619,19 @@ mod2.dose_and_day.dose100 <-
 ```
 
 $\text{dose}_k(t)$ is the number of messages sent in the last $k$ decision points prior to decision point $t$.
-$$ 
-Y_{t+1} \sim \alpha_0+\alpha_1Z_t + \alpha_2 \text{dose}_k(t) + \alpha_3d(t) + 
+\begin{multline}
+Y_{t+1} \sim \alpha_0+\alpha_1Z_t + \alpha_2 \text{dose}_k(t) + \alpha_3d(t) +\\
 \beta_1(A_{1,t}-0.3) + 
-\beta_2(A_{2,t}-0.3)+
+\beta_2(A_{2,t}-0.3)+\\
 \beta_3(A_{1,t}-0.3)\text{dose}_k(t) + 
-\beta_4(A_{2,t}-0.3)\text{dose}_k(t) +
+\beta_4(A_{2,t}-0.3)\text{dose}_k(t) +\\
 \beta_5(A_{1,t} - 0.3)d(t) +
 \beta_6(A_{2,t} - 0.3)d(t)
-$$
+\end{multline}
 
-$\beta_3$: interaction between $\text{dose}_k(t)$ and active messages\\
-$\beta_4$: interaction between $\text{dose}_k(t)$ and sedentary messages\\
-$\beta_5$: interaction between study day $d(t)$ and active messages\\
+$\beta_3$: interaction between $\text{dose}_k(t)$ and active messages  
+$\beta_4$: interaction between $\text{dose}_k(t)$ and sedentary messages  
+$\beta_5$: interaction between study day $d(t)$ and active messages  
 $\beta_6$: interaction between study day $d(t)$ and sedentary messages
  
 ```{r print-models-day-and-dose, results='asis'}
@@ -709,10 +709,11 @@ cat('\\newpage')
 
 \vspace{12pt}\phantom{abcalsdkjfalskdjflskdjf}
 
+<!--
 # Histograms 
 
 \phantom{abcd}
-```{r, fig.width=6.5,fig.height=5,out.width='0.9\\textwidth'}
+```{r, fig.width=6.5,fig.height=5,out.width='0.9\\textwidth', fig.cap='Histogram of $\\text{dose}_k(t)$, number of messages sent in last $k=25$ decision points.'}
 suggest.analysis %>%
   select(dose_sent_25points,study.day.nogap) %>%
   melt(id='study.day.nogap') %>%
@@ -729,7 +730,7 @@ suggest.analysis %>%
   scale_y_continuous(breaks=c(0,0.4,0.8,1.2))
 ```
 \phantom{abc}\vspace{12pt}\phantom{abc}
-```{r, fig.width=6.5,fig.height=5,out.width='0.9\\textwidth'}
+```{r, fig.width=6.5,fig.height=5,out.width='0.9\\textwidth', include=FALSE, eval=FALSE}
 suggest.analysis %>%
   select(dose_sent_35points,study.day.nogap) %>%
   melt(id='study.day.nogap') %>%
@@ -746,4 +747,4 @@ suggest.analysis %>%
   scale_y_continuous(breaks=c(0,0.4,0.8,1.2))
 ```
 
-
+-->
