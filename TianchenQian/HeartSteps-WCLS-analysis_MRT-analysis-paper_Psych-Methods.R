@@ -1,6 +1,7 @@
 
 # Heartsteps data set
 # WCLS analysis using xgeepack.R (Boruvka's code)
+# (require to source("xgeepack.R"))
 
 # For the MRT analysis paper to be submitted to Psychology Methods
 
@@ -17,6 +18,10 @@
 # Update on 2019.09.23
 # - analyze the effect of send (an activity suggestion) vs no suggestion
 #   (previously was analyzing the effect of send.active (a walking suggestion) vs {anti-sendentary or no suggestion})
+
+# Update on 2019.09.26
+# - added Model 5.2, where location is formualted as 3 level (i.e., 2 indicators): home, work, or other places.
+
 
 
 # data loading and preprocessing is copied from Tianchen's code for LMM paper:
@@ -306,7 +311,9 @@ suggest.included$"I(send.active - 0.3)" <- suggest.included$send.active - 0.3
 suggest.included$"I(send.sedentary - 0.3)" <- suggest.included$send.sedentary - 0.3
 suggest.included$"I(send - 0.6)" <- suggest.included$send - 0.6
 
+##### check number of 0's in 30-min step count
 
+mean(suggest.included$jbsteps30 == 0, na.rm = TRUE) # 30% are 0's
 
 # Fit WCLS ----------------------------------------------------------------
 
@@ -415,6 +422,55 @@ ggsave(p, filename = paste0("plot/model-2.png"), width = 5, height = 3)
 # I(send - 0.6)                  0.50744  0.20086  0.81402  0.15051     11.37 0.00197 ** 
 # I(send - 0.6):study.day.nogap -0.01848 -0.03090 -0.00607  0.00610      9.19 0.00479 ** 
 
+
+## sensitivity analysis, by estimating a nonparametric curve of treatment effect for each day ##
+
+# > table(suggest.included$study.day.nogap)
+# 
+#   0   1   2   3   4   5   6   7   8   9  10  11  12  13  14  15  16  17  18  19  20  21  22  23  24  25  26  27  28  29  30  31  32  33  34  35  36  37 
+# 102 185 185 185 185 185 185 185 185 185 185 184 184 185 185 185 185 185 185 185 185 185 185 185 185 185 185 185 185 185 185 185 185 185 185 181 173 169 
+#  38  39  40  41 
+# 161 160 156 150 
+
+days <- 0:41
+tx <- rep(NA, length(days))
+tx_3day <- rep(NA, length(days))
+for (iday in 1:length(days)) {
+    day <- days[iday]
+    # called xymat instead of xmat because both x and y are from this matrix
+    xymat <- suggest.included %>%
+        filter(study.day.nogap == day) %>%
+        transmute("(Intercept)" = .$"(Intercept)",
+                  "jbsteps30pre.log" = .$"jbsteps30pre.log",
+                  "I(send - 0.6)" = .$"I(send - 0.6)",
+                  "jbsteps30.log" = .$"jbsteps30.log",
+                  "avail" = .$"avail",
+                  "user" = .$"user")
+    xymat <- as.data.frame(xymat)
+    fit_model_day <- geese.glm(x = as.matrix(xymat[, 1:3]),
+                                y = as.numeric(xymat[, 4]), w = as.numeric(xymat[, 5]), id = as.factor(as.vector(xymat[, 6])),
+                                family = gaussian(), corstr = "independence")
+    tx[iday] <- coef(fit_model_day)[3]
+    
+    if (!(iday %in% c(1, length(days)))) {
+        # calculate treatment effect averaged over consecutive 3 days
+        xymat <- suggest.included %>%
+            filter(study.day.nogap %in% c(day-1, day, day+1)) %>%
+            transmute("(Intercept)" = .$"(Intercept)",
+                      "jbsteps30pre.log" = .$"jbsteps30pre.log",
+                      "I(send - 0.6)" = .$"I(send - 0.6)",
+                      "jbsteps30.log" = .$"jbsteps30.log",
+                      "avail" = .$"avail",
+                      "user" = .$"user")
+        xymat <- as.data.frame(xymat)
+        fit_model_day <- geese.glm(x = as.matrix(xymat[, 1:3]),
+                                   y = as.numeric(xymat[, 4]), w = as.numeric(xymat[, 5]), id = as.factor(as.vector(xymat[, 6])),
+                                   family = gaussian(), corstr = "independence")
+        tx_3day[iday] <- coef(fit_model_day)[3]
+    }
+}
+plot(tx, type = "l")
+plot(tx_3day, type = "l")
 
 
 ##### Model 3. effect change with recent responsivity #####
@@ -609,6 +665,60 @@ estimate(fit_model5, combos = rbind(c(0, 0, 0, 1, 0), c(0, 0, 0, 1, 1)))
 #      Estimate 95% LCL 95% UCL      SE Hotelling p-value
 # [1,]   0.2109 -0.0471  0.4689  0.1267      2.77   0.106
 # [2,]   0.0682 -0.0413  0.1777  0.0867      0.62   0.292
+
+
+
+##### Model 5.2 effect moderated by location (home, work, or other) (3 levels) #####
+
+# Question 5: How does the effect of walking activity suggestions depend on the location of the individual?
+
+suggest.included$location.home <- (suggest.included$location.category == "home")
+suggest.included$location.work <- (suggest.included$location.category == "work")
+suggest.included$location.home[is.na(suggest.included$location.home)] <- 0
+suggest.included$location.work[is.na(suggest.included$location.work)] <- 0
+
+xmat <- suggest.included %>%
+    transmute("(Intercept)" = .$"(Intercept)",
+              "jbsteps30pre.log" = .$"jbsteps30pre.log",
+              "location.home" = .$"location.home",
+              "location.work" = .$"location.work",
+              "I(send - 0.6)" = .$"I(send - 0.6)",
+              "I(send - 0.6):location.home" = .$"I(send - 0.6)" * .$"location.home",
+              "I(send - 0.6):location.work" = .$"I(send - 0.6)" * .$"location.work")
+
+fit_model5.2 <- geese.glm(x = as.matrix(xmat),
+                        y = suggest.included$jbsteps30.log, w = suggest.included$avail, id = as.factor(suggest.included$user),
+                        family = gaussian(), corstr = "independence")
+estimate(fit_model5.2)
+
+output <- estimate(fit_model5.2)
+write.csv(round(output, 3), file = "output.csv")
+
+# > output
+#
+#                             Estimate 95% LCL 95% UCL      SE Hotelling p-value    
+# (Intercept)                   1.7103  1.4571  1.9635  0.1240   190.330  <1e-04 ***
+# jbsteps30pre.log              0.4148  0.3522  0.4775  0.0307   182.751  <1e-04 ***
+# location.home                 0.0871 -0.2017  0.3760  0.1414     0.379  0.5425    
+# location.work                 0.2815  0.0187  0.5442  0.1286     4.787  0.0366 *  
+# I(send - 0.6)                 0.0683 -0.1087  0.2452  0.0866     0.621  0.4370    
+# I(send - 0.6):location.home   0.1642 -0.1398  0.4683  0.1489     1.217  0.2788    
+# I(send - 0.6):location.work   0.0893 -0.5720  0.7507  0.3238     0.076  0.7846 
+
+
+estimate(fit_model5.2, combos = rbind(c(0, 0, 0, 0, 1, 0, 0),
+                                    c(0, 0, 0, 0, 1, 1, 0),
+                                    c(0, 0, 0, 0, 1, 0, 1)))
+
+# 1st row: treatment effect at other location
+# 2nd row: treatment effect at home
+# 3rd row: treatment effect at work
+#
+#      Estimate 95% LCL 95% UCL      SE Hotelling p-value    
+# [1,]   0.0683 -0.1087  0.2452  0.0866     0.621 0.43702    
+# [2,]   0.2325  0.0906  0.3743  0.1120     4.310 0.00092 ***
+# [3,]   0.1576 -0.2261  0.5413  0.3029     0.271 0.57739    
+
 
 
 
