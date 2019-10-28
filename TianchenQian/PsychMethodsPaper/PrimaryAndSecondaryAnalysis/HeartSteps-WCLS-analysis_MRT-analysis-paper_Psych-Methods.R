@@ -22,6 +22,12 @@
 # Update on 2019.09.26
 # - added Model 5.2, where location is formualted as 3 level (i.e., 2 indicators): home, work, or other places.
 
+# Update on 2019.10.10
+# - added Model 7, analyzing the moderation effect of send (activity suggestion) by previous day's planning
+
+# Update on 2019.10.27
+# - edited "estimate" function from xgeepack.R to output degrees-of-freedom.
+
 
 
 # data loading and preprocessing is copied from Tianchen's code for LMM paper:
@@ -292,6 +298,32 @@ if (DIAGNOSTIC_CODE) {
 # I need to check this with whoever that created those log-transformed variables to find out their rationale for imputing with zero.
 
 
+
+##### Add indicator of planning on the previous day to the suggest data set
+
+# summary(suggest.included$study.date)
+# summary(daily$study.date)
+
+for (i in 1:nrow(suggest.included)) {
+    if (i %% 100 == 0) {
+        cat(i, "")
+    }
+    row_index <- which((daily$study.date == suggest.included$study.date[i] - 1) & (daily$user == suggest.included$user[i]))
+    if (length(row_index) == 1) {
+        if (daily$planning[row_index] %in% c("structured", "unstructured")) {
+            suggest.included$planning_previousday[i] <- 1
+        } else {
+            suggest.included$planning_previousday[i] <- 0
+        }
+    } else if (length(row_index) == 0) { # planning indicator of previous day not found, likely because it is the first day of a user
+        suggest.included$planning_previousday[i] <- 0
+    } else {
+        stop("Multiple instances found in daily.")
+    }
+}
+
+
+
 ##### create variables for suggest.included
 
 suggest.included <- as_tibble(suggest.included)
@@ -321,6 +353,54 @@ mean(suggest.included$jbsteps30 == 0, na.rm = TRUE) # 30% are 0's
 library(geepack)
 source("xgeepack.R")
 
+# The following "estimate" function is copied from xgeepack.R,
+# and I added the degrees of freedom in the output table.
+estimate <- function(x, combos = NULL, omnibus = FALSE, null = 0,
+                     small = TRUE, conf.int = 0.95, normal = FALSE, ...) {
+    if (is.null(combos)) {
+        combos <- diag(length(coef(x)))
+        rownames(combos) <- names(coef(x))
+        omnibus <- FALSE
+    }
+    est <- combos %*% coef(x)
+    if (nrow(est) != length(null)) null <- rep(null[1], nrow(est))
+    ## apply Mancl and DeRouen's (2001) small sample correction
+    if (is.logical(small)) small <- small * 50
+    n <- cluster.number(x, overall = FALSE)
+    d1 <- if (omnibus) nrow(combos)
+    else apply(combos != 0, 1, sum)
+    d2 <- n - length(coef(x))
+    ## apply Hotelling's T-squared test, following Liao et al. (2016)
+    if (n <= small & !normal) {
+        type <- "Hotelling"
+        adj <- d1 * (d1 + d2 - 1) / d2
+        qfun <- function(p) mapply(qf, p = p, df1 = d1, df2 = d2) / adj
+        pfun <- function(q) 1 - mapply(pf, q = q * adj, df1 = d1, df2 = d2)
+    }
+    else {
+        type <- "Wald"
+        qfun <- if (normal) function(p) qnorm((1 + p) / 2)
+        else function(p) mapply(qf, p = p, df1 = d1, df2 = d2)
+        pfun <- if (normal) function(q) 1 - mapply(pchisq, q = q, df = d1)
+        else function(q) 1 - mapply(pf, q = q, df1 = d1, df2 = d2)
+    }
+    var.est <- combos %*% vcov(x, small = small, ...) %*% t(combos)
+    se.est <- sqrt(diag(var.est))
+    crit <- sqrt(qfun(conf.int))
+    lcl <- est - se.est * crit
+    ucl <- est + se.est * crit
+    stat <- if (omnibus) rep(t(est - null) %*% solve(var.est) %*% (est - null), d1)
+    else (est - null)^2 / diag(var.est)
+    pvalue <- pfun(stat)
+    out <- cbind(est, lcl, ucl, se.est, stat, d1, d2, pvalue)
+    rownames(out) <- rownames(combos)
+    colnames(out) <- c("Estimate",
+                       paste0(round(conf.int * 100), "% ", c("LCL", "UCL")),
+                       "SE", type, "df1", "df2", "p-value")
+    class(out) <- c("estimate", "matrix")
+    out
+}
+
 
 ##### Model 1. marginal effect #####
 
@@ -335,10 +415,10 @@ output <- estimate(fit_model1)
 write.csv(round(output, 3), file = "output.csv")
 
 # > output
-#                  Estimate  95% LCL  95% UCL       SE Hotelling p-value    
-# (Intercept)       1.78314  1.53732  2.02896  0.12096    217.31  <1e-04 ***
-# jbsteps30pre.log  0.41360  0.35116  0.47604  0.03072    181.21  <1e-04 ***
-# I(send - 0.6)     0.13120 -0.00576  0.26815  0.06739      3.79  0.0599 .  
+#                   Estimate   95% LCL   95% UCL        SE Hotelling       df1 df2 p-value    
+# (Intercept)        1.78314   1.53732   2.02896   0.12096 217.31012   1.00000  34  <1e-04 ***
+# jbsteps30pre.log   0.41360   0.35116   0.47604   0.03072 181.21118   1.00000  34  <1e-04 ***
+# I(send - 0.6)      0.13120  -0.00576   0.26815   0.06739   3.78979   1.00000  34  0.0599 .  
 
 if (DIAGNOSTIC_CODE) {
     # chech the treatment effect towards the end of the trial
@@ -415,12 +495,12 @@ dir.create("plot", showWarnings = FALSE, recursive = "TRUE")
 ggsave(p, filename = paste0("plot/model-2.png"), width = 5, height = 3)
 
 # > output
-#                               Estimate  95% LCL  95% UCL       SE Hotelling p-value    
-# (Intercept)                    2.00283  1.76518  2.24048  0.11667    294.69 < 1e-04 ***
-# jbsteps30pre.log               0.41200  0.35104  0.47295  0.02992    189.56 < 1e-04 ***
-# study.day.nogap               -0.01058 -0.02013 -0.00103  0.00469      5.09 0.03102 *  
-# I(send - 0.6)                  0.50744  0.20086  0.81402  0.15051     11.37 0.00197 ** 
-# I(send - 0.6):study.day.nogap -0.01848 -0.03090 -0.00607  0.00610      9.19 0.00479 ** 
+#                                Estimate   95% LCL   95% UCL        SE Hotelling       df1 df2 p-value    
+# (Intercept)                     2.00283   1.76518   2.24048   0.11667 294.69069   1.00000  32 < 1e-04 ***
+# jbsteps30pre.log                0.41200   0.35104   0.47295   0.02992 189.56395   1.00000  32 < 1e-04 ***
+# study.day.nogap                -0.01058  -0.02013  -0.00103   0.00469   5.09091   1.00000  32 0.03102 *  
+# I(send - 0.6)                   0.50744   0.20086   0.81402   0.15051  11.36666   1.00000  32 0.00197 ** 
+# I(send - 0.6):study.day.nogap  -0.01848  -0.03090  -0.00607   0.00610   9.19229   1.00000  32 0.00479 ** 
 
 
 ## sensitivity analysis, by estimating a nonparametric curve of treatment effect for each day ##
@@ -696,14 +776,14 @@ write.csv(round(output, 3), file = "output.csv")
 
 # > output
 #
-#                             Estimate 95% LCL 95% UCL      SE Hotelling p-value    
-# (Intercept)                   1.7103  1.4571  1.9635  0.1240   190.330  <1e-04 ***
-# jbsteps30pre.log              0.4148  0.3522  0.4775  0.0307   182.751  <1e-04 ***
-# location.home                 0.0871 -0.2017  0.3760  0.1414     0.379  0.5425    
-# location.work                 0.2815  0.0187  0.5442  0.1286     4.787  0.0366 *  
-# I(send - 0.6)                 0.0683 -0.1087  0.2452  0.0866     0.621  0.4370    
-# I(send - 0.6):location.home   0.1642 -0.1398  0.4683  0.1489     1.217  0.2788    
-# I(send - 0.6):location.work   0.0893 -0.5720  0.7507  0.3238     0.076  0.7846 
+#                             Estimate  95% LCL  95% UCL       SE Hotelling      df1 df2 p-value    
+# (Intercept)                   1.7103   1.4571   1.9635   0.1240  190.3298   1.0000  30  <1e-04 ***
+# jbsteps30pre.log              0.4148   0.3522   0.4775   0.0307  182.7510   1.0000  30  <1e-04 ***
+# location.home                 0.0871  -0.2017   0.3760   0.1414    0.3795   1.0000  30  0.5425    
+# location.work                 0.2815   0.0187   0.5442   0.1286    4.7868   1.0000  30  0.0366 *  
+# I(send - 0.6)                 0.0683  -0.1087   0.2452   0.0866    0.6206   1.0000  30  0.4370    
+# I(send - 0.6):location.home   0.1642  -0.1398   0.4683   0.1489    1.2167   1.0000  30  0.2788    
+# I(send - 0.6):location.work   0.0893  -0.5720   0.7507   0.3238    0.0761   1.0000  30  0.7846  
 
 
 estimate(fit_model5.2, combos = rbind(c(0, 0, 0, 0, 1, 0, 0),
@@ -788,3 +868,35 @@ estimate(fit_model8)
 
 output <- estimate(fit_model8)
 write.csv(round(output, 3), file = "output.csv")
+
+
+
+##### Model 7. effect moderated by planning on previous day #####
+
+# None of the following three analyses has a significant moderator effect
+
+# Question 9: How does the effect of the activity suggestion depend on whether the individual received a planning prompt on the previous day?
+
+xmat <- suggest.included %>%
+    transmute("(Intercept)" = .$"(Intercept)",
+              "jbsteps30pre.log" = .$"jbsteps30pre.log",
+              "planning_previousday" = .$"planning_previousday",
+              "I(send - 0.6)" = .$"I(send - 0.6)",
+              "I(send - 0.6):planning_previousday" = .$"I(send - 0.6)" * .$"planning_previousday")
+
+fit_model9 <- geese.glm(x = as.matrix(xmat),
+                        y = suggest.included$jbsteps30.log, w = suggest.included$avail, id = as.factor(suggest.included$user),
+                        family = gaussian(), corstr = "independence")
+estimate(fit_model9)
+
+output <- estimate(fit_model9)
+write.csv(round(output, 3), file = "output.csv")
+
+# > output
+#
+#                                    Estimate  95% LCL  95% UCL       SE Hotelling      df1 df2 p-value    
+# (Intercept)                          1.7642   1.5109   2.0174   0.1243  201.3204   1.0000  32  <1e-04 ***
+# jbsteps30pre.log                     0.4137   0.3509   0.4764   0.0308  180.5027   1.0000  32  <1e-04 ***
+# planning_previousday                 0.0499  -0.1055   0.2053   0.0763    0.4273   1.0000  32   0.518    
+# I(send - 0.6)                        0.1133  -0.0348   0.2614   0.0727    2.4290   1.0000  32   0.129    
+# I(send - 0.6):planning_previousday   0.0460  -0.2275   0.3196   0.1343    0.1175   1.0000  32   0.734    
